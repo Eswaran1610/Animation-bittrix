@@ -1,0 +1,13 @@
+{
+  "name": "ai-animation-pipeline",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "db:start": "bash database/start_pg.sh",
+    "db:stop": "bash database/stop_pg.sh",
+    "backend:dev": "cd backend && npm run dev",
+    "backend:build": "cd backend && npm run build",
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build"
+  }
+}

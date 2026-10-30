@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Database binary cluster
+database/pgdata/
+*.log
+
+# Build & bundle artifacts
+dist/
+build/
+*/dist/
+*/build/
+.remotion/
+*/.remotion/
+
+# Media output files (keep directories with .gitkeep)
+backend/media/previews/*.mp4
+backend/media/videos/*.mp4
+backend/media/audio/*.mp3
+backend/media/audio/*.wav
+backend/media/assets/*
+!backend/media/assets/.gitkeep
+remotion/public/audio/*
+!remotion/public/audio/.gitkeep
+remotion/public/assets/*
+!remotion/public/assets/.gitkeep
+
+# Environment variables
+.env
+backend/.env
+*/.env
+*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Remotion test renders
+remotion/out/
+*/out/

@@ -74,6 +74,20 @@ export class VideoRenderer {
     }
     console.log('[VideoRenderer] ffprobe format check passed: 1080x1920 at 30fps.');
 
+    // A Remotion render can produce a perfectly valid MP4 with no audible
+    // stream if an asset path was wrong. Refuse to publish that file instead
+    // of letting a silent final video reach the UI.
+    const { stdout: audioProbeOutput } = await execFileAsync('ffprobe', [
+      '-v', 'error', '-select_streams', 'a:0',
+      '-show_entries', 'stream=codec_name,channels,sample_rate,duration',
+      '-of', 'json', opts.outputPath,
+    ]);
+    const audioStream = JSON.parse(audioProbeOutput).streams?.[0];
+    if (!audioStream || Number(audioStream.channels) < 1 || Number(audioStream.duration || 0) <= 0) {
+      throw new Error('Final render audio check failed: no usable audio stream was encoded.');
+    }
+    console.log(`[VideoRenderer] ffprobe audio check passed: ${audioStream.codec_name}, ${audioStream.channels} channels, ${audioStream.sample_rate} Hz.`);
+
     const stillsScript = path.join(projectPaths.root, 'scripts', 'render-scene-stills.mjs');
     await execFileAsync(process.execPath, [stillsScript, opts.propsPath], {
       cwd: projectPaths.root,

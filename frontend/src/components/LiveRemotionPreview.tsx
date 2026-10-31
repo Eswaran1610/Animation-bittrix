@@ -10,7 +10,12 @@ interface LiveRemotionPreviewProps {
 const mediaUrl = (value?: string): string | undefined => {
   if (!value) return undefined;
   if (/^(https?:|blob:|data:)/i.test(value) || value.startsWith('/')) return value;
-  return `/media/${value.replace(/^\/+/, '')}`;
+  const clean = value.replace(/^\/+/, '');
+  // Render props use Remotion-public paths. The browser preview uses the
+  // backend media mount, where generated audio lives under /media/audio and
+  // the procedural SFX library lives under /media/audio/sfx.
+  if (clean.startsWith('sfx/')) return `/media/audio/${clean}`;
+  return `/media/${clean}`;
 };
 
 const buildFallbackCaptions = (text: string, durationInFrames: number): CaptionWord[] => {
@@ -45,10 +50,12 @@ const preparePlayerProps = (rawProps: unknown): SceneDataPayload => {
     video: {
       ...source.video,
       audioUrl: mediaUrl(source.video.audioUrl),
+      backgroundAudioUrl: mediaUrl(source.video.backgroundAudioUrl),
       captions,
     },
     scenes: source.scenes.map((scene) => ({
       ...scene,
+      narrationAudio: mediaUrl(scene.narrationAudio),
       image_url: mediaUrl(scene.image_url),
       image_assets: scene.image_assets
         ? Object.fromEntries(Object.entries(scene.image_assets).map(([query, path]) => [query, mediaUrl(path)])) as Record<string, string>

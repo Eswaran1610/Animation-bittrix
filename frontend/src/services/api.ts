@@ -1,11 +1,25 @@
 import { Project, ProjectDetail, Script, Approval, RenderJob, VideoRecord } from '../types';
 
-const API_BASE = 'http://localhost:5000/api';
+// Use Vite's same-origin proxy in development so browser requests do not
+// depend on direct cross-origin access to the backend port.
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export const api = {
   async getHealth() {
     const res = await fetch(`${API_BASE}/health`);
     return res.json();
+  },
+
+  async getAgyUsage() {
+    const res = await fetch(`${API_BASE}/usage/agy`);
+    if (!res.ok) throw new Error('Failed to fetch AGY usage');
+    return res.json() as Promise<{
+      input_tokens: number;
+      output_tokens: number;
+      total_tokens: number;
+      run_count: number;
+      estimated: boolean;
+    }>;
   },
 
   async listProjects(): Promise<Project[]> {
@@ -79,7 +93,7 @@ export const api = {
     return res.json();
   },
 
-  async revisePreview(projectId: string, feedback: string): Promise<RenderJob> {
+  async revisePreview(projectId: string, feedback: string): Promise<Script> {
     const res = await fetch(`${API_BASE}/projects/${projectId}/previews/revise`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -37,6 +37,11 @@ export interface Project {
   current_preview_version: number;
   created_at: string;
   updated_at: string;
+  agy_total_tokens?: number | string;
+  agy_input_tokens?: number | string;
+  agy_output_tokens?: number | string;
+  agy_run_count?: number | string;
+  agy_usage_estimated?: boolean;
 }
 
 export interface ScriptSource {
@@ -97,6 +102,7 @@ export interface RenderJob {
 export interface VideoRecord {
   id: string;
   project_id: string;
+  project_title?: string;
   render_job_id?: string;
   storage_url: string;
   preview_version_approved: number;
@@ -107,10 +113,28 @@ export interface VideoRecord {
   created_at: string;
 }
 
+export interface AgentRun {
+  id: string;
+  provider: string;
+  task: string;
+  project_id: string;
+  input_references: Record<string, unknown>;
+  output_references: Record<string, unknown>;
+  execution_metadata: {
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+    estimated?: boolean;
+    source?: string;
+  };
+  created_at: string;
+}
+
 export interface ProjectDetail {
   project: Project;
   scripts: Script[];
   approvals: Approval[];
   renderJobs: RenderJob[];
   videos: VideoRecord[];
+  agentRuns: AgentRun[];
 }

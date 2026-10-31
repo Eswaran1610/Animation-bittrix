@@ -1,4 +1,12 @@
-import { ScriptSource, ScenePlanItem } from '../../types/index.js';
+import { ScriptSource, ScenePlanItem, StyleProfile } from '../../types/index.js';
+
+export interface TokenUsage {
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+  estimated: boolean;
+  source: 'agy' | 'estimated';
+}
 
 export interface ResearchAndScriptRequest {
   projectId: string;
@@ -16,8 +24,10 @@ export interface ResearchAndScriptResult {
   factCheckNotes: string;
   narration: string;
   scenePlan: ScenePlanItem[];
+  styleProfile: StyleProfile;
   searchStatus: 'active' | 'unavailable' | 'cached';
   providerName: string;
+  tokenUsage: TokenUsage;
 }
 
 export interface AnimationCodeRequest {

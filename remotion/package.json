@@ -2,9 +2,13 @@
   "name": "animation-pipeline-remotion",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "preview": "remotion preview src/index.ts",
-    "render": "remotion render src/index.ts MainComposition out/video.mp4"
+    "render": "remotion render src/index.ts MainComposition out/video.mp4",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@remotion/bundler": "^4.0.539",

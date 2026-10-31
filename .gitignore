@@ -19,6 +19,9 @@ backend/media/previews/*.mp4
 backend/media/videos/*.mp4
 backend/media/audio/*.mp3
 backend/media/audio/*.wav
+backend/media/audio/**/*.mp3
+backend/media/audio/**/*.wav
+backend/media/render-data/*.json
 backend/media/assets/*
 !backend/media/assets/.gitkeep
 remotion/public/audio/*

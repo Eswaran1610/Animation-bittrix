@@ -37,7 +37,22 @@ export class ProjectsService {
    * List all projects.
    */
   async listProjects(): Promise<Project[]> {
-    const res = await query(`SELECT * FROM projects ORDER BY updated_at DESC`);
+    const res = await query(`
+      SELECT p.*,
+        COALESCE((SELECT SUM(CASE WHEN ar.execution_metadata->>'total_tokens' ~ '^[0-9]+$'
+          THEN (ar.execution_metadata->>'total_tokens')::bigint ELSE 0 END)
+          FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'agy'), 0)::bigint AS agy_total_tokens,
+        COALESCE((SELECT SUM(CASE WHEN ar.execution_metadata->>'input_tokens' ~ '^[0-9]+$'
+          THEN (ar.execution_metadata->>'input_tokens')::bigint ELSE 0 END)
+          FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'agy'), 0)::bigint AS agy_input_tokens,
+        COALESCE((SELECT SUM(CASE WHEN ar.execution_metadata->>'output_tokens' ~ '^[0-9]+$'
+          THEN (ar.execution_metadata->>'output_tokens')::bigint ELSE 0 END)
+          FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'agy'), 0)::bigint AS agy_output_tokens,
+        (SELECT COUNT(*)::int FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'agy') AS agy_run_count,
+        COALESCE((SELECT BOOL_OR(COALESCE((ar.execution_metadata->>'estimated')::boolean, true))
+          FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'agy'), false) AS agy_usage_estimated
+      FROM projects p ORDER BY p.updated_at DESC
+    `);
     return res.rows;
   }
 
@@ -54,6 +69,7 @@ export class ProjectsService {
     const approvalsRes = await query(`SELECT * FROM approvals WHERE project_id = $1 ORDER BY created_at DESC`, [id]);
     const renderJobsRes = await query(`SELECT * FROM render_jobs WHERE project_id = $1 ORDER BY created_at DESC`, [id]);
     const videosRes = await query(`SELECT * FROM videos WHERE project_id = $1 ORDER BY created_at DESC`, [id]);
+    const agentRunsRes = await query(`SELECT * FROM agent_runs WHERE project_id = $1 ORDER BY created_at DESC`, [id]);
 
     return {
       project: projectRes.rows[0],
@@ -61,6 +77,7 @@ export class ProjectsService {
       approvals: approvalsRes.rows,
       renderJobs: renderJobsRes.rows,
       videos: videosRes.rows,
+      agentRuns: agentRunsRes.rows,
     };
   }
 

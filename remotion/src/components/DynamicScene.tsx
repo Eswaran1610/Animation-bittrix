@@ -1,43 +1,16 @@
 import React from 'react';
 import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
-import {
-  KineticTitle,
-  OrbitalRings,
-  NetworkNodes,
-  MetricBar,
-  DynamicDiagram,
-  AssetImageCard,
-  KineticTakeawayList,
-  DynamicNode
-} from './MotionElements';
-
-export interface SceneData {
-  id: string;
-  scene_number: number;
-  title: string;
-  on_screen_text: string;
-  subtitle?: string;
-  key_takeaways?: string[];
-  concept_nodes?: DynamicNode[];
-  metric_data?: {
-    label: string;
-    value: number;
-    unit: string;
-  };
-  visual_direction?: string;
-  duration_sec: number;
-  durationInFrames: number;
-  visualType?: 'orbital' | 'network' | 'metric' | 'headline' | 'diagram';
-  themeColor?: string;
-  narration?: string;
-  image_url?: string;
-}
+import { KineticTitle, KineticTakeawayList } from './MotionElements';
+import { BlueprintVisual } from './BlueprintVisual';
+import { WebsiteVisitVisual } from './WebsiteVisitVisual';
+import { SceneData, StyleProfile } from '../data/sceneTypes';
 
 export const DynamicScene: React.FC<{
   scene: SceneData;
   index: number;
   totalScenes: number;
-}> = ({ scene, index, totalScenes }) => {
+  styleProfile?: StyleProfile;
+}> = ({ scene, index, totalScenes, styleProfile }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
 
@@ -49,11 +22,10 @@ export const DynamicScene: React.FC<{
     { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
   );
 
-  const color = scene.themeColor || (index % 3 === 0 ? '#38bdf8' : index % 3 === 1 ? '#fbbf24' : '#34d399');
-  const visualType = scene.visualType || (index === 0 ? 'headline' : index === 1 ? 'diagram' : index === 2 ? 'network' : 'metric');
+  const color = scene.themeColor;
 
   // Clean, readable subtitle without dumping raw direction paragraphs
-  const cleanSubtitle = scene.subtitle || (scene.narration ? (scene.narration.length > 90 ? scene.narration.slice(0, 87) + '...' : scene.narration) : '');
+  const cleanSubtitle = scene.subtitle;
 
   return (
     <AbsoluteFill style={{
@@ -62,43 +34,47 @@ export const DynamicScene: React.FC<{
       flexDirection: 'column',
       justifyContent: 'center',
       alignItems: 'center',
-      backgroundColor: '#05070f',
+      backgroundColor: styleProfile?.background || '#05070f',
       overflow: 'hidden'
     }}>
       {/* Background Animated Atmosphere */}
       <div style={{
         position: 'absolute',
         inset: 0,
-        backgroundImage: `radial-gradient(circle at 50% 50%, ${color}15 0%, transparent 65%)`
+        backgroundImage: `radial-gradient(circle at 50% 50%, ${(styleProfile?.primary || color)}22 0%, transparent 65%)`,
+        opacity: styleProfile?.family === 'editorial-paper' ? 0.35 : 1
       }} />
 
       {/* Render Dynamic Motion Element based on Topic-Specific Plan */}
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {visualType === 'orbital' && <OrbitalRings color={color} />}
-        {visualType === 'network' && <NetworkNodes color={color} nodes={scene.concept_nodes} />}
-        {visualType === 'metric' && (
-          <MetricBar
-            color={color}
-            label={scene.metric_data?.label || 'EFFICIENCY METRIC'}
-            value={scene.metric_data?.value || 92}
-            unit={scene.metric_data?.unit || '%'}
-          />
-        )}
-        {visualType === 'diagram' && <DynamicDiagram color={color} title={scene.title} />}
-        {scene.image_url && <AssetImageCard imageUrl={scene.image_url} color={color} label={scene.title} />}
+      <div style={{
+        position: 'absolute',
+        top: '28px',
+        right: '54px',
+        bottom: '390px',
+        left: '54px',
+        overflow: 'hidden',
+        transform: 'translateY(-12px)'
+      }}>
+        {scene.visualBlueprint?.website_view
+          ? <WebsiteVisitVisual view={scene.visualBlueprint.website_view} accent={color} imageAssets={scene.image_assets} styleProfile={styleProfile} />
+          : scene.visualBlueprint && <BlueprintVisual blueprint={scene.visualBlueprint} imageAssets={scene.image_assets} />}
       </div>
 
       {/* Hero Kinetic Typography */}
       <div style={{
+        position: 'absolute',
+        left: '72px',
+        right: '72px',
+        bottom: '42px',
         zIndex: 10,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        marginTop: (visualType === 'headline' || (!scene.image_url && visualType !== 'diagram')) ? '0' : '290px'
+        maxHeight: '330px'
       }}>
         <KineticTitle
-          badge={`Scene 0${scene.scene_number || index + 1} of 0${totalScenes} • ${scene.title || 'Concept'}`}
-          title={scene.on_screen_text || 'Key Concept'}
+          badge={`Scene ${String(scene.scene_number).padStart(2, '0')} of ${String(totalScenes).padStart(2, '0')} • ${scene.title}`}
+          title={scene.on_screen_text}
           subtitle={cleanSubtitle}
           color={color}
           delayFrames={5}

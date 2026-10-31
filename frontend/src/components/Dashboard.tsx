@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Project } from '../types';
-import { Sparkles, Plus, Clock, FileText, Play, Trash2, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Sparkles, Plus, Clock, FileText, Play, Trash2, ArrowRight, CheckCircle2, AlertCircle, Cpu } from 'lucide-react';
 
 interface DashboardProps {
   projects: Project[];
@@ -22,6 +22,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [projectTitle, setProjectTitle] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const totalAgyTokens = projects.reduce((sum, project) => sum + Number(project.agy_total_tokens || 0), 0);
+  const totalAgyRuns = projects.reduce((sum, project) => sum + Number(project.agy_run_count || 0), 0);
+  const hasEstimatedUsage = projects.some((project) => project.agy_usage_estimated);
+  const formatTokens = (value: number) => new Intl.NumberFormat().format(value);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,6 +167,25 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </form>
       </div>
 
+      {/* AGY Usage Summary */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '36px' }}>
+        <div className="glass-panel" style={{ padding: '18px 20px' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>AGY Tokens Used</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginTop: '8px' }}>
+            <Cpu size={20} color="var(--accent-blue)" />
+            <strong style={{ fontSize: '25px' }}>{formatTokens(totalAgyTokens)}</strong>
+          </div>
+          <div style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '5px' }}>
+            {hasEstimatedUsage ? 'Includes estimated runs until AGY reports native usage' : 'Reported by AGY process'}
+          </div>
+        </div>
+        <div className="glass-panel" style={{ padding: '18px 20px' }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>AGY Runs</div>
+          <strong style={{ display: 'block', fontSize: '25px', marginTop: '8px' }}>{formatTokens(totalAgyRuns)}</strong>
+          <div style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '5px' }}>Script and revision generations</div>
+        </div>
+      </div>
+
       {/* Projects List */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
@@ -244,6 +267,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <span>
                       <Play size={13} style={{ verticalAlign: '-2px', marginRight: '4px' }} />
                       Preview v{proj.current_preview_version || 0}
+                    </span>
+                    <span title={proj.agy_usage_estimated ? 'Estimated from AGY input/output size' : 'Reported by AGY'}>
+                      <Cpu size={13} style={{ verticalAlign: '-2px', marginRight: '4px' }} />
+                      AGY {formatTokens(Number(proj.agy_total_tokens || 0))} tokens{proj.agy_usage_estimated ? ' ~' : ''}
                     </span>
                   </div>
                 </div>

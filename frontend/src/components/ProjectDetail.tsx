@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ProjectDetail as IProjectDetail } from '../types';
 import { api } from '../services/api';
 import { 
@@ -44,7 +44,20 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
   const isCurrentPreviewApproved = currentPreviewVer > 0 && !!previewApproval;
 
   const latestPreviewJob = renderJobs.find((j) => j.render_type === 'preview');
+  const latestPreviewUrl = latestPreviewJob?.output_location
+    ? `${latestPreviewJob.output_location}${latestPreviewJob.output_location.includes('?') ? '&' : '?'}render_job=${latestPreviewJob.id}`
+    : undefined;
   const finalVideo = videos[0];
+
+  useEffect(() => {
+    if (!latestPreviewJob || latestPreviewJob.status === 'completed' || latestPreviewJob.status === 'failed') {
+      return;
+    }
+    const refreshTimer = window.setInterval(() => {
+      void onRefresh();
+    }, 2000);
+    return () => window.clearInterval(refreshTimer);
+  }, [latestPreviewJob?.id, latestPreviewJob?.status]);
 
   // Actions
   const handleApproveScript = async () => {
@@ -115,9 +128,11 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
     }
     setIsSubmittingPreviewAction(true);
     try {
-      await api.revisePreview(project.id, previewFeedback);
+      const revisedScript = await api.revisePreview(project.id, previewFeedback);
       setPreviewFeedback('');
       await onRefresh();
+      setSelectedScriptVer(revisedScript.version);
+      setActiveTab('script');
     } catch (err: any) {
       alert(`Preview correction error: ${err.message}`);
     } finally {
@@ -506,7 +521,15 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                 </span>
               </div>
 
-              {isCurrentPreviewApproved ? (
+              {latestPreviewJob && latestPreviewJob.status !== 'completed' && latestPreviewJob.status !== 'failed' ? (
+                <span className="badge badge-rendering">
+                  <RefreshCw size={12} /> Rendering preview ({latestPreviewJob.progress}%)
+                </span>
+              ) : latestPreviewJob?.status === 'failed' ? (
+                <span className="badge badge-review">
+                  <AlertCircle size={12} /> Preview render failed
+                </span>
+              ) : isCurrentPreviewApproved ? (
                 <span className="badge badge-approved">
                   <CheckCircle2 size={12} /> Gate 2 Approved
                 </span>
@@ -537,6 +560,28 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                   Approve the script in Gate 1 first to trigger preview rendering.
                 </p>
               </div>
+            ) : latestPreviewJob?.status !== 'completed' ? (
+              <div style={{
+                background: '#090d16',
+                border: '2px dashed var(--border-color)',
+                borderRadius: '12px',
+                height: '360px',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: latestPreviewJob?.status === 'failed' ? '#fca5a5' : 'var(--text-muted)'
+              }}>
+                <RefreshCw size={40} style={{ opacity: 0.6, marginBottom: '12px' }} />
+                <p style={{ fontSize: '15px' }}>
+                  {latestPreviewJob?.status === 'failed' ? 'Preview render failed.' : 'Preview is rendering...'}
+                </p>
+                {latestPreviewJob?.errors && (
+                  <p style={{ fontSize: '12px', marginTop: '8px', maxWidth: '80%', textAlign: 'center' }}>
+                    {latestPreviewJob.errors}
+                  </p>
+                )}
+              </div>
             ) : (
               <div>
                 {/* Real HTML5 Video Player */}
@@ -549,7 +594,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                   marginBottom: '16px'
                 }}>
                   <video
-                    key={latestPreviewJob?.output_location || 'preview-video'}
+                    key={latestPreviewUrl || 'preview-video'}
                     controls
                     autoPlay
                     playsInline
@@ -559,7 +604,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                       display: 'block'
                     }}
                   >
-                    <source src={latestPreviewJob?.output_location} type="video/mp4" />
+                    <source src={latestPreviewUrl} type="video/mp4" />
                     Your browser does not support HTML5 video playback.
                   </video>
                 </div>
@@ -573,9 +618,9 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                   color: 'var(--text-muted)'
                 }}>
                   <span>Preview Version: <strong>v{currentPreviewVer}</strong> (Script v{project.current_script_version})</span>
-                  {latestPreviewJob?.output_location && (
+                  {latestPreviewUrl && (
                     <a
-                      href={latestPreviewJob.output_location}
+                      href={latestPreviewUrl}
                       target="_blank"
                       rel="noreferrer"
                       className="btn btn-secondary"
@@ -613,6 +658,10 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                     Approved on {new Date(previewApproval?.created_at || '').toLocaleDateString()}. Final rendering is now authorized.
                   </div>
                 </div>
+              ) : latestPreviewJob?.status !== 'completed' ? (
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                  Gate 2 approval will be available when the preview render completes.
+                </p>
               ) : currentPreviewVer > 0 ? (
                 <div style={{ marginBottom: '16px' }}>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px', lineHeight: '1.4' }}>
@@ -659,7 +708,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                 Request Visual Corrections
               </h4>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: '1.4' }}>
-                Note: Rule #7 strictly preserves approved narration. Changes only update animation code and render a new preview version (v{currentPreviewVer + 1}).
+                AGY will preserve the approved narration, regenerate the visual plan from your feedback, and return it to Gate 1 for approval before a new preview is rendered.
               </p>
               <textarea
                 className="input-textarea"

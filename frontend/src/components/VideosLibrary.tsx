@@ -1,6 +1,6 @@
 import React from 'react';
 import { VideoRecord } from '../types';
-import { Video, Play, Download, Calendar } from 'lucide-react';
+import { Video, Download, Calendar } from 'lucide-react';
 
 interface VideosLibraryProps {
   videos: VideoRecord[];
@@ -41,18 +41,23 @@ export const VideosLibrary: React.FC<VideosLibraryProps> = ({ videos, onOpenProj
               <div>
                 <div style={{
                   background: '#090d16',
-                  height: '180px',
                   borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  overflow: 'hidden',
                   marginBottom: '16px',
                   border: '1px solid var(--border-color)'
                 }}>
-                  <Play size={48} color="#10b981" />
+                  <video
+                    src={vid.storage_url}
+                    controls
+                    preload="metadata"
+                    playsInline
+                    style={{ width: '100%', height: '180px', display: 'block', objectFit: 'contain' }}
+                  >
+                    Your browser does not support HTML5 video playback.
+                  </video>
                 </div>
                 <h4 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '6px' }}>
-                  Video #{vid.id.slice(0, 8)}
+                  {vid.project_title || 'Untitled animation'}
                 </h4>
                 <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '14px' }}>
                   Approved Script v{vid.script_version_approved} • Approved Preview v{vid.preview_version_approved}
@@ -70,6 +75,15 @@ export const VideosLibrary: React.FC<VideosLibraryProps> = ({ videos, onOpenProj
                 >
                   View Project
                 </button>
+                <a
+                  href={vid.storage_url}
+                  download
+                  className="btn btn-primary"
+                  style={{ padding: '6px 12px', fontSize: '12px', textDecoration: 'none' }}
+                  aria-label={`Download ${vid.project_title || 'video'}`}
+                >
+                  <Download size={13} /> Download
+                </a>
               </div>
             </div>
           ))}

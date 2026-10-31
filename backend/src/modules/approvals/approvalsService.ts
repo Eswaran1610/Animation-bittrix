@@ -18,7 +18,14 @@ export class ApprovalsService {
    * Record human approval for a script version (Gate 1).
    */
   async approveScript(projectId: string, scriptId?: string, versionNumber = 1, approvedBy = 'human_reviewer', feedbackNotes?: string): Promise<Approval> {
-    const validScriptId = (scriptId && /^[0-9a-fA-F-]{36}$/.test(scriptId)) ? scriptId : null;
+    const scriptRes = await query(
+      `SELECT id FROM scripts WHERE project_id = $1 AND version = $2`,
+      [projectId, versionNumber]
+    );
+    if (scriptRes.rows.length === 0) throw new Error('Cannot approve a script version that does not exist.');
+    const validScriptId = scriptId && scriptId !== scriptRes.rows[0].id
+      ? (() => { throw new Error('Approval does not match the selected script version.'); })()
+      : scriptRes.rows[0].id;
 
     const res = await query(
       `INSERT INTO approvals (project_id, approval_type, approved_version_id, version_number, approved_by, feedback_notes)
@@ -54,7 +61,16 @@ export class ApprovalsService {
    * Record human approval for the exact current preview version (Gate 2).
    */
   async approvePreview(projectId: string, renderJobId?: string, previewVersion = 1, approvedBy = 'human_reviewer', feedbackNotes?: string): Promise<Approval> {
-    const validJobId = (renderJobId && /^[0-9a-fA-F-]{36}$/.test(renderJobId)) ? renderJobId : null;
+    const renderRes = await query(
+      `SELECT id FROM render_jobs
+       WHERE project_id = $1 AND render_type = 'preview' AND preview_version = $2 AND status = 'completed'
+       ORDER BY created_at DESC LIMIT 1`,
+      [projectId, previewVersion]
+    );
+    if (renderRes.rows.length === 0) throw new Error('Cannot approve a preview that was not rendered successfully.');
+    const validJobId = renderJobId && renderJobId !== renderRes.rows[0].id
+      ? (() => { throw new Error('Approval does not match the selected preview version.'); })()
+      : renderRes.rows[0].id;
 
     // Record explicit approval
     const res = await query(

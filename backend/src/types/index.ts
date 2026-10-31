@@ -37,6 +37,28 @@ export interface Project {
   current_preview_version: number;
   created_at: string;
   updated_at: string;
+  agy_total_tokens?: number;
+  agy_input_tokens?: number;
+  agy_output_tokens?: number;
+  agy_run_count?: number;
+  agy_usage_estimated?: boolean;
+}
+
+export interface AgentRun {
+  id: string;
+  provider: string;
+  task: string;
+  project_id: string;
+  input_references: Record<string, unknown>;
+  output_references: Record<string, unknown>;
+  execution_metadata: {
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+    estimated?: boolean;
+    source?: string;
+  };
+  created_at: string;
 }
 
 export interface ScriptSource {
@@ -45,12 +67,96 @@ export interface ScriptSource {
   note?: string;
 }
 
+export type BlueprintRenderSpec = {
+  type: 'vector' | 'image' | 'text' | '3d';
+  primitive?: 'sphere' | 'cube' | 'torus' | 'cylinder' | 'molecule';
+  viewBox?: [number, number, number, number];
+  paths?: Array<{ d: string; fill?: string; stroke?: string; strokeWidth?: number; opacity?: number }>;
+  circles?: Array<{ cx: number; cy: number; r: number; fill?: string; stroke?: string; strokeWidth?: number; opacity?: number }>;
+  rects?: Array<{ x: number; y: number; width: number; height: number; rx?: number; fill?: string; stroke?: string; strokeWidth?: number; opacity?: number }>;
+  lines?: Array<{ x1: number; y1: number; x2: number; y2: number; stroke?: string; strokeWidth?: number; dash?: string; opacity?: number }>;
+  polygons?: Array<{ points: string; fill?: string; stroke?: string; strokeWidth?: number; opacity?: number }>;
+  text?: string;
+  asset_query?: string | null;
+};
+
+export interface BlueprintObject {
+  id: string;
+  label?: string;
+  detail?: string;
+  x: number;
+  y: number;
+  scale?: number;
+  rotation?: number;
+  color?: string;
+  to_x?: number;
+  to_y?: number;
+  motion?: string;
+  render_spec: BlueprintRenderSpec;
+}
+
+export interface WebsitePanel {
+  title: string;
+  body: string;
+  accent: string;
+}
+
+export interface WebsiteView {
+  url: string;
+  route: string;
+  section: string;
+  layout_variant: 'hero' | 'about-grid' | 'product-split' | 'contact';
+  nav_items: string[];
+  hero_label: string;
+  hero_heading: string;
+  hero_body: string;
+  panels: WebsitePanel[];
+  cta: string;
+}
+
+export type VisualStyleFamily = 'cinematic-neon' | 'editorial-paper' | 'playful-pop' | 'technical-terminal' | 'documentary-grid';
+
+export interface StyleProfile {
+  family: VisualStyleFamily;
+  motif: string;
+  background: string;
+  surface: string;
+  text: string;
+  primary: string;
+  secondary: string;
+  motion_language: string;
+  transition_language: string;
+}
+
+export interface VisualBlueprint {
+  purpose: string;
+  layout: string;
+  camera_motion: string;
+  asset_queries: string[];
+  objects: BlueprintObject[];
+  website_view?: WebsiteView;
+}
+
 export interface ScenePlanItem {
   scene_number: number;
   duration_sec: number;
   on_screen_text: string;
+  subtitle: string;
   visual_direction: string;
+  visual_type: 'blueprint';
+  theme_color: string;
+  motion_cue: string;
+  continuity_to_next: string;
+  narration: string;
+  key_takeaways?: string[];
+  concept_nodes?: Array<{ label: string; sub?: string }>;
+  metric_data?: { label: string; value: number; unit: string } | null;
+  image_search_query?: string | null;
+  motion?: Array<Record<string, unknown>>;
+  continuity_from_previous?: string;
   asset_suggestions?: string;
+  visual_blueprint?: VisualBlueprint;
+  style_profile?: StyleProfile;
 }
 
 export interface Script {
@@ -97,6 +203,7 @@ export interface RenderJob {
 export interface VideoRecord {
   id: string;
   project_id: string;
+  project_title?: string;
   render_job_id?: string;
   storage_url: string;
   preview_version_approved: number;

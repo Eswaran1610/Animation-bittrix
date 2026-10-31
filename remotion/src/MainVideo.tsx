@@ -1,12 +1,12 @@
 import React from 'react';
 import { AbsoluteFill, Sequence, Audio, staticFile } from 'remotion';
-import sceneData from './data/scene-data.json';
-import { DynamicScene, SceneData } from './components/DynamicScene';
+import { DynamicScene } from './components/DynamicScene';
+import { SceneDataPayload } from './data/sceneTypes';
 
-export const MainVideo: React.FC = () => {
-  const scenes = (sceneData.scenes || []) as SceneData[];
-  const fps = sceneData.video?.fps || 30;
-  const audioUrl = (sceneData.video as any)?.audioUrl;
+export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData }) => {
+  const scenes = sceneData.scenes;
+  const fps = sceneData.video.fps;
+  const audioUrl = sceneData.video.audioUrl;
 
   let currentOffset = 0;
 
@@ -19,7 +19,7 @@ export const MainVideo: React.FC = () => {
 
       {scenes.map((scene, idx) => {
         const startFrame = currentOffset;
-        const durationFrames = scene.durationInFrames || (scene.duration_sec ? scene.duration_sec * fps : 120);
+        const durationFrames = scene.durationInFrames;
         currentOffset += durationFrames;
 
         return (
@@ -28,10 +28,16 @@ export const MainVideo: React.FC = () => {
             from={startFrame}
             durationInFrames={durationFrames}
           >
+            {scene.audioCues?.map((cue, cueIndex) => (
+              <Sequence key={`${scene.id}-cue-${cueIndex}`} from={cue.frame} durationInFrames={Math.max(1, durationFrames - cue.frame)}>
+                <Audio src={staticFile(cue.src)} volume={cue.volume ?? 0.7} />
+              </Sequence>
+            ))}
             <DynamicScene
               scene={scene}
               index={idx}
               totalScenes={scenes.length}
+              styleProfile={sceneData.video.styleProfile}
             />
           </Sequence>
         );

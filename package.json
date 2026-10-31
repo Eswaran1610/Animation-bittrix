@@ -3,11 +3,18 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "db:start": "bash database/start_pg.sh",
-    "db:stop": "bash database/stop_pg.sh",
-    "backend:dev": "cd backend && npm run dev",
-    "backend:build": "cd backend && npm run build",
-    "frontend:dev": "cd frontend && npm run dev",
-    "frontend:build": "cd frontend && npm run build"
+    "install:all": "npm --prefix backend ci && npm --prefix frontend ci && npm --prefix remotion ci",
+    "db:start": "node scripts/db.mjs start",
+    "db:stop": "node scripts/db.mjs stop",
+    "db:status": "node scripts/db.mjs status",
+    "backend:dev": "npm --prefix backend run dev",
+    "backend:build": "npm --prefix backend run build",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build",
+    "remotion:typecheck": "npm --prefix remotion run typecheck",
+    "build": "npm run backend:build && npm run frontend:build && npm run remotion:typecheck"
+  },
+  "engines": {
+    "node": ">=20.19.0"
   }
 }

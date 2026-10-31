@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, Cpu, Database, CheckCircle2, Clock } from 'lucide-react';
+import { ShieldCheck, Cpu, Database, CheckCircle2, Clock, LogIn } from 'lucide-react';
 
 export const SettingsModal: React.FC = () => {
   return (
@@ -11,6 +11,22 @@ export const SettingsModal: React.FC = () => {
         <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px' }}>
           Provider credentials and keys reside securely on the backend worker. Remotion is integrated by default without requiring third-party accounts.
         </p>
+
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          background: 'rgba(56, 189, 248, 0.08)',
+          border: '1px solid rgba(56, 189, 248, 0.25)',
+          borderRadius: '8px',
+          padding: '12px 14px',
+          marginBottom: '24px',
+          fontSize: '13px',
+          color: 'var(--text-secondary)'
+        }}>
+          <LogIn size={17} color="#38bdf8" />
+          <span><strong style={{ color: 'var(--text-primary)' }}>One AI login entry:</strong> configure Codex and Claude Code credentials here for the backend worker.</span>
+        </div>
 
         {/* AI Providers Section */}
         <div style={{ marginBottom: '32px' }}>
@@ -123,7 +139,7 @@ export const SettingsModal: React.FC = () => {
             fontSize: '13px',
             lineHeight: '1.6'
           }}>
-            <div><strong>Database:</strong> PostgreSQL (Port 5433, database <code>animation_pipeline</code>)</div>
+            <div><strong>Database:</strong> PostgreSQL (Port 5434, database <code>animation_pipeline</code>)</div>
             <div><strong>Persistence:</strong> Versioned tables for <code>projects</code>, <code>scripts</code>, <code>approvals</code>, <code>render_jobs</code>, <code>videos</code></div>
             <div><strong>Media Storage:</strong> Local worker media storage with migration path to Cloudinary/S3</div>
           </div>

@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { projectPaths } from '../../config/paths.js';
 
 export interface FetchedAsset {
   title: string;
@@ -37,8 +38,8 @@ export class AssetFetcher {
       const ext = imageUrl.includes('.png') ? 'png' : (imageUrl.includes('.jpg') || imageUrl.includes('.jpeg') ? 'jpg' : 'png');
       const fileName = `${projectId}_scene_${sceneNumber}.${ext}`;
 
-      const mediaDir = '/home/inkyank/Pictures/AnimationPipeline/backend/media/assets';
-      const remotionDir = '/home/inkyank/Pictures/AnimationPipeline/remotion/public/assets';
+      const mediaDir = path.join(projectPaths.backendMedia, 'assets');
+      const remotionDir = path.join(projectPaths.remotionPublic, 'assets');
       await fs.mkdir(mediaDir, { recursive: true });
       await fs.mkdir(remotionDir, { recursive: true });
 

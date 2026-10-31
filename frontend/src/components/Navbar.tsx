@@ -1,5 +1,5 @@
 import React from 'react';
-import { Film, Video, Settings, ShieldCheck, Sparkles, RefreshCw } from 'lucide-react';
+import { Film, Video, Settings, ShieldCheck, Sparkles, RefreshCw, LogIn } from 'lucide-react';
 
 interface NavbarProps {
   currentTab: 'dashboard' | 'videos' | 'settings';
@@ -82,6 +82,16 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onRef
               <Settings size={15} /> AI Settings
             </button>
           </nav>
+
+          <button
+            onClick={() => setCurrentTab('settings')}
+            className="btn btn-secondary"
+            title="AI provider login: Codex and Claude Code"
+            aria-label="Open Codex and Claude Code login settings"
+            style={{ padding: '8px', borderRadius: '8px' }}
+          >
+            <LogIn size={16} />
+          </button>
 
           <button
             onClick={onRefresh}

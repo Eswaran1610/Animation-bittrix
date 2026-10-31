@@ -146,6 +146,8 @@ export interface VisualBlueprint {
 
 export interface ScenePlanItem {
   scene_number: number;
+  role?: 'hook' | 'body' | 'cta';
+  template?: 'hero-object' | 'split-compare' | 'stat-callout' | 'list-reveal' | 'quote-focus' | 'timeline' | 'steps-numbered' | 'map-pin' | 'chart-bar' | 'before-after' | 'question-hook' | 'cta-outro' | 'product-showcase' | 'fact-card' | 'icon-grid';
   duration_sec: number;
   on_screen_text: string;
   subtitle: string;

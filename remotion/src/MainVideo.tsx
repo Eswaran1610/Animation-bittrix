@@ -1,31 +1,41 @@
 import React from 'react';
-import { AbsoluteFill, Sequence, Audio } from 'remotion';
-import { DynamicScene } from './components/DynamicScene';
+import { AbsoluteFill, Audio, Sequence, interpolate } from 'remotion';
+import { TransitionSeries, linearTiming } from '@remotion/transitions';
+import { fade } from '@remotion/transitions/fade';
+import { SceneRenderer } from './components/SceneRenderer';
 import { WordCaptions } from './components/WordCaptions';
 import { SceneDataPayload } from './data/sceneTypes';
 import { assetSource } from './assetSource';
+import { sceneTimelineDuration } from './short-video/sceneAdapter';
+
+const defaultTransitionFrames = 12;
+
+type TimedCue = {
+  frame: number;
+  src: string;
+  volume?: number;
+  durationFrames?: number;
+  sourceId?: string;
+};
 
 export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData }) => {
-  const scenes = sceneData.scenes;
-  const fps = sceneData.video.fps;
-  const audioUrl = sceneData.video.audioUrl;
-  const backgroundAudioUrl = sceneData.video.backgroundAudioUrl;
+  const { scenes } = sceneData;
+  const { audioUrl, backgroundAudioUrl, captions, styleProfile } = sceneData.video;
+  const timedCues: TimedCue[] = [];
+  const narrationTracks: Array<{ frame: number; src: string; durationFrames: number }> = [];
+  let sceneOffset = 0;
 
-  let currentOffset = 0;
-  // Use one absolute clock for picture and sound. A cue's frame is authored
-  // relative to its scene, then converted once here for the whole timeline.
-  const timedCues = scenes.flatMap((scene) => {
-    const sceneStart = currentOffset;
-    currentOffset += scene.durationInFrames - (scene.transitionOutFrames || 0);
-    return (scene.audioCues || []).map((cue) => ({
-      ...cue,
-      frame: sceneStart + cue.frame,
-    }));
+  scenes.forEach((scene, index) => {
+    if (scene.narrationAudio) {
+      narrationTracks.push({ frame: sceneOffset, src: scene.narrationAudio, durationFrames: scene.durationInFrames });
+    }
+    (scene.audioCues || []).forEach((cue) => timedCues.push({ ...cue, frame: sceneOffset + cue.frame }));
+    sceneOffset += scene.durationInFrames - (
+      index < scenes.length - 1 ? scene.transitionOutFrames || defaultTransitionFrames : 0
+    );
   });
 
   const narrationVolume = (frame: number) => {
-    // Let the small movement/appearance hits cut through the narration. The
-    // dip begins just before the visual hit and recovers smoothly afterward.
     const duck = timedCues.reduce((amount, cue) => {
       const distance = frame - cue.frame;
       if (distance < -3 || distance > 10) return amount;
@@ -34,45 +44,42 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
     return 1 - duck;
   };
 
-  currentOffset = 0;
+  const transitionNodes: React.ReactNode[] = [];
+  scenes.forEach((scene, index) => {
+    transitionNodes.push(
+      <TransitionSeries.Sequence key={`scene-${scene.id || index}`} durationInFrames={scene.durationInFrames}>
+        <SceneRenderer scene={scene} index={index} totalScenes={scenes.length} styleProfile={styleProfile} />
+      </TransitionSeries.Sequence>,
+    );
+    if (index < scenes.length - 1) {
+      transitionNodes.push(
+        <TransitionSeries.Transition
+          key={`transition-${scene.id || index}`}
+          timing={linearTiming({ durationInFrames: scene.transitionOutFrames || defaultTransitionFrames })}
+          presentation={fade()}
+        />,
+      );
+    }
+  });
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#05070f' }}>
-      {/* Synchronized Neural Voiceover Narration Track */}
-      {audioUrl && (
-        <Audio src={assetSource(audioUrl)} volume={1.0} />
-      )}
-
-      {/* Object sounds are rendered from the same absolute timeline as the
-          visuals, so scene boundaries cannot shift their timing. */}
-      {timedCues.map((cue, cueIndex) => (
-        <Sequence key={`cue-${cueIndex}`} from={cue.frame}>
-          <Audio src={staticFile(cue.src)} volume={cue.volume ?? 0.7} />
+    <AbsoluteFill style={{ backgroundColor: styleProfile?.background || '#05070f' }}>
+      {audioUrl && <Audio src={assetSource(audioUrl)} volume={narrationVolume} />}
+      {backgroundAudioUrl && <Audio src={assetSource(backgroundAudioUrl)} volume={(frame) => 0.18 * narrationVolume(frame)} />}
+      {narrationTracks.map((track, index) => (
+        <Sequence key={`narration-${index}`} from={track.frame} durationInFrames={track.durationFrames}>
+          <Audio src={assetSource(track.src)} volume={0.92} />
         </Sequence>
       ))}
-
-        return (
-          <Sequence
-            key={scene.id || idx}
-            from={startFrame}
-            durationInFrames={durationFrames}
-          >
-            {scene.audioCues?.map((cue, cueIndex) => (
-              <Sequence key={`${scene.id}-cue-${cueIndex}`} from={cue.frame} durationInFrames={Math.max(1, durationFrames - cue.frame)}>
-                <Audio src={assetSource(cue.src)} volume={cue.volume ?? 0.7} />
-              </Sequence>
-            ))}
-            <DynamicScene
-              scene={scene}
-              index={idx}
-              totalScenes={scenes.length}
-              styleProfile={sceneData.video.styleProfile}
-            />
-          </Sequence>
-        );
-      })}
-
-      <WordCaptions captions={sceneData.video.captions} color={sceneData.video.styleProfile?.primary} />
+      {timedCues.map((cue, index) => (
+        <Sequence key={`cue-${cue.sourceId || index}`} from={cue.frame} durationInFrames={Math.max(1, cue.durationFrames || 18)}>
+          <Audio src={assetSource(cue.src)} volume={cue.volume ?? 0.7} />
+        </Sequence>
+      ))}
+      <TransitionSeries>{transitionNodes}</TransitionSeries>
+      <WordCaptions captions={captions} color={styleProfile?.primary} />
     </AbsoluteFill>
   );
 };
+
+export { sceneTimelineDuration };

@@ -29,18 +29,19 @@ export class AssetFetcher {
       const pages: any[] = Object.values(data?.query?.pages || {});
 
       const queryTerms = searchQuery.toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length > 2);
-      const rejectedTitle = /watermark|engraving|logo|flag|disambiguation|outline|symbol/i;
+      const rejectedTitle = /watermark|engraving|logo|flag|disambiguation|outline|symbol|map|diagram|chart|poster|typography|labelled|labeled|text[- ]heavy/i;
       const candidates = pages
         .filter((page: any) => page.thumbnail?.source && Number(page.thumbnail.width || 0) >= 720 && Number(page.thumbnail.height || 0) >= 480)
         .filter((page: any) => !rejectedTitle.test(page.title || ''))
         .map((page: any) => {
           const title = String(page.title || '').toLowerCase();
           const overlap = queryTerms.filter((term) => title.includes(term)).length;
-          return { page, score: Math.min(10, 4 + overlap * 2) };
+          const exactPhrase = title.includes(searchQuery.toLowerCase().trim()) ? 2 : 0;
+          return { page, score: Math.min(10, 3 + overlap * 2 + exactPhrase) };
         })
         .sort((left: any, right: any) => right.score - left.score);
       // A weak title match is safer than showing a potentially unrelated image.
-      const match = candidates.find((candidate: any) => candidate.score >= 6)?.page;
+      const match = candidates.find((candidate: any) => candidate.score >= 7)?.page;
       if (!match || !match.thumbnail?.source) {
         return null;
       }

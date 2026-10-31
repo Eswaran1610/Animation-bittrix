@@ -4,7 +4,8 @@ import { MainComposition } from './Composition';
 import { SceneDataPayload } from './data/sceneTypes';
 import { ShortVideo } from './short-video/ShortVideo';
 import { SHORT_VIDEO_DEFAULT_PROPS, ShortVideoPropsSchema } from './short-video/shortVideoProps';
-import { collectShortVideoQaIssues } from './short-video/shortVideoQa';
+import { collectMainCompositionQaIssues, collectShortVideoQaIssues } from './short-video/shortVideoQa';
+import { sceneTimelineDuration } from './short-video/sceneAdapter';
 
 export const Root: React.FC = () => {
   const shortVideoQaIssues = collectShortVideoQaIssues(SHORT_VIDEO_DEFAULT_PROPS);
@@ -15,10 +16,14 @@ export const Root: React.FC = () => {
     Array.isArray(sceneData.scenes) &&
     sceneData.video.generatedBy === 'agy'
   );
+  if (hasValidSceneData) {
+    const mainQaIssues = collectMainCompositionQaIssues(sceneData as SceneDataPayload);
+    if (mainQaIssues.length > 0) console.warn(`[MainComposition QA] ${mainQaIssues.join(' | ')}`);
+  }
   const agyComposition = hasValidSceneData && sceneData.video && Array.isArray(sceneData.scenes)
     ? (() => {
       const fps = sceneData.video.fps;
-      const totalDuration = sceneData.scenes.reduce((sum: number, scene: any) => sum + scene.durationInFrames, 0);
+      const totalDuration = sceneTimelineDuration(sceneData.scenes);
       return (
         <Composition
           id="MainComposition"

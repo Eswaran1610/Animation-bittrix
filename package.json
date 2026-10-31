@@ -13,6 +13,7 @@
     "frontend:dev": "npm --prefix frontend run dev",
     "frontend:build": "npm --prefix frontend run build",
     "remotion:typecheck": "npm --prefix remotion run typecheck",
+    "qa:scene-stills": "node scripts/render-scene-stills.mjs",
     "build": "npm run backend:build && npm run frontend:build && npm run remotion:typecheck"
   },
   "engines": {

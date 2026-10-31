@@ -5,24 +5,6 @@ import { Project, ProjectDetail, Script, Approval, RenderJob, VideoRecord } from
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export const api = {
-  async getAgyAuthStatus(): Promise<{ authenticated: boolean; cliInstalled: boolean; source: 'local-cli' | null; message?: string }> {
-    const res = await fetch(`${API_BASE}/auth/agy`);
-    if (!res.ok) throw new Error(`AGY login status endpoint returned ${res.status}`);
-    return res.json();
-  },
-
-  async connectAgy(): Promise<{ authenticated: boolean; cliInstalled: boolean; source: 'local-cli' | null; message?: string }> {
-    const res = await fetch(`${API_BASE}/auth/agy`, {
-      method: 'POST',
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const routeHint = res.status === 404 ? ' Restart the backend so the AGY connection route is loaded.' : '';
-      throw new Error(data.error || `AGY connection request returned ${res.status}.${routeHint}`);
-    }
-    return data;
-  },
-
   async getHealth() {
     const res = await fetch(`${API_BASE}/health`);
     return res.json();
@@ -41,19 +23,19 @@ export const api = {
   },
 
   async getAgyConnection() {
-    const res = await fetch(`${API_BASE}/providers/agy/status`);
+    const res = await fetch(`${API_BASE}/auth/agy`);
     if (!res.ok) throw new Error('Failed to check AGY connection');
     return res.json() as Promise<AgyConnection>;
   },
 
   async connectAgy() {
-    const res = await fetch(`${API_BASE}/providers/agy/connect`, { method: 'POST' });
+    const res = await fetch(`${API_BASE}/auth/agy`, { method: 'POST' });
     if (!res.ok) throw new Error('Failed to start AGY connection');
     return res.json() as Promise<AgyConnection>;
   },
 
   async submitAgyAuthorizationCode(sessionId: string, code: string) {
-    const res = await fetch(`${API_BASE}/providers/agy/connect/${sessionId}/code`, {
+    const res = await fetch(`${API_BASE}/auth/agy/${sessionId}/code`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code }),

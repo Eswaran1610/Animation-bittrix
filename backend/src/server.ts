@@ -42,14 +42,22 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// AGY is authenticated by the local CLI on the backend machine. The browser
-// only receives a safe connection status; no credentials cross this boundary.
-app.get('/api/auth/agy', (req, res) => {
-  void agyAuthService.getStatus().then((status) => res.json(status));
+// AGY is authenticated by the local CLI on the backend machine. Both route
+// families expose the same session/code contract; no credentials cross this boundary.
+app.get('/api/auth/agy', async (req, res) => {
+  res.json(await agyAuthService.status());
 });
 
-app.post('/api/auth/agy', (req, res) => {
-  void agyAuthService.connect().then((status) => res.json(status));
+app.post('/api/auth/agy', async (req, res) => {
+  res.json(await agyAuthService.start());
+});
+
+app.post('/api/auth/agy/:sessionId/code', (req, res) => {
+  try {
+    res.json(agyAuthService.submitCode(req.params.sessionId, String(req.body?.code || '')));
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 // Projects Endpoints

@@ -97,6 +97,58 @@ export class AGYProvider implements AIProvider {
     }
   }
 
+  private validateTemplateRequirements(scene: any, index: number): void {
+    const label = `scene ${index + 1}`;
+    const items = Array.isArray(scene.key_takeaways) ? scene.key_takeaways.filter((item: any) => typeof item === 'string' && item.trim()) : [];
+    const nodes = Array.isArray(scene.concept_nodes) ? scene.concept_nodes.filter((node: any) => node && typeof node.label === 'string' && node.label.trim()) : [];
+    const objectLabels = scene.visual_blueprint?.objects?.map((object: any) => object.label).filter(Boolean) || [];
+    switch (scene.template) {
+      case 'hero-object':
+        if (!objectLabels.length) throw new Error(`${label} hero-object requires a labeled subject object.`);
+        break;
+      case 'split-compare':
+      case 'before-after':
+        if (nodes.length !== 2 && items.length !== 2) throw new Error(`${label} ${scene.template} requires exactly two comparison sides.`);
+        break;
+      case 'stat-callout':
+        if (!scene.metric_data || typeof scene.metric_data.label !== 'string' || !Number.isFinite(scene.metric_data.value)) throw new Error(`${label} stat-callout requires metric_data with a numeric value and label.`);
+        break;
+      case 'list-reveal':
+      case 'steps-numbered':
+        if (items.length < 3 || items.length > 5) throw new Error(`${label} ${scene.template} requires 3-5 key_takeaways.`);
+        break;
+      case 'timeline':
+        if (nodes.length < 3 && items.length < 3) throw new Error(`${label} timeline requires at least three ordered nodes or takeaways.`);
+        break;
+      case 'map-pin':
+        if (!scene.image_search_query && !scene.visual_blueprint?.asset_queries?.length && !objectLabels.length) throw new Error(`${label} map-pin requires a location asset query or labeled place object.`);
+        break;
+      case 'chart-bar':
+        if (!scene.metric_data && nodes.length < 2 && items.length < 2) throw new Error(`${label} chart-bar requires metric data or at least two values to compare.`);
+        break;
+      case 'question-hook':
+        if (index !== 0 || !/[?؟]/.test(scene.on_screen_text)) throw new Error(`${label} question-hook must be the opening question scene.`);
+        break;
+      case 'cta-outro':
+        if (scene.role !== 'cta' || !/(follow|save|share|like|subscribe|learn|try|comment|visit|watch|join)/i.test(`${scene.on_screen_text} ${scene.subtitle}`)) throw new Error(`${label} cta-outro requires an explicit viewer action.`);
+        break;
+      case 'product-showcase':
+        if (!scene.image_search_query && !scene.visual_blueprint?.asset_queries?.length && !scene.visual_blueprint?.objects?.some((object: any) => object.render_spec?.type === '3d' || object.render_spec?.type === 'image')) throw new Error(`${label} product-showcase requires an image or 3D subject.`);
+        break;
+      case 'quote-focus':
+        if (!scene.subtitle?.trim() || !scene.narration?.trim()) throw new Error(`${label} quote-focus requires a quote line and narration.`);
+        break;
+      case 'fact-card':
+        if (!scene.subtitle?.trim() && !items.length) throw new Error(`${label} fact-card requires a fact explanation.`);
+        break;
+      case 'icon-grid':
+        if (items.length < 3 && nodes.length < 3) throw new Error(`${label} icon-grid requires at least three related items.`);
+        break;
+      default:
+        break;
+    }
+  }
+
   private validatePlan(parsed: any, input: ResearchAndScriptRequest): void {
     if (!parsed || typeof parsed !== 'object') throw new Error('AGY returned no structured script plan.');
     for (const field of ['topicInterpretation', 'researchNotes', 'factCheckNotes']) {
@@ -133,6 +185,10 @@ export class AGYProvider implements AIProvider {
     if (requestedDuration && Math.abs(plannedDuration - requestedDuration) > 0.001) {
       throw new Error(`AGY planned ${plannedDuration}s, but the request requires exactly ${requestedDuration}s.`);
     }
+    if (!requestedDuration && (plannedDuration < 20 || plannedDuration > 45)) {
+      throw new Error(`AGY planned ${plannedDuration}s; short videos must be between 20 and 45 seconds.`);
+    }
+    const paletteColors = new Set<string>([styleProfile.primary.toLowerCase(), styleProfile.secondary.toLowerCase()]);
 
     if (this.requiresImportedImage(input)) {
       const hasImageObject = parsed.scenePlan.some((scene: any) =>
@@ -168,6 +224,7 @@ export class AGYProvider implements AIProvider {
       if (index === parsed.scenePlan.length - 1 && scene.role !== 'cta') throw new Error('The final AGY scene must be a CTA.');
       if (index > 0 && index < parsed.scenePlan.length - 1 && scene.role !== 'body') throw new Error(`Only the first and last scenes may be hook/cta roles (${label}).`);
       if (typeof scene.on_screen_text !== 'string' || scene.on_screen_text.trim().split(/\s+/).length > 6) throw new Error(`AGY headline exceeds six words for ${label}.`);
+      if (typeof scene.on_screen_text !== 'string' || scene.on_screen_text.trim().length > 40) throw new Error(`AGY headline exceeds 40 characters for ${label}.`);
       for (const field of ['on_screen_text', 'subtitle', 'visual_direction', 'motion_cue', 'continuity_to_next', 'narration']) {
         if (typeof scene[field] !== 'string' || !scene[field].trim()) {
           throw new Error(`AGY returned no ${field} for ${label}.`);
@@ -176,6 +233,13 @@ export class AGYProvider implements AIProvider {
       if (scene.visual_type !== 'blueprint') throw new Error(`AGY must return visual_type "blueprint" for ${label}.`);
       if (!/^#[0-9a-f]{6}$/i.test(scene.theme_color || '')) {
         throw new Error(`AGY returned an invalid theme_color for ${label}.`);
+      }
+      paletteColors.add(scene.theme_color.toLowerCase());
+      if (index < parsed.scenePlan.length - 1 && (!Number.isInteger(scene.transition_out_frames) || scene.transition_out_frames < 8 || scene.transition_out_frames > 15)) {
+        throw new Error(`AGY returned an invalid transition_out_frames value for ${label}; use an integer from 8 to 15.`);
+      }
+      if (index === parsed.scenePlan.length - 1 && scene.transition_out_frames !== undefined && scene.transition_out_frames !== 0) {
+        throw new Error(`The final AGY scene must not have an outgoing transition.`);
       }
       const blueprint = scene.visual_blueprint;
       if (!blueprint || typeof blueprint.purpose !== 'string' || typeof blueprint.layout !== 'string' || typeof blueprint.camera_motion !== 'string' || !Array.isArray(blueprint.objects) || blueprint.objects.length < 2 || !Array.isArray(blueprint.asset_queries)) {
@@ -207,7 +271,15 @@ export class AGYProvider implements AIProvider {
       if (new Set(blueprint.objects.map((object: any) => JSON.stringify(object.render_spec))).size !== blueprint.objects.length) {
         throw new Error(`AGY returned duplicate object render specs for ${label}; every object must be visually distinct.`);
       }
+      this.validateTemplateRequirements(scene, index);
     });
+
+    if (paletteColors.size > 4) throw new Error('AGY used too many scene colors; keep the entire video within one palette family and its two accent colors.');
+    for (let index = 2; index < parsed.scenePlan.length; index += 1) {
+      if (parsed.scenePlan[index].template === parsed.scenePlan[index - 1].template && parsed.scenePlan[index].template === parsed.scenePlan[index - 2].template) {
+        throw new Error(`AGY repeated template ${parsed.scenePlan[index].template} three times in a row.`);
+      }
+    }
 
     const sceneSignatures = parsed.scenePlan.map((scene: any) => JSON.stringify({
       on_screen_text: scene.on_screen_text.trim().toLowerCase(),
@@ -264,11 +336,12 @@ ${isRevision ? `REVISION FEEDBACK: "${req.changeRequestFeedback}". Update the sc
 ${shouldKeepNarration ? `RULE #7: Preserve the approved voice narration: "${req.existingNarration}". Dynamically update only the visual direction, typography, and motion cues.` : ''}
 
 NON-NEGOTIABLE SKILL RULES:
+0. You are not merely an explainer; you are a senior short-form video director. Build a visual story with a hook, escalating visual evidence, a clear payoff, and a final CTA. Treat every scene as a designed shot with a subject, camera behavior, readable typography, and a purposeful transition.
 1. Never produce a video that is only static images. Every scene needs real, purposeful motion.
 2. Provide a complete, captivating voice-over narration (word-for-word).
 3. Design a unique color scheme, visual motif, and kinetic animation tailored specifically to this topic.
 3a. Return a top-level styleProfile with one selected family (cinematic-neon, editorial-paper, playful-pop, technical-terminal, or documentary-grid), a topic-specific motif, five hex colors, a motion_language, and a transition_language. Do not default every project to dark neon or the same browser treatment.
-4. For each scene, specify:
+4. For each scene, specify the complete required field set below. Do not omit fields, replace them with generic filler, or rely on the renderer to invent content:
    - scene_number (integer)
    - role (exactly one "hook" first, "body" for middle scenes, and "cta" last)
    - template (one of hero-object, split-compare, stat-callout, list-reveal, quote-focus, timeline, steps-numbered, map-pin, chart-bar, before-after, question-hook, cta-outro, product-showcase, fact-card, icon-grid)

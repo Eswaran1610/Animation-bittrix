@@ -54,43 +54,44 @@ export class RendersService {
     }
     const styleProfile = scenePlan.find((scene: any) => scene.style_profile)?.style_profile;
 
-    // 1. Generate Synchronized Neural Voiceover Audio via TTS
-    let audioUrl: string | undefined = undefined;
-    const plannedDurationSec = scenePlan.reduce((total: number, scene: any) => total + Number(scene.duration_sec || 0), 0);
-    let narrationDurationSec = 0;
-    if (script.narration) {
-      try {
-        const ttsResult = await ttsService.generateNarration(projectId, script.narration);
-        audioUrl = ttsResult.staticUrl;
-        narrationDurationSec = ttsResult.durationSec;
-      } catch (err: any) {
-        throw new Error(`Narration audio generation failed: ${err.message}`);
-      }
+    // 1. Generate one Kokoro clip per scene. FFprobe measures each clip and the
+    // measured duration drives that scene's visual duration; speech is never
+    // time-stretched to fit an estimated full-script duration.
+    const sceneNarration = new Map<number, { staticUrl: string; durationSec: number }>();
+    try {
+      await Promise.all(scenePlan.map(async (scene: any) => {
+        const result = await ttsService.generateSceneNarration(projectId, Number(scene.scene_number), scene.narration);
+        sceneNarration.set(Number(scene.scene_number), result);
+      }));
+    } catch (err: any) {
+      throw new Error(`Per-scene narration audio generation failed: ${err.message}`);
     }
-
-    // Preserve natural speech speed. If narration is longer than AGY's visual
-    // estimate, stretch scene durations proportionally so no words are cut.
-    const audioPaddingSec = narrationDurationSec > 0 ? 0.35 : 0;
-    const durationScale = Math.max(1, (narrationDurationSec + audioPaddingSec) / Math.max(0.1, plannedDurationSec));
+    const narrationDurationSec = Array.from(sceneNarration.values()).reduce((total, audio) => total + audio.durationSec, 0);
 
     // 2. Fetch Open Educational Web Diagrams for Scenes
     const formattedScenes = await Promise.all(scenePlan.map(async (s: any, idx: number) => {
       const visualType = String(s.visual_type || '').toLowerCase();
       if (visualType !== 'blueprint') throw new Error(`Scene ${idx + 1} must use an AGY visual blueprint; regenerate the script before rendering.`);
       if (!s.visual_blueprint) throw new Error(`Scene ${idx + 1} has no AGY visual blueprint; render refused.`);
-      if (!Number.isInteger(s.duration_sec) || s.duration_sec < 2) throw new Error(`Scene ${idx + 1} has no valid duration.`);
+      if (!Number.isFinite(Number(s.duration_sec)) || Number(s.duration_sec) < 2.5 || Number(s.duration_sec) > 5) {
+        throw new Error(`Scene ${idx + 1} must be between 2.5 and 5 seconds.`);
+      }
       if (!s.theme_color || !/^#[0-9a-f]{6}$/i.test(s.theme_color)) throw new Error(`Scene ${idx + 1} has no valid theme_color.`);
       if (!s.on_screen_text || !s.subtitle || !s.visual_direction || !s.motion_cue || !s.continuity_to_next || !s.narration) {
         throw new Error(`Scene ${idx + 1} is incomplete; render refused.`);
       }
+      const blueprint = s.visual_blueprint || undefined;
       const themeColor = s.theme_color;
-      const durationInFrames = Math.max(1, Math.round(Number(s.duration_sec) * fps * durationScale));
-      const durationSec = durationInFrames / fps;
+      const narration = sceneNarration.get(Number(s.scene_number));
+      const durationSec = Math.max(Number(s.duration_sec), (narration?.durationSec || 0) + 0.35);
+      const durationInFrames = Math.max(1, Math.ceil(durationSec * fps));
+      const transitionOutFrames = idx < scenePlan.length - 1
+        ? Math.max(8, Math.min(15, Math.round(Number(s.transition_out_frames ?? blueprint.transition_out_frames ?? 12))))
+        : 0;
 
       // Fetch every AGY-selected asset query for this scene. The blueprint decides
       // whether an image or procedural object is the right visual treatment.
       let imageUrl: string | undefined = undefined;
-      const blueprint = s.visual_blueprint || undefined;
       const assetQueries = Array.from(new Set([
         ...(s.image_search_query ? [s.image_search_query] : []),
         ...(blueprint?.asset_queries || []),
@@ -197,6 +198,8 @@ export class RendersService {
         visualType,
         themeColor,
         narration: s.narration,
+        narrationAudio: narration?.staticUrl,
+        narrationDurationSec: narration?.durationSec,
         audioCues,
         image_url: imageUrl,
         image_assets: imageAssets,
@@ -211,7 +214,16 @@ export class RendersService {
       };
     }));
 
-    const totalFrames = formattedScenes.reduce((acc: number, s: any) => acc + s.durationInFrames, 0);
+    const totalFrames = formattedScenes.reduce((acc: number, s: any, index: number) =>
+      acc + s.durationInFrames - (index < formattedScenes.length - 1 ? s.transitionOutFrames || 0 : 0), 0);
+    const backgroundAudioUrl = await audioBedService.generate(projectId, renderType, renderVersion, totalFrames / fps);
+    let captionOffset = 0;
+    const captions = formattedScenes.flatMap((scene: any, index: number) => {
+      const sceneCaptions = this.buildWordCaptions(scene.narration, scene.narrationDurationSec || scene.durationInFrames / fps, fps)
+        .map((caption: any) => ({ ...caption, startFrame: caption.startFrame + captionOffset, endFrame: caption.endFrame + captionOffset }));
+      captionOffset += scene.durationInFrames - (index < formattedScenes.length - 1 ? scene.transitionOutFrames || 0 : 0);
+      return sceneCaptions;
+    });
 
     const payload = {
       video: {
@@ -225,11 +237,9 @@ export class RendersService {
         sourceProjectId: projectId,
         previewVersion: renderVersion,
         scriptVersion: script.version,
-        audioUrl,
         audioDurationSec: narrationDurationSec || undefined,
-        captions: script.narration
-          ? this.buildWordCaptions(script.narration, narrationDurationSec, fps)
-          : [],
+        backgroundAudioUrl,
+        captions,
         styleProfile
       },
       scenes: formattedScenes
@@ -249,7 +259,7 @@ export class RendersService {
       return cues;
     });
     await fs.writeFile(`${renderDataPath}.cues.json`, JSON.stringify(cueManifest, null, 2), 'utf-8');
-    console.log(`[RendersService] Prepared isolated AGY render props at ${renderDataPath} with ${formattedScenes.length} scenes (${totalFrames} frames) and audio: ${audioUrl || 'none'}`);
+    console.log(`[RendersService] Prepared isolated AGY render props at ${renderDataPath} with ${formattedScenes.length} scenes (${totalFrames} frames) and per-scene narration audio.`);
     return renderDataPath;
   }
 

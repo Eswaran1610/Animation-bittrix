@@ -108,6 +108,8 @@ export interface SceneData {
   visualType: 'blueprint';
   themeColor: string;
   narration: string;
+  narrationAudio?: string;
+  narrationDurationSec?: number;
   audioCues?: Array<{ frame: number; src: string; volume?: number; hitFrame?: number; role?: string; sourceId?: string; durationFrames?: number }>;
   image_url?: string;
   image_assets?: Record<string, string>;
@@ -129,6 +131,7 @@ export interface SceneDataPayload {
     scriptVersion: number;
     audioUrl?: string;
     audioDurationSec?: number;
+    backgroundAudioUrl?: string;
     captions?: CaptionWord[];
     styleProfile?: StyleProfile;
   };

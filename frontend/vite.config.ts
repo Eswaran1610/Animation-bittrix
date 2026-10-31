@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/api': { target: backendUrl, changeOrigin: true },
         '/media': { target: backendUrl, changeOrigin: true },
+        '/sfx': { target: backendUrl, changeOrigin: true },
         '/ws': { target: backendUrl.replace(/^http/, 'ws'), ws: true, changeOrigin: true },
       },
     },

@@ -15,6 +15,12 @@ export interface BlueprintObject {
   to_x?: number;
   to_y?: number;
   motion?: string;
+  motion_plan?: {
+    enter_frame?: number;
+    exit_frame?: number;
+    idle?: 'float' | 'pulse' | 'orbit' | 'shimmer' | 'drift';
+    focal?: boolean;
+  };
   render_spec: {
     type: 'vector' | 'image' | 'text' | '3d';
     primitive?: 'sphere' | 'cube' | 'torus' | 'cylinder' | 'molecule';
@@ -66,6 +72,7 @@ export interface VisualBlueprint {
   purpose: string;
   layout: string;
   camera_motion: string;
+  transition_out_frames?: number;
   asset_queries: string[];
   objects: BlueprintObject[];
   website_view?: WebsiteView;
@@ -89,10 +96,11 @@ export interface SceneData {
   continuity_to_next: string;
   duration_sec: number;
   durationInFrames: number;
+  transitionOutFrames?: number;
   visualType: 'blueprint';
   themeColor: string;
   narration: string;
-  audioCues?: Array<{ frame: number; src: string; volume?: number }>;
+  audioCues?: Array<{ frame: number; src: string; volume?: number; hitFrame?: number; role?: string; sourceId?: string; durationFrames?: number }>;
   image_url?: string;
   image_assets?: Record<string, string>;
   visualBlueprint?: VisualBlueprint;
@@ -112,6 +120,7 @@ export interface SceneDataPayload {
     previewVersion: number;
     scriptVersion: number;
     audioUrl?: string;
+    backgroundAudioUrl?: string;
     styleProfile?: StyleProfile;
   };
   scenes: SceneData[];

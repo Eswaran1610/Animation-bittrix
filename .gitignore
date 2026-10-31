@@ -13,6 +13,7 @@ build/
 */build/
 .remotion/
 */.remotion/
+.venv-motion-checks/
 
 # Media output files (keep directories with .gitkeep)
 backend/media/previews/*.mp4
@@ -21,6 +22,7 @@ backend/media/audio/*.mp3
 backend/media/audio/*.wav
 backend/media/audio/**/*.mp3
 backend/media/audio/**/*.wav
+backend/media/audio/sfx/
 backend/media/render-data/*.json
 backend/media/assets/*
 !backend/media/assets/.gitkeep

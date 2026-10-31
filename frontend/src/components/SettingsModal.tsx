@@ -1,7 +1,43 @@
-import React from 'react';
-import { ShieldCheck, Cpu, Database, CheckCircle2, Clock, LogIn } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Cpu, Database, CheckCircle2, Clock, LogIn, LoaderCircle, AlertCircle } from 'lucide-react';
+import { AgyConnection, api } from '../services/api';
 
 export const SettingsModal: React.FC = () => {
+  const [agy, setAgy] = useState<AgyConnection | null>(null);
+  const [authorizationCode, setAuthorizationCode] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const refreshAgy = async () => setAgy(await api.getAgyConnection().catch(() => null));
+  useEffect(() => { void refreshAgy(); }, []);
+
+  useEffect(() => {
+    if (!agy || !['starting', 'verifying'].includes(agy.state)) return;
+    const timer = window.setInterval(() => void refreshAgy(), 1_500);
+    return () => window.clearInterval(timer);
+  }, [agy?.state]);
+
+  const connectAgy = async () => {
+    setBusy(true);
+    try {
+      setAgy(await api.connectAgy());
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitCode = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!agy?.sessionId || !authorizationCode.trim()) return;
+    setBusy(true);
+    try {
+      setAgy(await api.submitAgyAuthorizationCode(agy.sessionId, authorizationCode));
+      setAuthorizationCode('');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const connected = agy?.state === 'connected';
   return (
     <div style={{ maxWidth: '900px', margin: '32px auto', padding: '0 24px' }}>
       <div className="glass-panel" style={{ padding: '28px' }}>
@@ -25,7 +61,7 @@ export const SettingsModal: React.FC = () => {
           color: 'var(--text-secondary)'
         }}>
           <LogIn size={17} color="#38bdf8" />
-          <span><strong style={{ color: 'var(--text-primary)' }}>One AI login entry:</strong> configure Codex and Claude Code credentials here for the backend worker.</span>
+          <span><strong style={{ color: 'var(--text-primary)' }}>AGY runs locally:</strong> connect this machine once, then its backend worker can create plans without asking you to log in for every project.</span>
         </div>
 
         {/* AI Providers Section */}
@@ -45,16 +81,34 @@ export const SettingsModal: React.FC = () => {
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <strong style={{ fontSize: '15px' }}>Antigravity (AGY)</strong>
-                <span className="badge badge-approved" style={{ fontSize: '11px' }}>
-                  <CheckCircle2 size={11} /> Active Now
+                <span className={`badge ${connected ? 'badge-approved' : 'badge-draft'}`} style={{ fontSize: '11px' }}>
+                  {connected ? <CheckCircle2 size={11} /> : <Clock size={11} />} {connected ? 'Connected' : 'Login required'}
                 </span>
               </div>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
                 Autonomous CLI & Agent orchestration engine for research, fact-checking, full script generation, and Remotion composition code.
               </p>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px' }}>
-                Integration: Native local CLI
+                Integration: Native local CLI {agy?.cliAvailable === false ? '• CLI unavailable' : ''}
               </div>
+              <p style={{ fontSize: '12px', color: agy?.state === 'failed' ? '#fb7185' : 'var(--text-secondary)', lineHeight: '1.4', margin: '10px 0' }}>
+                {agy?.message || 'Checking local AGY status…'}
+              </p>
+              {!connected && (
+                <button type="button" className="btn btn-primary" disabled={busy || agy?.state === 'verifying'} onClick={() => void connectAgy()} style={{ width: '100%', justifyContent: 'center' }}>
+                  {busy || agy?.state === 'starting' ? <LoaderCircle size={15} /> : <LogIn size={15} />} Connect AGY
+                </button>
+              )}
+              {agy?.state === 'awaiting_code' && agy.authUrl && (
+                <form onSubmit={submitCode} style={{ marginTop: '12px', display: 'grid', gap: '8px' }}>
+                  <a className="btn btn-secondary" href={agy.authUrl} target="_blank" rel="noreferrer" style={{ justifyContent: 'center' }}>Open Google sign-in</a>
+                  <input className="input-text" value={authorizationCode} onChange={(event) => setAuthorizationCode(event.target.value)} placeholder="Paste authorization code" autoComplete="one-time-code" />
+                  <button type="submit" className="btn btn-primary" disabled={busy || !authorizationCode.trim()} style={{ justifyContent: 'center' }}>
+                    {busy ? <LoaderCircle size={15} /> : <CheckCircle2 size={15} />} Verify AGY
+                  </button>
+                </form>
+              )}
+              {agy?.state === 'failed' && <div style={{ display: 'flex', gap: '6px', marginTop: '8px', color: '#fb7185', fontSize: '11px' }}><AlertCircle size={14} /> No credentials are saved in this dashboard.</div>}
             </div>
 
             {/* Claude */}

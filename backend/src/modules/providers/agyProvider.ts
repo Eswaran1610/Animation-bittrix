@@ -239,7 +239,7 @@ export class AGYProvider implements AIProvider {
 
     const requestedDuration = this.requestedDurationSec(req);
     const websiteTour = this.isWebsiteVisit(req);
-    const prompt = `You are a Senior Video Production Director and Remotion Expert acting in accordance with the skill instructions in .agents/skills/video-production-director/SKILL.md.
+    const prompt = `You are a Senior Video Production Director and Remotion Expert acting in accordance with the skill instructions in .agents/skills/video-production-director/SKILL.md and the repository's MOTION_PIPELINE.md rules.
 
 TASK: Execute live web research and create one original, content-specific script and screen motion plan based only on the submitted content. Do not reuse a previous topic, example, stock phrase, stock metric, stock concept node, or generic fallback. Every scene must explain a real idea from this content.
 
@@ -274,12 +274,13 @@ NON-NEGOTIABLE SKILL RULES:
    - visual_type (always "blueprint" for new plans; old template labels are not allowed for new content)
    - visual_blueprint (required, content-specific and different for every scene):
      { "purpose": "what this scene explains visually", "layout": "free-form composition with normalized object positions", "camera_motion": "specific camera movement", "asset_queries": ["relevant Wikimedia/Openverse search phrases"], "objects": [
-       { "id": "unique object id", "label": "content-specific label", "detail": "short explanation", "x": 0.5, "y": 0.5, "scale": 1, "rotation": 0, "color": "#RRGGBB", "motion": "exact frame-driven motion", "render_spec": { "type": "vector|image|text|3d", "primitive": "sphere|cube|torus|cylinder|molecule when type is 3d", "viewBox": [0, 0, 1000, 700], "paths": [{ "d": "content-specific SVG path", "fill": "#RRGGBB", "stroke": "#RRGGBB", "strokeWidth": 4 }], "circles": [], "rects": [], "lines": [], "polygons": [], "text": "optional text", "asset_query": null } }
+     { "id": "unique object id", "label": "content-specific label", "detail": "short explanation", "x": 0.5, "y": 0.5, "to_x": 0.6, "to_y": 0.45, "scale": 1, "rotation": 0, "color": "#RRGGBB", "motion": "exact frame-driven motion", "motion_plan": { "enter_frame": 12, "exit_frame": 132, "idle": "float|pulse|orbit|shimmer|drift", "focal": true }, "render_spec": { "type": "vector|image|text|3d", "primitive": "sphere|cube|torus|cylinder|molecule when type is 3d", "viewBox": [0, 0, 1000, 700], "paths": [{ "d": "content-specific SVG path", "fill": "#RRGGBB", "stroke": "#RRGGBB", "strokeWidth": 4 }], "circles": [], "rects": [], "lines": [], "polygons": [], "text": "optional text", "asset_query": null } }
      ] }${websiteTour ? ', "website_view": { "url": "https://example.com", "route": "/", "section": "Hero", "layout_variant": "hero", "nav_items": ["Home", "About"], "hero_label": "site label", "hero_heading": "page-specific heading", "hero_body": "page-specific body", "panels": [{ "title": "content-specific panel", "body": "what the visitor sees", "accent": "#2EC4B6" }, { "title": "another panel", "body": "why it matters", "accent": "#F59E0B" }], "cta": "page-specific call to action" }' : ''}
      AGY must author the actual vector paths/shapes, select a relevant downloaded image, or choose a procedural 3D primitive when depth explains the submitted content (molecules, organs, planets, machines, devices, or spatial mechanisms). Do not choose from a fixed object-kind list. Every object render_spec must be different and explain a real part of the submitted content. Never return a generic diagram, network, metric, or headline template.
    - theme_color (hex color matching the topic's mood)
    - motion_cue (explicit description of what moves: spring entrance, scale zoom, path draw-on, staggered reveal)
    - continuity_to_next (what visual element or camera motion carries over into the next scene)
+   - transition_out_frames (integer 8-15 for every scene except the last; use a directional overlap transition, never a fade to black)
 
 Respond with ONLY a valid JSON object matching this schema:
 {
@@ -316,13 +317,14 @@ Respond with ONLY a valid JSON object matching this schema:
       "theme_color": "#2EC4B6",
       "motion_cue": "content-specific motion description",
       "continuity_to_next": "content-specific continuity description",
+      "transition_out_frames": 12,
       "visual_blueprint": {
         "purpose": "content-specific visual explanation",
         "layout": "free-form normalized composition",
         "camera_motion": "content-specific camera move",
         "asset_queries": ["specific relevant open educational image search"],
         "objects": [
-          { "id": "object-1", "label": "content-specific object", "detail": "role in mechanism", "x": 0.5, "y": 0.42, "scale": 1, "rotation": 0, "color": "#2EC4B6", "motion": "spring entrance then purposeful rotation", "render_spec": { "type": "vector", "viewBox": [0, 0, 1000, 700], "paths": [{ "d": "M200 350 C280 120 720 120 800 350 C720 580 280 580 200 350 Z", "fill": "#2EC4B6", "stroke": "#ffffff", "strokeWidth": 4 }] } },
+          { "id": "object-1", "label": "content-specific object", "detail": "role in mechanism", "x": 0.5, "y": 0.42, "to_x": 0.56, "to_y": 0.4, "scale": 1, "rotation": 0, "color": "#2EC4B6", "motion": "spring entrance then purposeful rotation", "motion_plan": { "enter_frame": 10, "exit_frame": 132, "idle": "orbit", "focal": true }, "render_spec": { "type": "vector", "viewBox": [0, 0, 1000, 700], "paths": [{ "d": "M200 350 C280 120 720 120 800 350 C720 580 280 580 200 350 Z", "fill": "#2EC4B6", "stroke": "#ffffff", "strokeWidth": 4 }] } },
           { "id": "object-2", "label": "causal flow", "detail": "what changes", "x": 0.35, "y": 0.6, "scale": 1, "rotation": 0, "color": "#F59E0B", "motion": "path draw-on", "render_spec": { "type": "vector", "viewBox": [0, 0, 1000, 700], "lines": [{ "x1": 100, "y1": 350, "x2": 900, "y2": 350, "stroke": "#F59E0B", "strokeWidth": 12, "dash": "20 12" }] } }
         ]
       },

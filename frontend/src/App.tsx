@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Project, ProjectDetail as IProjectDetail, VideoRecord } from './types';
 import { api } from './services/api';
 import { Navbar } from './components/Navbar';
@@ -20,6 +20,8 @@ export function App() {
   const [agyUsage, setAgyUsage] = useState<any>(null);
   const [liveProgress, setLiveProgress] = useState({ progress: 0, label: 'Waiting for a pipeline run' });
   const [liveConnected, setLiveConnected] = useState(false);
+  const reconnectTimerRef = useRef<number | null>(null);
+  const reconnectAttemptsRef = useRef(0);
 
   // Load all initial data
   const loadData = async () => {
@@ -54,31 +56,76 @@ export function App() {
 
   useEffect(() => {
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const socket = new WebSocket(`${protocol}://${window.location.host}/ws`);
-    socket.onopen = () => setLiveConnected(true);
-    socket.onclose = () => setLiveConnected(false);
-    socket.onerror = () => setLiveConnected(false);
-    socket.onmessage = (message) => {
+    let socket: WebSocket | null = null;
+    let disposed = false;
+
+    const refreshUsage = async () => {
+      const usage = await api.getAgyUsage().catch(() => null);
+      if (usage) setAgyUsage(usage);
+    };
+
+    const applyProgress = (event: any) => {
+      setLiveProgress({ progress: Number(event.progress || 0), label: String(event.status || event.stage || 'Pipeline update') });
+      if (Number(event.progress) === 100) void loadData();
+    };
+
+    const connect = () => {
+      if (disposed) return;
+      socket = new WebSocket(`${protocol}://${window.location.host}/ws`);
+      socket.onopen = () => {
+        if (disposed) {
+          socket?.close();
+          return;
+        }
+        reconnectAttemptsRef.current = 0;
+        setLiveConnected(true);
+        // Recover aggregate data that may have changed while disconnected.
+        void loadData();
+      };
+      socket.onerror = () => {
+        if (!disposed) socket?.close();
+      };
+      socket.onclose = () => {
+        setLiveConnected(false);
+        if (disposed) return;
+        const delay = Math.min(10_000, 500 * 2 ** reconnectAttemptsRef.current++);
+        reconnectTimerRef.current = window.setTimeout(connect, delay);
+      };
+      socket.onmessage = (message) => {
       try {
         const event = JSON.parse(message.data);
         if (event.type === 'token_usage') {
-          setAgyUsage((current: any) => ({
-            ...(current || {}),
-            input_tokens: Number(current?.input_tokens || 0) + Number(event.input_tokens || 0),
-            output_tokens: Number(current?.output_tokens || 0) + Number(event.output_tokens || 0),
-            total_tokens: Number(current?.total_tokens || 0) + Number(event.total_tokens || 0),
-            estimated: Boolean(event.estimated),
-          }));
+          // The API is authoritative; do not add event deltas locally because
+          // reconnects and snapshots can otherwise produce incorrect totals.
+          void refreshUsage();
         }
         if (event.type === 'pipeline_progress' || event.type === 'render_progress') {
-          setLiveProgress({ progress: Number(event.progress || 0), label: String(event.status || event.stage || 'Pipeline update') });
-          if (Number(event.progress) === 100) void loadData();
+          applyProgress(event);
+        }
+        if (event.type === 'progress_snapshot' && Array.isArray(event.events)) {
+          const latest = [...event.events].sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || ''))).at(-1);
+          if (latest) applyProgress(latest);
         }
       } catch {
         // Ignore malformed live messages so one event cannot break the dashboard.
       }
+      };
     };
-    return () => socket.close();
+
+    connect();
+    return () => {
+      disposed = true;
+      if (reconnectTimerRef.current !== null) window.clearTimeout(reconnectTimerRef.current);
+      if (socket) {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.close();
+        } else if (socket.readyState === WebSocket.CONNECTING) {
+          socket.onopen = () => {
+            socket?.close();
+          };
+        }
+      }
+    };
   }, []);
 
   // Handle selecting a project to inspect

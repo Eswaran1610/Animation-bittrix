@@ -62,34 +62,9 @@ export class TTSService {
     ]);
     let durationSec = parseFloat(stdout.trim()) || 0;
 
-    // Keep the approved narration fully audible inside an explicitly requested
-    // video duration. Remotion trims media at the composition boundary, which
-    // can otherwise cut the last sentence off mid-word.
-    if (maxDurationSec && durationSec > maxDurationSec + 0.05) {
-      let tempo = durationSec / maxDurationSec;
-      const filters: string[] = [];
-      while (tempo > 2) {
-        filters.push('atempo=2');
-        tempo /= 2;
-      }
-      filters.push(`atempo=${Math.max(1, tempo).toFixed(4)}`);
-      const fittedFile = path.join(mediaDir, `${projectId}_narration_fitted.mp3`);
-      await execFileAsync('ffmpeg', [
-        '-y', '-i', backendFile,
-        '-filter:a', filters.join(','),
-        '-codec:a', 'libmp3lame', '-b:a', '128k', fittedFile
-      ], { timeout: 60000 });
-      await fs.copyFile(fittedFile, backendFile);
-      await fs.unlink(fittedFile).catch(() => undefined);
-      ({ stdout } = await execFileAsync('ffprobe', [
-        '-v', 'error',
-        '-show_entries', 'format=duration',
-        '-of', 'default=noprint_wrappers=1:nokey=1',
-        backendFile
-      ]));
-      durationSec = parseFloat(stdout.trim()) || maxDurationSec;
-      console.log(`[TTSService] Fitted narration from ${durationSec.toFixed(1)}s target to ${maxDurationSec}s with atempo.`);
-    }
+    // Always preserve natural, human voice tempo (1.0x). Never force atempo speed-up
+    // that makes the voice sound rushed or unnatural. The visual timeline adapts to the voice.
+    console.log(`[TTSService] Narration audio generated at natural tempo: ${durationSec.toFixed(1)}s.`);
 
     await fs.copyFile(backendFile, remotionFile);
     console.log(`[TTSService] Kokoro narration ready: ${remotionFile} (${durationSec.toFixed(1)}s)`);

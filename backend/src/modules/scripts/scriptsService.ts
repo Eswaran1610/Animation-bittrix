@@ -21,11 +21,6 @@ export class ScriptsService {
     });
 
     const version = 1;
-    realtime.publish({
-      type: 'token_usage',
-      projectId,
-      ...researchResult.tokenUsage,
-    });
     realtime.publish({ type: 'pipeline_progress', projectId, stage: 'script_plan', progress: 75, status: 'AGY script and scene plan ready' });
 
     const res = await query(
@@ -55,6 +50,10 @@ export class ScriptsService {
         JSON.stringify(researchResult.tokenUsage)
       ]
     );
+
+    // Publish only after the durable record exists. Clients re-fetch the
+    // aggregate from the API, so a reconnect cannot lose or double-count it.
+    realtime.publish({ type: 'token_usage', projectId, ...researchResult.tokenUsage });
 
     realtime.publish({ type: 'pipeline_progress', projectId, stage: 'script_ready', progress: 100, status: 'Human approval required: script ready' });
 
@@ -97,11 +96,6 @@ export class ScriptsService {
       changeRequestFeedback: feedbackNotes,
       existingNarration: changeNarration ? undefined : previousScript.narration // Rule: preserve narration unless explicitly asked
     });
-    realtime.publish({
-      type: 'token_usage',
-      projectId,
-      ...researchResult.tokenUsage,
-    });
     realtime.publish({ type: 'pipeline_progress', projectId, stage: 'script_revision', progress: 75, status: `AGY revised script v${newVersion} ready` });
 
     const res = await query(
@@ -132,6 +126,8 @@ export class ScriptsService {
         JSON.stringify(researchResult.tokenUsage)
       ]
     );
+
+    realtime.publish({ type: 'token_usage', projectId, ...researchResult.tokenUsage });
 
     // A revised script invalidates every prior preview approval. Keep the
     // preview counter monotonic so every new render gets a unique media URL.

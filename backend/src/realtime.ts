@@ -6,11 +6,23 @@ export type RealtimeEvent = Record<string, unknown> & {
 };
 
 class RealtimeBus extends EventEmitter {
+  private readonly latestProgressByProject = new Map<string, RealtimeEvent>();
+
   publish(event: RealtimeEvent) {
-    this.emit('event', {
+    const published: RealtimeEvent = {
       ...event,
       timestamp: event.timestamp || new Date().toISOString(),
-    });
+    };
+
+    if ((published.type === 'pipeline_progress' || published.type === 'render_progress') && typeof published.projectId === 'string') {
+      this.latestProgressByProject.set(published.projectId, published);
+    }
+
+    this.emit('event', published);
+  }
+
+  progressSnapshot(): RealtimeEvent[] {
+    return [...this.latestProgressByProject.values()];
   }
 }
 

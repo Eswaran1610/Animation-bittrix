@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import { createServer } from 'http';
 import { WebSocket, WebSocketServer } from 'ws';
 import { projectsService } from './modules/projects/projectsService.js';
@@ -10,6 +11,7 @@ import { rendersService } from './modules/renders/rendersService.js';
 import { query } from './config/db.js';
 import { realtime } from './realtime.js';
 import { projectPaths } from './config/paths.js';
+import { agyAuthService } from './modules/providers/agyAuthService.js';
 
 dotenv.config();
 
@@ -22,6 +24,7 @@ app.use(express.json());
 
 // Serve static media files (previews and final videos)
 app.use('/media', express.static(projectPaths.backendMedia));
+app.use('/sfx', express.static(path.join(projectPaths.remotionPublic, 'sfx')));
 
 // Health & System Info
 app.get('/api/health', (req, res) => {
@@ -88,6 +91,24 @@ app.get('/api/usage/agy', async (req, res) => {
     res.json(usage.rows[0]);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Local AGY CLI authentication. OAuth credentials and one-time codes are never
+// returned to, stored in, or logged by the frontend.
+app.get('/api/providers/agy/status', async (req, res) => {
+  res.json(await agyAuthService.status());
+});
+
+app.post('/api/providers/agy/connect', async (req, res) => {
+  res.json(await agyAuthService.start());
+});
+
+app.post('/api/providers/agy/connect/:sessionId/code', (req, res) => {
+  try {
+    res.json(agyAuthService.submitCode(req.params.sessionId, String(req.body?.code || '')));
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
   }
 });
 
@@ -210,11 +231,12 @@ const httpServer = createServer(app);
 const websocketServer = new WebSocketServer({ server: httpServer, path: '/ws' });
 
 websocketServer.on('connection', (socket) => {
-  socket.send(JSON.stringify({ type: 'connected', timestamp: new Date().toISOString() }));
   const listener = (event: Record<string, unknown>) => {
     if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(event));
   };
   realtime.on('event', listener);
+  socket.send(JSON.stringify({ type: 'connected', timestamp: new Date().toISOString() }));
+  socket.send(JSON.stringify({ type: 'progress_snapshot', events: realtime.progressSnapshot() }));
   socket.on('close', () => realtime.off('event', listener));
 });
 

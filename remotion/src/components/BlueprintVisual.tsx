@@ -6,21 +6,66 @@ import { springPresets } from '../theme';
 interface BlueprintVisualProps {
   blueprint: VisualBlueprint;
   imageAssets?: Record<string, string>;
+  durationInFrames: number;
 }
 
-const objectStyle = (object: BlueprintObject, frame: number, fps: number, index: number): React.CSSProperties => {
+/**
+ * A data-neutral 3D anchor keeps every technical blueprint feeling like one
+ * cohesive animation: information emerges from and returns to a live core,
+ * instead of sitting on a static slide.
+ */
+const KineticCore: React.FC<{ frame: number; color: string }> = ({ frame, color }) => {
+  const spin = frame * 0.42;
+  const breathe = 1 + Math.sin(frame * 0.075) * 0.055;
+  const glow = 32 + Math.sin(frame * 0.09) * 12;
+  return <div style={{ position: 'absolute', left: '50%', top: '55%', width: 220, height: 220, transform: `translate(-50%, -50%) scale(${breathe})`, transformStyle: 'preserve-3d', pointerEvents: 'none' }}>
+    {[0, 1, 2].map((layer) => <div key={layer} style={{ position: 'absolute', inset: 0, borderRadius: 38, border: `2px solid ${color}${layer === 0 ? 'dd' : '55'}`, background: layer === 0 ? `linear-gradient(135deg, #ffffff66 0%, ${color}cc 34%, ${color}44 66%, #090d18 100%)` : `${color}22`, boxShadow: layer === 0 ? `0 0 ${glow}px ${color}aa, inset 18px 18px 28px #ffffff33, inset -22px -22px 34px #0009` : 'none', transform: `translate3d(${layer * 11}px, ${layer * 11}px, ${-layer * 24}px) rotateX(${58 + Math.sin(frame * .03) * 10}deg) rotateY(${spin}deg) rotateZ(${Math.sin(frame * .025) * 8}deg)` }} />)}
+    <div style={{ position: 'absolute', inset: '27%', borderRadius: '50%', background: '#ffffffcc', boxShadow: `0 0 28px 12px ${color}`, transform: `translateZ(34px) scale(${1 + Math.sin(frame * .13) * .18})` }} />
+  </div>;
+};
+
+const ParticleField: React.FC<{ frame: number; color: string }> = ({ frame, color }) => <>
+  {Array.from({ length: 28 }, (_, index) => {
+    const baseX = (index * 37) % 94 + 3;
+    const baseY = (index * 61) % 86 + 7;
+    const travel = frame * (0.18 + (index % 4) * 0.035);
+    const x = baseX + Math.sin(travel + index) * (4 + index % 5);
+    const y = baseY + Math.cos(travel * .83 + index) * (5 + index % 4);
+    const size = 2 + index % 4;
+    return <span key={index} style={{ position: 'absolute', left: `${x}%`, top: `${y}%`, width: size, height: size, borderRadius: '50%', background: index % 3 === 0 ? '#ffffff' : color, opacity: .24 + (index % 5) * .12, boxShadow: `0 0 ${size * 3}px ${color}`, transform: `scale(${.8 + Math.sin(frame * .1 + index) * .35})` }} />;
+  })}
+</>;
+
+const objectStyle = (object: BlueprintObject, frame: number, fps: number, index: number, durationInFrames: number): React.CSSProperties => {
   const entrance = spring({ frame: frame - index * 5, fps, config: springPresets.bouncy });
   const motion = object.motion || '';
-  const drift = Math.sin(frame * 0.035 + index) * (motion.match(/float|drift|orbit/i) ? 18 : 5);
+  const plan = object.motion_plan;
+  const movementStart = Math.min(durationInFrames - 1, plan?.enter_frame ?? 12 + index * 6);
+  const movementEnd = Math.max(movementStart + 1, durationInFrames - 22);
+  const movementProgress = interpolate(frame, [movementStart, movementEnd], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const x = interpolate(movementProgress, [0, 1], [object.x, object.to_x ?? object.x]);
+  const y = interpolate(movementProgress, [0, 1], [object.y, object.to_y ?? object.y]);
+  const idle = plan?.idle || (motion.match(/orbit/i) ? 'orbit' : motion.match(/float|drift/i) ? 'float' : motion.match(/pulse|glow/i) ? 'pulse' : 'drift');
+  // Every object has a substantial but controlled idle path. Static data from
+  // a blueprint must still read as motion graphics, not a glowing slide.
+  const driftAmplitude = idle === 'float' || idle === 'drift' || idle === 'orbit' ? 42 : 22;
+  const drift = Math.sin(frame * 0.045 + index * 1.7) * driftAmplitude;
+  const lateralDrift = Math.cos(frame * 0.037 + index * 1.3) * driftAmplitude * 0.72;
   const spinning = motion.match(/rotate|spin|orbit|revolve/i);
   const rotation = (object.rotation || 0) + (spinning ? frame * (0.45 + index * 0.08) : 0);
   const depth = 18 + Math.sin(frame * 0.025 + index) * 12;
-  const scale = (object.scale || 1) * interpolate(entrance, [0, 1], [0.35, 1]);
+  const idleScale = 1 + Math.sin(frame * 0.055 + index * 1.4) * (idle === 'pulse' ? 0.07 : 0.035);
+  // Generated plans may schedule an exit at the scene duration. Frames are
+  // zero-indexed, so that would produce a duplicate interpolate range such as
+  // [150, 150]. Keep the exit within the scene and before its final frame.
+  const exitStart = Math.max(0, Math.min(durationInFrames - 1, plan?.exit_frame ?? durationInFrames - 16));
+  const exit = interpolate(frame, [exitStart, durationInFrames], [1, 0.82], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const scale = (object.scale || 1) * idleScale * interpolate(entrance, [0, 1], [0.35, 1]) * exit;
   return {
     position: 'absolute',
-    left: `${Math.max(0, Math.min(1, object.x)) * 100}%`,
-    top: `${Math.max(0, Math.min(1, object.y)) * 100}%`,
-    transform: `translate(-50%, -50%) translate3d(0, ${drift}px, ${depth}px) rotateX(${Math.sin(frame * 0.018 + index) * 5}deg) rotateY(${spinning ? frame * 0.35 : Math.sin(frame * 0.02 + index) * 8}deg) rotateZ(${rotation}deg) scale(${scale})`,
+    left: `${Math.max(0, Math.min(1, x)) * 100}%`,
+    top: `${Math.max(0, Math.min(1, y)) * 100}%`,
+    transform: `translate(-50%, -50%) translate3d(${lateralDrift}px, ${drift}px, ${depth}px) rotateX(${Math.sin(frame * 0.028 + index) * 8}deg) rotateY(${spinning ? frame * 0.55 : Math.sin(frame * 0.032 + index) * 12}deg) rotateZ(${rotation}deg) scale(${scale})`,
     opacity: entrance,
     transformOrigin: 'center',
     transformStyle: 'preserve-3d',
@@ -40,13 +85,13 @@ const renderShapes = (object: BlueprintObject, fallbackColor: string) => {
 };
 
 /** Transparent SVG layers create data-driven depth without a repeated card. */
-const VectorObject: React.FC<{ object: BlueprintObject; frame: number; fps: number; index: number }> = ({ object, frame, fps, index }) => {
+const VectorObject: React.FC<{ object: BlueprintObject; frame: number; fps: number; index: number; durationInFrames: number }> = ({ object, frame, fps, index, durationInFrames }) => {
   const spec = object.render_spec;
   const viewBox = spec.viewBox || [0, 0, 1000, 700];
   const color = object.color || '#38bdf8';
-  const style = objectStyle(object, frame, fps, index);
-  const width = 260 + (index % 3) * 90;
-  const height = 180 + (index % 2) * 70;
+  const style = objectStyle(object, frame, fps, index, durationInFrames);
+  const width = 620 + (index % 3) * 120;
+  const height = 430 + (index % 2) * 110;
   return <div style={{ ...style, width, height, filter: `drop-shadow(0 0 18px ${color}66)` }}>
     {[4, 3, 2, 1, 0].map((layer) => (
       <svg key={layer} viewBox={viewBox.join(' ')} width="100%" height="100%" style={{ position: 'absolute', inset: 0, transform: `translate3d(${layer * 4}px, ${layer * 4}px, ${-layer * 7}px)`, opacity: layer === 0 ? 1 : 0.18 }}>
@@ -56,10 +101,10 @@ const VectorObject: React.FC<{ object: BlueprintObject; frame: number; fps: numb
   </div>;
 };
 
-const ThreeDObject: React.FC<{ object: BlueprintObject; frame: number; fps: number; index: number }> = ({ object, frame, fps, index }) => {
+const ThreeDObject: React.FC<{ object: BlueprintObject; frame: number; fps: number; index: number; durationInFrames: number }> = ({ object, frame, fps, index, durationInFrames }) => {
   const color = object.color || '#38bdf8';
   const primitive = object.render_spec.primitive || 'sphere';
-  const style = objectStyle(object, frame, fps, index);
+  const style = objectStyle(object, frame, fps, index, durationInFrames);
   const spin = frame * (0.55 + index * 0.07);
   const node = (key: string, left: string, top: string, size = 22) => <span key={key} style={{ position: 'absolute', left, top, width: size, height: size, borderRadius: '50%', background: `radial-gradient(circle at 30% 25%, #fff, ${color} 25%, #05070f 100%)`, boxShadow: `0 0 18px ${color}` }} />;
 
@@ -73,26 +118,34 @@ const ThreeDObject: React.FC<{ object: BlueprintObject; frame: number; fps: numb
   return <div style={{ ...style, width: 190, height: 190, borderRadius: '50%', background: `radial-gradient(circle at 28% 22%, #ffffff 0%, ${color} 16%, ${color}88 42%, #05070f 78%)`, boxShadow: `0 0 45px ${color}aa, inset -22px -18px 28px #000b`, transform: `${style.transform} rotateY(${spin}deg)` }}><span style={{ position: 'absolute', inset: '18% 8%', border: `2px solid ${color}99`, borderRadius: '50%', transform: `rotate(${spin * 0.7}deg)` }} /></div>;
 };
 
-const BlueprintObjectView: React.FC<{ object: BlueprintObject; frame: number; fps: number; index: number; imageAssets: Record<string, string> }> = ({ object, frame, fps, index, imageAssets }) => {
+const BlueprintObjectView: React.FC<{ object: BlueprintObject; frame: number; fps: number; index: number; durationInFrames: number; imageAssets: Record<string, string> }> = ({ object, frame, fps, index, durationInFrames, imageAssets }) => {
   const color = object.color || '#38bdf8';
-  const style = objectStyle(object, frame, fps, index);
+  const style = objectStyle(object, frame, fps, index, durationInFrames);
   const spec = object.render_spec;
   // AGY may phrase an object query slightly differently from the scene-level
   // query that produced the downloaded file. Prefer the exact match, then use
   // the first scene asset so a verified imported image never degrades to text.
   const imageUrl = (spec.asset_query ? imageAssets[spec.asset_query] : undefined) || Object.values(imageAssets)[0];
-  if (spec.type === '3d') return <ThreeDObject object={object} frame={frame} fps={fps} index={index} />;
+  if (spec.type === '3d') return <ThreeDObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} />;
   if (spec.type === 'image' && imageUrl) {
     const clipPath = index % 3 === 0 ? 'circle(48% at 50% 50%)' : index % 3 === 1 ? 'polygon(8% 0, 92% 0, 100% 82%, 50% 100%, 0 82%)' : 'inset(0 round 28px 4px 28px 4px)';
     return <div style={{ ...style, width: 300 + (index % 2) * 100, height: 210, clipPath, border: `2px solid ${color}`, boxShadow: `0 0 32px ${color}77`, overflow: 'hidden' }}><Img src={staticFile(imageUrl)} alt={object.label || 'AGY-selected asset'} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: `saturate(1.25) contrast(1.08) hue-rotate(${index * 9}deg)` }} /><div style={{ position: 'absolute', left: '10%', bottom: '8%', color: '#fff', fontSize: '14px', fontWeight: 800, textShadow: `0 2px 14px #000, 0 0 12px ${color}` }}>{object.label}</div></div>;
   }
-  if (spec.type === 'vector') return <VectorObject object={object} frame={frame} fps={fps} index={index} />;
+  if (spec.type === 'vector') return <VectorObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} />;
   const text = spec.text || object.label || object.id;
   return <div style={{ ...style, minWidth: 130, maxWidth: 330, padding: '9px 0', color: '#f8fafc', textAlign: 'center', fontWeight: 900, fontSize: `${18 + (index % 3) * 5}px`, letterSpacing: '0.04em', textShadow: `0 0 18px ${color}, 0 4px 18px #000`, borderBottom: `3px solid ${color}`, background: `linear-gradient(90deg, transparent, ${color}33, transparent)` }}>{text}</div>;
 };
 
-export const BlueprintVisual: React.FC<BlueprintVisualProps> = ({ blueprint, imageAssets = {} }) => {
+export const BlueprintVisual: React.FC<BlueprintVisualProps> = ({ blueprint, imageAssets = {}, durationInFrames }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  return <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', perspective: '1200px', transformStyle: 'preserve-3d' }}>{blueprint.objects.map((object, index) => <BlueprintObjectView key={object.id} object={object} frame={frame} fps={fps} index={index} imageAssets={imageAssets} />)}</div>;
+  const scan = (frame * 9) % 1400 - 180;
+  const coreColor = blueprint.objects[0]?.color || '#8b5cf6';
+  return <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', perspective: '1200px', transformStyle: 'preserve-3d' }}>
+    <div style={{ position: 'absolute', inset: 0, opacity: 0.22, backgroundImage: 'linear-gradient(rgba(148,163,184,.22) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.22) 1px, transparent 1px)', backgroundSize: '72px 72px', backgroundPosition: `${frame * 1.8}px ${frame * 1.1}px`, maskImage: 'linear-gradient(to bottom, transparent, black 18%, black 82%, transparent)' }} />
+    <ParticleField frame={frame} color={coreColor} />
+    <KineticCore frame={frame} color={coreColor} />
+    <div style={{ position: 'absolute', top: 0, bottom: 0, width: 150, left: scan, opacity: 0.28, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,.16), transparent)', filter: 'blur(10px)', transform: 'skewX(-16deg)' }} />
+    {blueprint.objects.map((object, index) => <BlueprintObjectView key={object.id} object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} imageAssets={imageAssets} />)}
+  </div>;
 };

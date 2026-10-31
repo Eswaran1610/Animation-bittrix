@@ -22,6 +22,31 @@ export const api = {
     }>;
   },
 
+  async getAgyConnection() {
+    const res = await fetch(`${API_BASE}/providers/agy/status`);
+    if (!res.ok) throw new Error('Failed to check AGY connection');
+    return res.json() as Promise<AgyConnection>;
+  },
+
+  async connectAgy() {
+    const res = await fetch(`${API_BASE}/providers/agy/connect`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to start AGY connection');
+    return res.json() as Promise<AgyConnection>;
+  },
+
+  async submitAgyAuthorizationCode(sessionId: string, code: string) {
+    const res = await fetch(`${API_BASE}/providers/agy/connect/${sessionId}/code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to submit AGY authorization code');
+    }
+    return res.json() as Promise<AgyConnection>;
+  },
+
   async listProjects(): Promise<Project[]> {
     const res = await fetch(`${API_BASE}/projects`);
     if (!res.ok) throw new Error('Failed to fetch projects');
@@ -136,4 +161,12 @@ export const api = {
     if (!res.ok) throw new Error('Failed to fetch videos');
     return res.json();
   },
+};
+
+export type AgyConnection = {
+  cliAvailable: boolean;
+  state: 'unknown' | 'starting' | 'awaiting_code' | 'verifying' | 'connected' | 'failed';
+  sessionId?: string;
+  message: string;
+  authUrl?: string;
 };

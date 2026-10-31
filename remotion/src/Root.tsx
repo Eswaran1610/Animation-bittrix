@@ -16,11 +16,10 @@ export const Root: React.FC = () => {
     throw new Error('No approved AGY plan is loaded. Generate and approve a script before rendering.');
   }
   
-  // Calculate total duration in frames as sum of all scenes
-  const totalDuration = scenes.reduce((sum: number, s: any) => {
-    const frames = s.durationInFrames;
-    return sum + frames;
-  }, 0);
+  // Overlap transitions are part of the shared scene clock, so they shorten
+  // the composition instead of inserting a dark gap between scenes.
+  const totalDuration = scenes.reduce((sum: number, s: any, index: number) =>
+    sum + s.durationInFrames - (index < scenes.length - 1 ? Number(s.transitionOutFrames || 0) : 0), 0);
 
   return (
     <>

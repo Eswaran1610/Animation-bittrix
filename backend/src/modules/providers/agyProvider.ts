@@ -130,7 +130,7 @@ export class AGYProvider implements AIProvider {
 
     const requestedDuration = this.requestedDurationSec(input);
     const plannedDuration = parsed.scenePlan.reduce((sum: number, scene: any) => sum + Number(scene.duration_sec || 0), 0);
-    if (requestedDuration && plannedDuration !== requestedDuration) {
+    if (requestedDuration && Math.abs(plannedDuration - requestedDuration) > 0.001) {
       throw new Error(`AGY planned ${plannedDuration}s, but the request requires exactly ${requestedDuration}s.`);
     }
 
@@ -155,12 +155,19 @@ export class AGYProvider implements AIProvider {
     }
 
     const renderTypes = new Set(['vector', 'image', 'text', '3d']);
+    const templates = new Set(['hero-object', 'split-compare', 'stat-callout', 'list-reveal', 'quote-focus', 'timeline', 'steps-numbered', 'map-pin', 'chart-bar', 'before-after', 'question-hook', 'cta-outro', 'product-showcase', 'fact-card', 'icon-grid']);
     parsed.scenePlan.forEach((scene: any, index: number) => {
       const label = `scene ${index + 1}`;
       if (scene.scene_number !== index + 1) throw new Error(`AGY scene numbering is invalid at ${label}.`);
-      if (!Number.isInteger(scene.duration_sec) || scene.duration_sec < 2) {
-        throw new Error(`AGY returned an invalid duration for ${label}.`);
+      if (!Number.isFinite(scene.duration_sec) || scene.duration_sec < 2.5 || scene.duration_sec > 5) {
+        throw new Error(`AGY returned a duration outside the 2.5-5 second quality range for ${label}.`);
       }
+      if (!['hook', 'body', 'cta'].includes(scene.role)) throw new Error(`AGY returned no valid hook/body/cta role for ${label}.`);
+      if (!templates.has(scene.template)) throw new Error(`AGY returned no supported reusable template for ${label}.`);
+      if (index === 0 && scene.role !== 'hook') throw new Error('The first AGY scene must be a hook.');
+      if (index === parsed.scenePlan.length - 1 && scene.role !== 'cta') throw new Error('The final AGY scene must be a CTA.');
+      if (index > 0 && index < parsed.scenePlan.length - 1 && scene.role !== 'body') throw new Error(`Only the first and last scenes may be hook/cta roles (${label}).`);
+      if (typeof scene.on_screen_text !== 'string' || scene.on_screen_text.trim().split(/\s+/).length > 6) throw new Error(`AGY headline exceeds six words for ${label}.`);
       for (const field of ['on_screen_text', 'subtitle', 'visual_direction', 'motion_cue', 'continuity_to_next', 'narration']) {
         if (typeof scene[field] !== 'string' || !scene[field].trim()) {
           throw new Error(`AGY returned no ${field} for ${label}.`);
@@ -250,7 +257,7 @@ BEGIN SUBMITTED CONTENT
 ${req.topicOrContent}
 END SUBMITTED CONTENT
 INPUT TYPE: ${req.inputType}
-${requestedDuration ? `TARGET DURATION: exactly ${requestedDuration} seconds total. Choose integer scene durations whose sum is exactly ${requestedDuration}; do not add or remove time in the renderer.` : ''}
+${requestedDuration ? `TARGET DURATION: exactly ${requestedDuration} seconds total. Choose scene durations between 2.5 and 5 seconds whose sum is exactly ${requestedDuration}; do not add or remove time in the renderer.` : ''}
 ${this.requiresImportedImage(req) ? 'IMPORTED IMAGE REQUIREMENT: Include at least one real image object with render_spec.type "image" and a specific asset_query that the renderer can download. Keep it in the visual safe area; never place it under the text safe area.' : ''}
 ${websiteTour ? 'WEBSITE TOUR REQUIREMENT: This is a real website-visit video, not an abstract explainer. Every scene must show a different animated browser viewport state. Add visual_blueprint.website_view with url, route, section, layout_variant (hero|about-grid|product-split|contact), nav_items, hero_label, hero_heading, hero_body, panels (at least two objects with title/body/accent hex), and cta. Use page-specific content verified from the submitted website. Do not reuse the same card layout across scenes.' : ''}
 ${isRevision ? `REVISION FEEDBACK: "${req.changeRequestFeedback}". Update the scene plan accordingly while maintaining narrative continuity.` : ''}
@@ -263,7 +270,9 @@ NON-NEGOTIABLE SKILL RULES:
 3a. Return a top-level styleProfile with one selected family (cinematic-neon, editorial-paper, playful-pop, technical-terminal, or documentary-grid), a topic-specific motif, five hex colors, a motion_language, and a transition_language. Do not default every project to dark neon or the same browser treatment.
 4. For each scene, specify:
    - scene_number (integer)
-   - duration_sec (integer between 2 and 8; when TARGET DURATION is present, all scene durations must sum exactly to that target)
+   - role (exactly one "hook" first, "body" for middle scenes, and "cta" last)
+   - template (one of hero-object, split-compare, stat-callout, list-reveal, quote-focus, timeline, steps-numbered, map-pin, chart-bar, before-after, question-hook, cta-outro, product-showcase, fact-card, icon-grid)
+   - duration_sec (number between 2.5 and 5; when TARGET DURATION is present, all scene durations must sum exactly to that target)
    - on_screen_text (bold, kinetic title 3-6 words)
    - subtitle (punchy 1-sentence concept explanation)
    - key_takeaways (array of 2 to 3 short bullet points explaining the mechanism, max 6 words each)
@@ -271,7 +280,7 @@ NON-NEGOTIABLE SKILL RULES:
    - metric_data (object with "label", "value" number 0-100, and "unit" only when the content supports a meaningful metric; otherwise null)
    - image_search_query (specific search phrase for an open educational diagram or illustration, or null when a procedural visual is more accurate)
    - visual_direction (layout, camera push/pan, visual structure)
-   - visual_type (always "blueprint" for new plans; old template labels are not allowed for new content)
+   - visual_type (always "blueprint" for new plans; the reusable template is provided separately)
    - visual_blueprint (required, content-specific and different for every scene):
      { "purpose": "what this scene explains visually", "layout": "free-form composition with normalized object positions", "camera_motion": "specific camera movement", "asset_queries": ["relevant Wikimedia/Openverse search phrases"], "objects": [
      { "id": "unique object id", "label": "content-specific label", "detail": "short explanation", "x": 0.5, "y": 0.5, "to_x": 0.6, "to_y": 0.45, "scale": 1, "rotation": 0, "color": "#RRGGBB", "motion": "exact frame-driven motion", "motion_plan": { "enter_frame": 12, "exit_frame": 132, "idle": "float|pulse|orbit|shimmer|drift", "focal": true }, "render_spec": { "type": "vector|image|text|3d", "primitive": "sphere|cube|torus|cylinder|molecule when type is 3d", "viewBox": [0, 0, 1000, 700], "paths": [{ "d": "content-specific SVG path", "fill": "#RRGGBB", "stroke": "#RRGGBB", "strokeWidth": 4 }], "circles": [], "rects": [], "lines": [], "polygons": [], "text": "optional text", "asset_query": null } }
@@ -305,6 +314,8 @@ Respond with ONLY a valid JSON object matching this schema:
   "scenePlan": [
     {
       "scene_number": 1,
+      "role": "hook",
+      "template": "question-hook",
       "duration_sec": 5,
       "on_screen_text": "string",
       "subtitle": "string",

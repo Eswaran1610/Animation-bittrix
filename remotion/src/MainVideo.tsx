@@ -1,9 +1,9 @@
 import React from 'react';
-import { AbsoluteFill, Sequence, Audio, interpolate, staticFile } from 'remotion';
-import { TransitionSeries, linearTiming } from '@remotion/transitions';
-import { slide } from '@remotion/transitions/slide';
+import { AbsoluteFill, Sequence, Audio } from 'remotion';
 import { DynamicScene } from './components/DynamicScene';
+import { WordCaptions } from './components/WordCaptions';
 import { SceneDataPayload } from './data/sceneTypes';
+import { assetSource } from './assetSource';
 
 export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData }) => {
   const scenes = sceneData.scenes;
@@ -40,10 +40,7 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
     <AbsoluteFill style={{ backgroundColor: '#05070f' }}>
       {/* Synchronized Neural Voiceover Narration Track */}
       {audioUrl && (
-        <Audio src={staticFile(audioUrl)} volume={narrationVolume} />
-      )}
-      {backgroundAudioUrl && (
-        <Audio src={staticFile(backgroundAudioUrl)} volume={(frame) => 0.5 * narrationVolume(frame)} />
+        <Audio src={assetSource(audioUrl)} volume={1.0} />
       )}
 
       {/* Object sounds are rendered from the same absolute timeline as the
@@ -54,27 +51,28 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
         </Sequence>
       ))}
 
-      <TransitionSeries>
-        {scenes.flatMap((scene, idx) => {
-          const durationFrames = scene.durationInFrames;
-          const transitionFrames = scene.transitionOutFrames || 0;
-          const direction = idx % 2 === 0 ? 'from-right' : 'from-bottom';
-          const parts = [
-            <TransitionSeries.Sequence key={scene.id || idx} durationInFrames={durationFrames}>
+        return (
+          <Sequence
+            key={scene.id || idx}
+            from={startFrame}
+            durationInFrames={durationFrames}
+          >
+            {scene.audioCues?.map((cue, cueIndex) => (
+              <Sequence key={`${scene.id}-cue-${cueIndex}`} from={cue.frame} durationInFrames={Math.max(1, durationFrames - cue.frame)}>
+                <Audio src={assetSource(cue.src)} volume={cue.volume ?? 0.7} />
+              </Sequence>
+            ))}
             <DynamicScene
               scene={scene}
               index={idx}
               totalScenes={scenes.length}
               styleProfile={sceneData.video.styleProfile}
             />
-            </TransitionSeries.Sequence>
-          ];
-          if (idx < scenes.length - 1 && transitionFrames > 0) {
-            parts.push(<TransitionSeries.Transition key={`${scene.id}-transition`} presentation={slide({ direction })} timing={linearTiming({ durationInFrames: transitionFrames })} />);
-          }
-          return parts;
-        })}
-      </TransitionSeries>
+          </Sequence>
+        );
+      })}
+
+      <WordCaptions captions={sceneData.video.captions} color={sceneData.video.styleProfile?.primary} />
     </AbsoluteFill>
   );
 };

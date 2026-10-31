@@ -1,7 +1,8 @@
 import React from 'react';
-import { Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
+import { Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { StyleProfile, WebsiteView } from '../data/sceneTypes';
 import { springPresets } from '../theme';
+import { assetSource } from '../assetSource';
 
 interface WebsiteVisitVisualProps {
   view: WebsiteView;
@@ -88,7 +89,7 @@ export const WebsiteVisitVisual: React.FC<WebsiteVisitVisualProps> = ({ view, ac
               <div style={{ color: '#0f172a', fontSize: 28, fontWeight: 900 }}>{view.hero_heading}</div>
               <div style={{ color: '#64748b', fontSize: 14, marginTop: 7, maxWidth: 700 }}>{view.hero_body}</div>
               <div style={{ display: 'grid', gridTemplateColumns: importedImage ? '1.35fr 1fr 1fr' : 'repeat(4, 1fr)', gap: 13, marginTop: 25, transform: `translateY(${interpolate(frame, [0, 25], [35, 0], clamp)}px)` }}>
-                {importedImage && <div style={{ minHeight: 130, borderRadius: 14, overflow: 'hidden', border: `2px solid ${pageAccent}55`, background: '#ffffff', boxShadow: '0 10px 28px rgba(15, 23, 42, .08)' }}><Img src={staticFile(importedImage)} alt="Imported educational website visual" style={{ width: '100%', height: '100%', minHeight: 130, objectFit: 'cover', display: 'block' }} /></div>}
+                {importedImage && <div style={{ minHeight: 130, borderRadius: 14, overflow: 'hidden', border: `2px solid ${pageAccent}55`, background: '#ffffff', boxShadow: '0 10px 28px rgba(15, 23, 42, .08)' }}><Img src={assetSource(importedImage)} alt="Imported educational website visual" style={{ width: '100%', height: '100%', minHeight: 130, objectFit: 'cover', display: 'block' }} /></div>}
                 {panels.map((panel, index) => <div key={panel.title} style={{ ...panelStyle(panel.accent, index), minHeight: 130, transform: `translateY(${Math.sin(frame * .035 + index) * 5}px)` }}><div style={{ color: panel.accent, fontSize: 20, fontWeight: 900 }}>0{index + 1}</div><div style={{ color: '#0f172a', fontSize: 15, fontWeight: 900, marginTop: 13 }}>{panel.title}</div><div style={{ color: '#64748b', fontSize: 11, lineHeight: 1.4, marginTop: 8 }}>{panel.body}</div></div>)}
               </div>
               <div style={{ marginTop: 25, height: 7, borderRadius: 99, background: '#e2e8f0', overflow: 'hidden' }}><div style={{ width: `${interpolate(frame, [0, durationInFrames], [8, 92], clamp)}%`, height: '100%', background: `linear-gradient(90deg, ${pageAccent}, #38bdf8)`, borderRadius: 99 }} /></div>

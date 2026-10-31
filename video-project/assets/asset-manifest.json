@@ -1,0 +1,16 @@
+{
+  "project": "fruit-nutrition-short",
+  "generated": "2026-10-31",
+  "images": [
+    { "id": "IMG-HOOK-01", "filename": "remotion/public/assets/short-video/apple.svg", "description": "Procedural apple illustration", "sourceUrl": "generated locally", "license": "Original project-generated asset", "format": "svg", "sceneId": "hook", "status": "generated", "verified": true },
+    { "id": "IMG-APPLE-01", "filename": "remotion/public/assets/short-video/apple.svg", "description": "Procedural apple illustration", "sourceUrl": "generated locally", "license": "Original project-generated asset", "format": "svg", "sceneId": "apples", "status": "generated", "verified": true },
+    { "id": "IMG-ORANGE-01", "filename": "remotion/public/assets/3311b5df-aac8-4499-9e72-0098f32f146c_scene_302.jpg", "description": "Orange fruit photograph already present in the workspace", "sourceUrl": "existing workspace asset; original source metadata unavailable", "license": "User/workspace-provided; verify before external publication", "format": "jpg", "sceneId": "oranges", "status": "downloaded", "verified": true },
+    { "id": "IMG-GUAVA-01", "filename": "remotion/public/assets/short-video/guava.svg", "description": "Procedural guava illustration", "sourceUrl": "generated locally", "license": "Original project-generated asset", "format": "svg", "sceneId": "guava", "status": "generated", "verified": true }
+  ],
+  "audio": [
+    { "id": "AUD-MUSIC-01", "filename": "remotion/public/audio/short-video-bed.wav", "description": "Procedural synth pulse generated locally", "sourceUrl": "generated locally", "license": "Original project-generated asset", "durationSec": 20, "role": "music", "sceneId": "ALL", "status": "generated", "verified": true },
+    { "id": "AUD-SFX-01", "filename": "remotion/public/audio/short-video-whoosh.wav", "description": "Procedural noise sweep generated locally", "sourceUrl": "generated locally", "license": "Original project-generated asset", "durationSec": 0.45, "role": "sfx", "sceneId": "ALL", "status": "generated", "verified": true },
+    { "id": "AUD-VO-01", "filename": "remotion/public/audio/3311b5df-aac8-4499-9e72-0098f32f146c_narration.mp3", "description": "Existing local project narration", "sourceUrl": "existing workspace asset", "license": "User/workspace-provided", "durationSec": 20, "role": "voiceover", "sceneId": "ALL", "status": "downloaded", "verified": true }
+  ],
+  "fonts": []
+}

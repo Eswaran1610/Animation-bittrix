@@ -33,7 +33,7 @@ export class TTSService {
   }
 
   /** Generate the approved narration with the local Kokoro female voice. */
-  async generateNarration(projectId: string, text: string, maxDurationSec?: number): Promise<{ audioPath: string; staticUrl: string; durationSec: number }> {
+  async generateNarration(projectId: string, text: string): Promise<{ audioPath: string; staticUrl: string; durationSec: number }> {
     const mediaDir = path.join(projectPaths.backendMedia, 'audio');
     const remotionPublicDir = path.join(projectPaths.remotionPublic, 'audio');
     await fs.mkdir(mediaDir, { recursive: true });
@@ -61,10 +61,6 @@ export class TTSService {
       backendFile
     ]);
     let durationSec = parseFloat(stdout.trim()) || 0;
-
-    // Always preserve natural, human voice tempo (1.0x). Never force atempo speed-up
-    // that makes the voice sound rushed or unnatural. The visual timeline adapts to the voice.
-    console.log(`[TTSService] Narration audio generated at natural tempo: ${durationSec.toFixed(1)}s.`);
 
     await fs.copyFile(backendFile, remotionFile);
     console.log(`[TTSService] Kokoro narration ready: ${remotionFile} (${durationSec.toFixed(1)}s)`);

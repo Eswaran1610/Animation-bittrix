@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ProjectDetail as IProjectDetail } from '../types';
 import { api } from '../services/api';
+import { LiveRemotionPreview } from './LiveRemotionPreview';
 import { 
   ArrowLeft, CheckCircle2, ShieldCheck, AlertCircle, Play, 
   FileText, Sparkles, RefreshCw, Eye, Download, History, ExternalLink 
@@ -44,10 +45,35 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
   const isCurrentPreviewApproved = currentPreviewVer > 0 && !!previewApproval;
 
   const latestPreviewJob = renderJobs.find((j) => j.render_type === 'preview');
-  const latestPreviewUrl = latestPreviewJob?.output_location
-    ? `${latestPreviewJob.output_location}${latestPreviewJob.output_location.includes('?') ? '&' : '?'}render_job=${latestPreviewJob.id}`
-    : undefined;
+  const [livePreviewProps, setLivePreviewProps] = useState<unknown | null>(null);
+  const [livePreviewLoading, setLivePreviewLoading] = useState(false);
+  const [livePreviewError, setLivePreviewError] = useState('');
   const finalVideo = videos[0];
+
+  useEffect(() => {
+    if (!latestPreviewJob || latestPreviewJob.status !== 'completed' || currentPreviewVer < 1) {
+      setLivePreviewProps(null);
+      setLivePreviewError('');
+      return;
+    }
+    let active = true;
+    setLivePreviewLoading(true);
+    setLivePreviewError('');
+    api.getPreviewProps(project.id, currentPreviewVer)
+      .then((props) => {
+        if (active) setLivePreviewProps(props);
+      })
+      .catch((err: any) => {
+        if (active) {
+          setLivePreviewProps(null);
+          setLivePreviewError(err.message || 'Live Remotion preview data could not be loaded.');
+        }
+      })
+      .finally(() => {
+        if (active) setLivePreviewLoading(false);
+      });
+    return () => { active = false; };
+  }, [project.id, currentPreviewVer, latestPreviewJob?.id, latestPreviewJob?.status]);
 
   useEffect(() => {
     if (!latestPreviewJob || latestPreviewJob.status === 'completed' || latestPreviewJob.status === 'failed') {
@@ -454,7 +480,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                   style={{ width: '100%', padding: '12px' }}
                 >
                   <Play size={18} />
-                  {isSubmittingPreviewAction ? 'Rendering Remotion Preview...' : 'Generate & Render Remotion Preview'}
+                  {isSubmittingPreviewAction ? 'Preparing Live Remotion Preview...' : 'Prepare Live Remotion Preview'}
                 </button>
                 {!isScriptApproved && (
                   <p style={{ fontSize: '11px', color: '#f59e0b', marginTop: '8px', textAlign: 'center' }}>
@@ -584,32 +610,19 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
               </div>
             ) : (
               <div>
-                {/* Real HTML5 Video Player */}
-                <div style={{
-                  background: '#000000',
-                  borderRadius: '12px',
-                  overflow: 'hidden',
-                  border: '1px solid var(--border-color)',
-                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)',
-                  marginBottom: '16px'
-                }}>
-                  <video
-                    key={latestPreviewUrl || 'preview-video'}
-                    controls
-                    autoPlay
-                    playsInline
-                    style={{
-                      width: '100%',
-                      maxHeight: '440px',
-                      display: 'block'
-                    }}
-                  >
-                    <source src={latestPreviewUrl} type="video/mp4" />
-                    Your browser does not support HTML5 video playback.
-                  </video>
-                </div>
+                {livePreviewLoading ? (
+                  <div style={{ height: '360px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+                    Loading live Remotion composition…
+                  </div>
+                ) : livePreviewProps ? (
+                  <LiveRemotionPreview props={livePreviewProps} />
+                ) : (
+                  <div style={{ height: '360px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fca5a5', textAlign: 'center', padding: '24px' }}>
+                    {livePreviewError || 'Live Remotion preview data is unavailable.'}
+                  </div>
+                )}
 
-                {/* Preview Meta & Direct Open Link */}
+                {/* Preview Meta */}
                 <div style={{
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -617,18 +630,8 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                   fontSize: '13px',
                   color: 'var(--text-muted)'
                 }}>
-                  <span>Preview Version: <strong>v{currentPreviewVer}</strong> (Script v{project.current_script_version})</span>
-                  {latestPreviewUrl && (
-                    <a
-                      href={latestPreviewUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="btn btn-secondary"
-                      style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                    >
-                      <ExternalLink size={14} /> Open Video Directly in New Tab
-                    </a>
-                  )}
+                  <span>Live TSX Preview: <strong>v{currentPreviewVer}</strong> (Script v{project.current_script_version})</span>
+                  <span style={{ color: '#38bdf8', fontSize: '12px' }}>Natural voice + word captions + motion</span>
                 </div>
               </div>
             )}

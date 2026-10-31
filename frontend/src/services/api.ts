@@ -5,6 +5,24 @@ import { Project, ProjectDetail, Script, Approval, RenderJob, VideoRecord } from
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export const api = {
+  async getAgyAuthStatus(): Promise<{ authenticated: boolean; cliInstalled: boolean; source: 'local-cli' | null; message?: string }> {
+    const res = await fetch(`${API_BASE}/auth/agy`);
+    if (!res.ok) throw new Error(`AGY login status endpoint returned ${res.status}`);
+    return res.json();
+  },
+
+  async connectAgy(): Promise<{ authenticated: boolean; cliInstalled: boolean; source: 'local-cli' | null; message?: string }> {
+    const res = await fetch(`${API_BASE}/auth/agy`, {
+      method: 'POST',
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const routeHint = res.status === 404 ? ' Restart the backend so the AGY connection route is loaded.' : '';
+      throw new Error(data.error || `AGY connection request returned ${res.status}.${routeHint}`);
+    }
+    return data;
+  },
+
   async getHealth() {
     const res = await fetch(`${API_BASE}/health`);
     return res.json();
@@ -114,6 +132,15 @@ export const api = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || 'Failed to render preview');
+    }
+    return res.json();
+  },
+
+  async getPreviewProps(projectId: string, previewVersion: number): Promise<unknown> {
+    const res = await fetch(`${API_BASE}/projects/${projectId}/previews/${previewVersion}/props`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to load live Remotion preview');
     }
     return res.json();
   },

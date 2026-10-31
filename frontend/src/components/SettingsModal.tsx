@@ -1,43 +1,58 @@
 import React, { useEffect, useState } from 'react';
-import { Cpu, Database, CheckCircle2, Clock, LogIn, LoaderCircle, AlertCircle } from 'lucide-react';
-import { AgyConnection, api } from '../services/api';
+import { ShieldCheck, Cpu, Database, CheckCircle2, Clock, LogIn, RefreshCw } from 'lucide-react';
+import { api } from '../services/api';
 
 export const SettingsModal: React.FC = () => {
-  const [agy, setAgy] = useState<AgyConnection | null>(null);
-  const [authorizationCode, setAuthorizationCode] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [agyAuthenticated, setAgyAuthenticated] = useState(false);
+  const [agyCliInstalled, setAgyCliInstalled] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authSaving, setAuthSaving] = useState(false);
+  const [authMessage, setAuthMessage] = useState('');
+  const [authStatusUnavailable, setAuthStatusUnavailable] = useState(false);
 
-  const refreshAgy = async () => setAgy(await api.getAgyConnection().catch(() => null));
-  useEffect(() => { void refreshAgy(); }, []);
+  const loadAgyAuthStatus = () => {
+    let active = true;
+    setAuthLoading(true);
+    setAuthStatusUnavailable(false);
+    api.getAgyAuthStatus()
+      .then((status) => {
+        if (active) {
+          setAgyAuthenticated(status.authenticated);
+          setAgyCliInstalled(status.cliInstalled);
+          setAuthMessage(status.message || '');
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setAgyAuthenticated(false);
+          setAuthStatusUnavailable(true);
+          setAuthMessage('Backend login status is unavailable. Restart the backend, then retry.');
+        }
+      })
+      .finally(() => {
+        if (active) setAuthLoading(false);
+      });
+    return () => { active = false; };
+  };
 
-  useEffect(() => {
-    if (!agy || !['starting', 'verifying'].includes(agy.state)) return;
-    const timer = window.setInterval(() => void refreshAgy(), 1_500);
-    return () => window.clearInterval(timer);
-  }, [agy?.state]);
+  useEffect(() => loadAgyAuthStatus(), []);
 
-  const connectAgy = async () => {
-    setBusy(true);
+  const handleAgyConnect = async () => {
     try {
-      setAgy(await api.connectAgy());
+      setAuthSaving(true);
+      setAuthMessage('');
+      const status = await api.connectAgy();
+      setAgyAuthenticated(status.authenticated);
+      setAgyCliInstalled(status.cliInstalled);
+      setAuthMessage(status.message || (status.authenticated ? 'Local AGY CLI is connected.' : 'Local AGY is not authenticated yet.'));
+    } catch (err: any) {
+      if (/returned 404|failed to fetch|network/i.test(err.message || '')) setAuthStatusUnavailable(true);
+      setAuthMessage(err.message || 'AGY connection check failed.');
     } finally {
-      setBusy(false);
+      setAuthSaving(false);
     }
   };
 
-  const submitCode = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!agy?.sessionId || !authorizationCode.trim()) return;
-    setBusy(true);
-    try {
-      setAgy(await api.submitAgyAuthorizationCode(agy.sessionId, authorizationCode));
-      setAuthorizationCode('');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const connected = agy?.state === 'connected';
   return (
     <div style={{ maxWidth: '900px', margin: '32px auto', padding: '0 24px' }}>
       <div className="glass-panel" style={{ padding: '28px' }}>
@@ -61,7 +76,50 @@ export const SettingsModal: React.FC = () => {
           color: 'var(--text-secondary)'
         }}>
           <LogIn size={17} color="#38bdf8" />
-          <span><strong style={{ color: 'var(--text-primary)' }}>AGY runs locally:</strong> connect this machine once, then its backend worker can create plans without asking you to log in for every project.</span>
+          <span><strong style={{ color: 'var(--text-primary)' }}>Local AI connection:</strong> this project uses the AGY CLI installed and authenticated on the backend machine.</span>
+        </div>
+
+        <div style={{
+          background: '#0f172a',
+          border: '1px solid var(--border-color)',
+          borderRadius: '8px',
+          padding: '16px',
+          marginBottom: '32px'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <LogIn size={18} color="#38bdf8" /> Local AGY connection
+            </h3>
+            {!authLoading && (
+              <span className={`badge ${agyAuthenticated ? 'badge-approved' : 'badge-draft'}`} style={{ fontSize: '11px' }}>
+                {agyAuthenticated ? <CheckCircle2 size={11} /> : <LogIn size={11} />}
+                {agyAuthenticated ? 'Logged in' : 'Not logged in'}
+              </span>
+            )}
+          </div>
+          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.4', marginBottom: '12px' }}>
+            No Gemini API key is used here. The backend runs the local <code>agy</code> CLI directly. Authenticate it once with <code>agy</code> in a terminal on this machine, then use this button to check the connection.
+          </p>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch', flexWrap: 'wrap' }}>
+            <button className="btn btn-primary" type="button" onClick={handleAgyConnect} disabled={authSaving}>
+              <RefreshCw size={15} /> {authSaving ? 'Checking…' : agyAuthenticated ? 'Refresh connection' : 'Check local AGY'}
+            </button>
+            {authStatusUnavailable && (
+              <button className="btn btn-secondary" type="button" onClick={loadAgyAuthStatus} disabled={authLoading || authSaving}>
+                Retry status
+              </button>
+            )}
+          </div>
+          {authMessage && (
+            <div role="status" style={{ color: /failed|unavailable|restart|could not|not authenticated|not available/i.test(authMessage) ? '#fb7185' : '#34d399', fontSize: '12px', marginTop: '10px' }}>
+              {authMessage}
+            </div>
+          )}
+          {agyCliInstalled && !authStatusUnavailable && (
+            <div style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '8px' }}>
+              To log out of the real local AGY account, run <code>agy</code> and use <code>/logout</code> in its terminal; this web app never stores or copies those credentials.
+            </div>
+          )}
         </div>
 
         {/* AI Providers Section */}
@@ -81,8 +139,8 @@ export const SettingsModal: React.FC = () => {
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <strong style={{ fontSize: '15px' }}>Antigravity (AGY)</strong>
-                <span className={`badge ${connected ? 'badge-approved' : 'badge-draft'}`} style={{ fontSize: '11px' }}>
-                  {connected ? <CheckCircle2 size={11} /> : <Clock size={11} />} {connected ? 'Connected' : 'Login required'}
+                <span className="badge badge-approved" style={{ fontSize: '11px' }}>
+                  <CheckCircle2 size={11} /> CLI Available
                 </span>
               </div>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>

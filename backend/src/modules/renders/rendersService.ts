@@ -12,6 +12,31 @@ import { projectPaths } from '../../config/paths.js';
 import { realtime } from '../../realtime.js';
 
 export class RendersService {
+  private buildWordCaptions(text: string, durationSec: number, fps: number) {
+    const words = text.replace(/[\r\n]+/g, ' ').trim().match(/\S+/g) || [];
+    const totalFrames = Math.max(1, Math.ceil(durationSec * fps));
+    if (words.length === 0) return [];
+
+    // Kokoro does not expose forced-alignment timestamps. Use the approved
+    // script and natural audio duration to create readable deterministic word
+    // timing; the narration itself is never time-stretched.
+    const weights = words.map((word) => Math.max(1, word.replace(/[^\p{L}\p{N}]/gu, '').length));
+    const weightTotal = weights.reduce((sum, weight) => sum + weight, 0);
+    let previousEnd = 0;
+
+    return words.map((word, index) => {
+      const startFrame = previousEnd;
+      const proportionalEnd = Math.round(
+        (weights.slice(0, index + 1).reduce((sum, weight) => sum + weight, 0) / weightTotal) * totalFrames
+      );
+      const endFrame = index === words.length - 1
+        ? totalFrames
+        : Math.max(startFrame + 1, Math.min(totalFrames, proportionalEnd));
+      previousEnd = endFrame;
+      return { word, startFrame, endFrame };
+    });
+  }
+
   /**
    * Convert the approved AGY scene plan into isolated Remotion input props.
    */
@@ -31,28 +56,22 @@ export class RendersService {
 
     // 1. Generate Synchronized Neural Voiceover Audio via TTS
     let audioUrl: string | undefined = undefined;
-    const initialTargetSec = scenePlan.reduce((total: number, scene: any) => total + Number(scene.duration_sec || 0), 0);
-    let narrationDurationSec = initialTargetSec;
+    const plannedDurationSec = scenePlan.reduce((total: number, scene: any) => total + Number(scene.duration_sec || 0), 0);
+    let narrationDurationSec = 0;
     if (script.narration) {
       try {
         const ttsResult = await ttsService.generateNarration(projectId, script.narration);
         audioUrl = ttsResult.staticUrl;
-        if (ttsResult.durationSec && ttsResult.durationSec > 0) {
-          narrationDurationSec = ttsResult.durationSec;
-        }
+        narrationDurationSec = ttsResult.durationSec;
       } catch (err: any) {
         throw new Error(`Narration audio generation failed: ${err.message}`);
       }
     }
 
-    // Account for 12-frame transition overlaps between scenes and allow a natural pause at the end
-    const transitionOverlapSec = ((scenePlan.length - 1) * 12) / fps;
-    const requiredTotalSec = narrationDurationSec + transitionOverlapSec + 0.5;
-    const durationScale = requiredTotalSec > initialTargetSec ? requiredTotalSec / initialTargetSec : 1.0;
-
-    const effectiveTotalSec = Math.max(initialTargetSec, Math.ceil(requiredTotalSec));
-    const backgroundAudioUrl = await audioBedService.generate(projectId, renderType, renderVersion, effectiveTotalSec);
-    await sfxService.ensureLibrary(projectId);
+    // Preserve natural speech speed. If narration is longer than AGY's visual
+    // estimate, stretch scene durations proportionally so no words are cut.
+    const audioPaddingSec = narrationDurationSec > 0 ? 0.35 : 0;
+    const durationScale = Math.max(1, (narrationDurationSec + audioPaddingSec) / Math.max(0.1, plannedDurationSec));
 
     // 2. Fetch Open Educational Web Diagrams for Scenes
     const formattedScenes = await Promise.all(scenePlan.map(async (s: any, idx: number) => {
@@ -65,13 +84,8 @@ export class RendersService {
         throw new Error(`Scene ${idx + 1} is incomplete; render refused.`);
       }
       const themeColor = s.theme_color;
-      const durationSec = durationScale > 1.0 ? Math.max(s.duration_sec, Math.round(s.duration_sec * durationScale)) : s.duration_sec;
-      const durationInFrames = durationSec * fps;
-      // Old plans do not carry transition metadata. Keep them compatible with
-      // a short overlap that avoids a black frame between scenes.
-      const transitionOutFrames = idx < scenePlan.length - 1
-        ? Math.max(8, Math.min(15, Number(s.transition_out_frames || s.visual_blueprint?.transition_out_frames || 12)))
-        : 0;
+      const durationInFrames = Math.max(1, Math.round(Number(s.duration_sec) * fps * durationScale));
+      const durationSec = durationInFrames / fps;
 
       // Fetch every AGY-selected asset query for this scene. The blueprint decides
       // whether an image or procedural object is the right visual treatment.
@@ -168,6 +182,8 @@ export class RendersService {
       return {
         id: `S${String(s.scene_number).padStart(2, '0')}`,
         scene_number: s.scene_number,
+        role: s.role,
+        template: s.template,
         title: s.on_screen_text.slice(0, 35),
         on_screen_text: s.on_screen_text,
         subtitle: s.subtitle,
@@ -210,7 +226,10 @@ export class RendersService {
         previewVersion: renderVersion,
         scriptVersion: script.version,
         audioUrl,
-        backgroundAudioUrl,
+        audioDurationSec: narrationDurationSec || undefined,
+        captions: script.narration
+          ? this.buildWordCaptions(script.narration, narrationDurationSec, fps)
+          : [],
         styleProfile
       },
       scenes: formattedScenes
@@ -270,8 +289,9 @@ export class RendersService {
     }
 
     const currentPreviewVersion = (projectRes.rows[0].current_preview_version || 0) + 1;
-    const diskPath = path.join(projectPaths.backendMedia, 'previews', `${projectId}_preview_v${currentPreviewVersion}.mp4`);
-    const previewUrl = `/media/previews/${projectId}_preview_v${currentPreviewVersion}.mp4`;
+    // Gate 2 previews are played from the Remotion TSX composition in the
+    // browser. Store the prepared props URL instead of rendering an MP4 here.
+    const previewUrl = `/api/projects/${projectId}/previews/${currentPreviewVersion}/props`;
 
     const renderJobRes = await query(
       `INSERT INTO render_jobs (
@@ -292,11 +312,9 @@ export class RendersService {
     void this.processPreviewRender(
       renderJobRes.rows[0].id,
       projectId,
-      scriptVersion,
       currentPreviewVersion,
       projectRes.rows[0].title,
-      script,
-      diskPath
+      script
     );
 
     return renderJobRes.rows[0];
@@ -305,11 +323,9 @@ export class RendersService {
   private async processPreviewRender(
     renderJobId: string,
     projectId: string,
-    scriptVersion: number,
     previewVersion: number,
     projectTitle: string,
-    script: any,
-    diskPath: string
+    script: any
   ): Promise<void> {
     try {
       await query(
@@ -318,19 +334,12 @@ export class RendersService {
       );
       realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress: 5, status: 'Preparing dynamic AGY render' });
 
-      // Write dynamic scene data for Remotion (including neural TTS and web diagrams).
-      const renderPropsPath = await this.writeRemotionSceneData(projectId, projectTitle, script, previewVersion);
+      // Prepare dynamic scene data for the live Remotion Player (including
+      // neural TTS, object cues, and web diagrams). Chromium MP4 rendering is
+      // reserved for the final approved video.
+      await this.writeRemotionSceneData(projectId, projectTitle, script, previewVersion);
       realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress: 20, status: 'Assets and Kokoro narration prepared' });
-
-      await videoRenderer.renderVideo({
-        outputPath: diskPath,
-        title: projectTitle,
-        subheading: script.scene_plan[0].subtitle,
-        versionLabel: `PREVIEW v${previewVersion} • SCRIPT v${scriptVersion}`,
-        scale: 0.5,
-        propsPath: renderPropsPath
-      });
-      realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress: 95, status: 'Remotion render finished; saving preview' });
+      realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress: 95, status: 'Live Remotion TSX preview ready' });
 
       await query(
         `UPDATE render_jobs
@@ -407,7 +416,8 @@ export class RendersService {
 
     const stats = await fs.stat(diskPath);
     const fileSize = stats.size;
-    const durationSeconds = script.scene_plan.reduce((total: number, scene: any) => total + Number(scene.duration_sec), 0);
+    const finalProps = JSON.parse(await fs.readFile(renderPropsPath, 'utf8'));
+    const durationSeconds = finalProps.video.durationInFrames / finalProps.video.fps;
 
     const renderJobRes = await query(
       `INSERT INTO render_jobs (
@@ -446,6 +456,16 @@ export class RendersService {
       [projectId]
     );
     return res.rows;
+  }
+
+  async getPreviewProps(projectId: string, previewVersion: number): Promise<unknown | null> {
+    const renderDataPath = projectPaths.renderData(projectId, 'preview', previewVersion);
+    try {
+      return JSON.parse(await fs.readFile(renderDataPath, 'utf8'));
+    } catch (error: any) {
+      if (error?.code === 'ENOENT') return null;
+      throw error;
+    }
   }
 
   /**

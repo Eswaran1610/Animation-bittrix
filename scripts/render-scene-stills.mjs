@@ -25,6 +25,9 @@ os.networkInterfaces = () => {
   }
 };
 
+const configuredBrowser = process.env.REMOTION_BROWSER_EXECUTABLE;
+const browserExecutable = configuredBrowser && await fs.access(configuredBrowser).then(() => configuredBrowser).catch(() => undefined);
+
 const inputPath = process.argv[2];
 if (!inputPath) {
   console.error('Usage: node scripts/render-scene-stills.mjs <render-data.json> [output-dir]');
@@ -51,9 +54,10 @@ const serveUrl = await bundle({
 
 const browserOptions = {
   logLevel: 'error',
-  port: 3000,
+  port: Number(process.env.REMOTION_PORT || 3000),
   chromeMode: 'headless-shell',
   chromiumOptions: { headless: true },
+  ...(browserExecutable ? { browserExecutable } : {}),
 };
 const composition = await selectComposition({
   serveUrl,

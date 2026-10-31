@@ -8,6 +8,8 @@
   "scripts": {
     "preview": "remotion preview src/index.ts",
     "render": "remotion render src/index.ts MainComposition out/video.mp4",
+    "compositions:host": "node scripts/remotion-host.mjs compositions src/index.ts",
+    "render:host": "node scripts/remotion-host.mjs render src/index.ts MainComposition out/video.mp4",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

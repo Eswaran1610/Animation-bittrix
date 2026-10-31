@@ -1,0 +1,10 @@
+{
+  "video": { "width": 1920, "height": 1080, "fps": 30, "durationInFrames": 600 },
+  "scenes": [
+    { "id": "hook", "startFrame": 0, "durationInFrames": 90, "purpose": "hook", "accent": "#55d6ff" },
+    { "id": "apples", "startFrame": 80, "durationInFrames": 130, "purpose": "content", "accent": "#78d64b" },
+    { "id": "oranges", "startFrame": 200, "durationInFrames": 130, "purpose": "content", "accent": "#ff9f43" },
+    { "id": "guava", "startFrame": 320, "durationInFrames": 130, "purpose": "content", "accent": "#ff5c8a" },
+    { "id": "cta", "startFrame": 440, "durationInFrames": 160, "purpose": "cta", "accent": "#55d6ff" }
+  ]
+}

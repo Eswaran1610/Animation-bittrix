@@ -1,7 +1,9 @@
 import React from 'react';
-import { AbsoluteFill, Sequence, Audio, staticFile } from 'remotion';
+import { AbsoluteFill, Sequence, Audio } from 'remotion';
 import { DynamicScene } from './components/DynamicScene';
+import { WordCaptions } from './components/WordCaptions';
 import { SceneDataPayload } from './data/sceneTypes';
+import { assetSource } from './assetSource';
 
 export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData }) => {
   const scenes = sceneData.scenes;
@@ -14,7 +16,7 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
     <AbsoluteFill style={{ backgroundColor: '#05070f' }}>
       {/* Synchronized Neural Voiceover Narration Track */}
       {audioUrl && (
-        <Audio src={staticFile(audioUrl)} volume={1.0} />
+        <Audio src={assetSource(audioUrl)} volume={1.0} />
       )}
 
       {scenes.map((scene, idx) => {
@@ -30,7 +32,7 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
           >
             {scene.audioCues?.map((cue, cueIndex) => (
               <Sequence key={`${scene.id}-cue-${cueIndex}`} from={cue.frame} durationInFrames={Math.max(1, durationFrames - cue.frame)}>
-                <Audio src={staticFile(cue.src)} volume={cue.volume ?? 0.7} />
+                <Audio src={assetSource(cue.src)} volume={cue.volume ?? 0.7} />
               </Sequence>
             ))}
             <DynamicScene
@@ -42,6 +44,8 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
           </Sequence>
         );
       })}
+
+      <WordCaptions captions={sceneData.video.captions} color={sceneData.video.styleProfile?.primary} />
     </AbsoluteFill>
   );
 };

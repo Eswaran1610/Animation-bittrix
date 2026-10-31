@@ -16,7 +16,7 @@ export class AssetFetcher {
   async fetchDiagramForTopic(projectId: string, sceneNumber: number, searchQuery: string): Promise<FetchedAsset | null> {
     try {
       const encoded = encodeURIComponent(searchQuery.trim());
-      const apiUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encoded}&prop=pageimages&pithumbsize=1000&format=json`;
+      const apiUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encoded}&gsrlimit=10&prop=pageimages&pithumbsize=1400&format=json`;
 
       const response = await fetch(apiUrl, {
         headers: {
@@ -28,8 +28,19 @@ export class AssetFetcher {
       const data: any = await response.json();
       const pages: any[] = Object.values(data?.query?.pages || {});
 
-      // Find first page with an image thumbnail
-      const match = pages.find((p: any) => p.thumbnail?.source);
+      const queryTerms = searchQuery.toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length > 2);
+      const rejectedTitle = /watermark|engraving|logo|flag|disambiguation|outline|symbol/i;
+      const candidates = pages
+        .filter((page: any) => page.thumbnail?.source && Number(page.thumbnail.width || 0) >= 720 && Number(page.thumbnail.height || 0) >= 480)
+        .filter((page: any) => !rejectedTitle.test(page.title || ''))
+        .map((page: any) => {
+          const title = String(page.title || '').toLowerCase();
+          const overlap = queryTerms.filter((term) => title.includes(term)).length;
+          return { page, score: Math.min(10, 4 + overlap * 2) };
+        })
+        .sort((left: any, right: any) => right.score - left.score);
+      // A weak title match is safer than showing a potentially unrelated image.
+      const match = candidates.find((candidate: any) => candidate.score >= 6)?.page;
       if (!match || !match.thumbnail?.source) {
         return null;
       }

@@ -10,6 +10,7 @@ import { rendersService } from './modules/renders/rendersService.js';
 import { query } from './config/db.js';
 import { realtime } from './realtime.js';
 import { projectPaths } from './config/paths.js';
+import { agyAuthService } from './modules/auth/agyAuthService.js';
 
 dotenv.config();
 
@@ -37,6 +38,16 @@ app.get('/api/health', (req, res) => {
     animationEngine: 'remotion (integrated by default)',
     database: databaseLabel
   });
+});
+
+// AGY is authenticated by the local CLI on the backend machine. The browser
+// only receives a safe connection status; no credentials cross this boundary.
+app.get('/api/auth/agy', (req, res) => {
+  void agyAuthService.getStatus().then((status) => res.json(status));
+});
+
+app.post('/api/auth/agy', (req, res) => {
+  void agyAuthService.connect().then((status) => res.json(status));
 });
 
 // Projects Endpoints
@@ -134,6 +145,20 @@ app.post('/api/projects/:id/scripts/approve', async (req, res) => {
 });
 
 // Previews & Gate 2 Endpoints
+app.get('/api/projects/:id/previews/:version/props', async (req, res) => {
+  try {
+    const previewVersion = Number(req.params.version);
+    if (!Number.isInteger(previewVersion) || previewVersion < 1) {
+      return res.status(400).json({ error: 'preview version must be a positive integer' });
+    }
+    const props = await rendersService.getPreviewProps(req.params.id, previewVersion);
+    if (!props) return res.status(404).json({ error: 'Preview composition data not found' });
+    res.json(props);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/projects/:id/previews/render', async (req, res) => {
   try {
     const { script_version, visual_feedback } = req.body;

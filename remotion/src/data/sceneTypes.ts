@@ -62,6 +62,12 @@ export interface StyleProfile {
   transition_language: string;
 }
 
+export interface CaptionWord {
+  word: string;
+  startFrame: number;
+  endFrame: number;
+}
+
 export interface VisualBlueprint {
   purpose: string;
   layout: string;
@@ -74,6 +80,8 @@ export interface VisualBlueprint {
 export interface SceneData {
   id: string;
   scene_number: number;
+  role?: 'hook' | 'body' | 'cta';
+  template?: 'hero-object' | 'split-compare' | 'stat-callout' | 'list-reveal' | 'quote-focus' | 'timeline' | 'steps-numbered' | 'map-pin' | 'chart-bar' | 'before-after' | 'question-hook' | 'cta-outro' | 'product-showcase' | 'fact-card' | 'icon-grid';
   title: string;
   on_screen_text: string;
   subtitle: string;
@@ -112,6 +120,8 @@ export interface SceneDataPayload {
     previewVersion: number;
     scriptVersion: number;
     audioUrl?: string;
+    audioDurationSec?: number;
+    captions?: CaptionWord[];
     styleProfile?: StyleProfile;
   };
   scenes: SceneData[];

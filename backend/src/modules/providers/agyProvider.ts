@@ -6,13 +6,25 @@ import { StyleProfile } from '../../types/index.js';
 
 const execFileAsync = promisify(execFile);
 
+const relativeLuminance = (hex: string) => {
+  const channels = [0, 1, 2].map((index) => parseInt(hex.slice(1 + index * 2, 3 + index * 2), 16) / 255);
+  const linear = channels.map((channel) => channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+};
+
+const contrastRatio = (foreground: string, background: string) => {
+  const light = Math.max(relativeLuminance(foreground), relativeLuminance(background));
+  const dark = Math.min(relativeLuminance(foreground), relativeLuminance(background));
+  return (light + 0.05) / (dark + 0.05);
+};
+
 export class AGYProvider implements AIProvider {
   name = 'agy';
 
   private requestedDurationSec(input: ResearchAndScriptRequest): number | undefined {
     const match = `${input.topicOrContent} ${input.changeRequestFeedback || ''}`.match(/\b(\d{1,3})\s*(?:s|sec|secs|second|seconds)\b/i);
     const seconds = match ? Number(match[1]) : undefined;
-    return seconds && seconds >= 2 && seconds <= 180 ? seconds : undefined;
+    return seconds && seconds >= 25 && seconds <= 40 ? seconds : undefined;
   }
 
   private requiresImportedImage(input: ResearchAndScriptRequest): boolean {
@@ -179,14 +191,20 @@ export class AGYProvider implements AIProvider {
     for (const field of ['background', 'surface', 'text', 'primary', 'secondary']) {
       if (!/^#[0-9a-f]{6}$/i.test(styleProfile[field] || '')) throw new Error(`AGY returned an invalid style profile color: ${field}.`);
     }
+    if (contrastRatio(styleProfile.text, styleProfile.background) < 4.5) {
+      throw new Error('AGY style profile text/background contrast is below the 4.5:1 accessibility threshold.');
+    }
 
     const requestedDuration = this.requestedDurationSec(input);
     const plannedDuration = parsed.scenePlan.reduce((sum: number, scene: any) => sum + Number(scene.duration_sec || 0), 0);
     if (requestedDuration && Math.abs(plannedDuration - requestedDuration) > 0.001) {
       throw new Error(`AGY planned ${plannedDuration}s, but the request requires exactly ${requestedDuration}s.`);
     }
-    if (!requestedDuration && (plannedDuration < 20 || plannedDuration > 45)) {
-      throw new Error(`AGY planned ${plannedDuration}s; short videos must be between 20 and 45 seconds.`);
+    if (parsed.scenePlan.length < 7 || parsed.scenePlan.length > 9) {
+      throw new Error(`AGY returned ${parsed.scenePlan.length} scenes; every video must contain 7-9 scenes.`);
+    }
+    if (plannedDuration < 25 || plannedDuration > 40) {
+      throw new Error(`AGY planned ${plannedDuration}s; every video must be between 25 and 40 seconds.`);
     }
     const paletteColors = new Set<string>([styleProfile.primary.toLowerCase(), styleProfile.secondary.toLowerCase()]);
 
@@ -341,7 +359,7 @@ NON-NEGOTIABLE SKILL RULES:
 2. Provide a complete, captivating voice-over narration (word-for-word).
 3. Design a unique color scheme, visual motif, and kinetic animation tailored specifically to this topic.
 3a. Return a top-level styleProfile with one selected family (cinematic-neon, editorial-paper, playful-pop, technical-terminal, or documentary-grid), a topic-specific motif, five hex colors, a motion_language, and a transition_language. Do not default every project to dark neon or the same browser treatment.
-4. For each scene, specify the complete required field set below. Do not omit fields, replace them with generic filler, or rely on the renderer to invent content:
+4. Produce 7-9 scenes totaling 25-40 seconds. For each scene, specify the complete required field set below. Do not omit fields, replace them with generic filler, or rely on the renderer to invent content:
    - scene_number (integer)
    - role (exactly one "hook" first, "body" for middle scenes, and "cta" last)
    - template (one of hero-object, split-compare, stat-callout, list-reveal, quote-focus, timeline, steps-numbered, map-pin, chart-bar, before-after, question-hook, cta-outro, product-showcase, fact-card, icon-grid)

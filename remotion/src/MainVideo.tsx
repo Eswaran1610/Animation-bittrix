@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Audio, Sequence, interpolate } from 'remotion';
 import { TransitionSeries, linearTiming } from '@remotion/transitions';
-import { fade } from '@remotion/transitions/fade';
+import { slide } from '@remotion/transitions/slide';
 import { SceneRenderer } from './components/SceneRenderer';
 import { WordCaptions } from './components/WordCaptions';
 import { SceneDataPayload } from './data/sceneTypes';
@@ -44,6 +44,8 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
     return 1 - duck;
   };
 
+  const voiceActive = (frame: number) => Boolean(audioUrl) || narrationTracks.some((track) => frame >= track.frame && frame < track.frame + track.durationFrames);
+
   const transitionNodes: React.ReactNode[] = [];
   scenes.forEach((scene, index) => {
     transitionNodes.push(
@@ -56,7 +58,7 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
         <TransitionSeries.Transition
           key={`transition-${scene.id || index}`}
           timing={linearTiming({ durationInFrames: scene.transitionOutFrames || defaultTransitionFrames })}
-          presentation={fade()}
+          presentation={slide({ direction: index % 2 === 0 ? 'from-right' : 'from-left' })}
         />,
       );
     }
@@ -65,7 +67,7 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
   return (
     <AbsoluteFill style={{ backgroundColor: styleProfile?.background || '#05070f' }}>
       {audioUrl && <Audio src={assetSource(audioUrl)} volume={narrationVolume} />}
-      {backgroundAudioUrl && <Audio src={assetSource(backgroundAudioUrl)} volume={(frame) => 0.18 * narrationVolume(frame)} />}
+      {backgroundAudioUrl && <Audio src={assetSource(backgroundAudioUrl)} volume={(frame) => 0.18 * (voiceActive(frame) ? 0.25 : 1) * narrationVolume(frame)} />}
       {narrationTracks.map((track, index) => (
         <Sequence key={`narration-${index}`} from={track.frame} durationInFrames={track.durationFrames}>
           <Audio src={assetSource(track.src)} volume={0.92} />

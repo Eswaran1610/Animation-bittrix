@@ -47,10 +47,10 @@ export const DynamicScene: React.FC<{
         // Reserve the top for readable copy and use the centre as a large,
         // always-moving hero stage. This keeps the bottom platform-controls
         // safe zone completely clear.
-        top: '700px',
-        right: '36px',
-        bottom: '180px',
-        left: '36px',
+        top: '690px',
+        right: '120px',
+        bottom: '350px',
+        left: '120px',
         overflow: 'hidden',
         transform: `translateY(${Math.sin(frame * 0.03) * 12}px)`
       }}>
@@ -62,9 +62,9 @@ export const DynamicScene: React.FC<{
       {/* Hero Kinetic Typography */}
       <div style={{
         position: 'absolute',
-        left: '72px',
-        right: '72px',
-        top: '220px',
+        left: '120px',
+        right: '120px',
+        top: '250px',
         zIndex: 10,
         display: 'flex',
         flexDirection: 'column',
@@ -72,7 +72,6 @@ export const DynamicScene: React.FC<{
         maxHeight: '520px'
       }}>
         <KineticTitle
-          badge={`Scene ${String(scene.scene_number).padStart(2, '0')} of ${String(totalScenes).padStart(2, '0')} • ${scene.title}`}
           title={scene.on_screen_text}
           subtitle={cleanSubtitle}
           color={color}

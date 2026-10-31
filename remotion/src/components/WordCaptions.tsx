@@ -59,7 +59,7 @@ export const WordCaptions: React.FC<{
               key={`${caption.startFrame}-${caption.word}`}
               style={{
                 color: isActive ? '#fff' : '#cbd5e1',
-                fontSize: isActive ? 34 : 28,
+                fontSize: isActive ? 48 : 40,
                 fontWeight: isActive ? 800 : 600,
                 lineHeight: 1.15,
                 transform: `scale(${emphasis})`,

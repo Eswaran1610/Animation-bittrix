@@ -26,16 +26,18 @@ export class VideoRenderer {
     await fs.mkdir(dir, { recursive: true });
 
     const remotionDir = projectPaths.remotionRoot;
-    const scale = opts.scale || 0.5; // 0.5 for fast preview, 1.0 for final 1080p
+    const scale = opts.scale || 1.0;
 
     console.log(`[VideoRenderer] Executing Remotion motion graphics renderer for ${opts.outputPath} (scale ${scale})...`);
 
     try {
-      // Execute genuine Remotion CLI render
+      // Use the project host wrapper so normal computers can select their
+      // Chromium executable/port through REMOTION_* environment variables.
+      const remotionHost = path.join(remotionDir, 'scripts', 'remotion-host.mjs');
       const { stdout, stderr } = await execFileAsync(
-        'npx',
+        process.execPath,
         [
-          'remotion',
+          remotionHost,
           'render',
           'src/index.ts',
           'MainComposition',
@@ -60,6 +62,26 @@ export class VideoRenderer {
 
     const outputStats = await fs.stat(opts.outputPath);
     if (outputStats.size === 0) throw new Error('Remotion reported success but produced an empty video.');
+
+    const { stdout: probeOutput } = await execFileAsync('ffprobe', [
+      '-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,r_frame_rate', '-of', 'json', opts.outputPath,
+    ]);
+    const videoStream = JSON.parse(probeOutput).streams?.[0];
+    const [fpsNumerator, fpsDenominator] = String(videoStream?.r_frame_rate || '0/1').split('/').map(Number);
+    const measuredFps = fpsDenominator ? fpsNumerator / fpsDenominator : 0;
+    if (videoStream?.width !== 1080 || videoStream?.height !== 1920 || Math.abs(measuredFps - 30) > 0.01) {
+      throw new Error(`Final render format check failed: expected 1080x1920 at 30fps, got ${videoStream?.width}x${videoStream?.height} at ${measuredFps}fps.`);
+    }
+    console.log('[VideoRenderer] ffprobe format check passed: 1080x1920 at 30fps.');
+
+    const stillsScript = path.join(projectPaths.root, 'scripts', 'render-scene-stills.mjs');
+    await execFileAsync(process.execPath, [stillsScript, opts.propsPath], {
+      cwd: projectPaths.root,
+      timeout: Number(process.env.REMOTION_STILLS_TIMEOUT_MS || 600000),
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    console.log('[VideoRenderer] Scene stills and contact sheet exported.');
+
     const cueManifestPath = `${opts.propsPath}.cues.json`;
     try {
       await fs.access(cueManifestPath);

@@ -10,6 +10,10 @@ import path from 'path';
 import fs from 'fs/promises';
 import { projectPaths } from '../../config/paths.js';
 import { realtime } from '../../realtime.js';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
 
 export class RendersService {
   private buildWordCaptions(text: string, durationSec: number, fps: number) {
@@ -37,6 +41,37 @@ export class RendersService {
     });
   }
 
+  private async buildMeasuredCaptions(text: string, audioPath: string | undefined, durationSec: number, fps: number) {
+    if (!audioPath || process.env.DISABLE_WHISPER === '1') return this.buildWordCaptions(text, durationSec, fps);
+    const outputDir = path.join(projectPaths.backendMedia, 'captions');
+    const outputBase = path.basename(audioPath).replace(/\.[^.]+$/, '');
+    const outputPath = path.join(outputDir, `${outputBase}.json`);
+    try {
+      await fs.mkdir(outputDir, { recursive: true });
+      await execFileAsync(process.env.WHISPER_BIN || 'whisper', [
+        audioPath,
+        '--model', process.env.WHISPER_MODEL || 'base',
+        '--output_format', 'json',
+        '--output_dir', outputDir,
+        '--word_timestamps', 'True',
+      ], { timeout: 180000, maxBuffer: 2 * 1024 * 1024 });
+      const transcript = JSON.parse(await fs.readFile(outputPath, 'utf8'));
+      const words = (transcript.segments || []).flatMap((segment: any) => segment.words || [])
+        .filter((word: any) => typeof word.word === 'string' && Number.isFinite(word.start) && Number.isFinite(word.end));
+      if (words.length) {
+        return words.map((word: any) => ({
+          word: word.word.trim(),
+          startFrame: Math.max(0, Math.round(Number(word.start) * fps)),
+          endFrame: Math.max(1, Math.round(Number(word.end) * fps)),
+        }));
+      }
+    } catch {
+      // Whisper is optional. The deterministic audio-duration fallback keeps
+      // captions available when the local Whisper CLI/model is not installed.
+    }
+    return this.buildWordCaptions(text, durationSec, fps);
+  }
+
   /**
    * Convert the approved AGY scene plan into isolated Remotion input props.
    */
@@ -57,7 +92,7 @@ export class RendersService {
     // 1. Generate one Kokoro clip per scene. FFprobe measures each clip and the
     // measured duration drives that scene's visual duration; speech is never
     // time-stretched to fit an estimated full-script duration.
-    const sceneNarration = new Map<number, { staticUrl: string; durationSec: number }>();
+    const sceneNarration = new Map<number, { audioPath: string; staticUrl: string; durationSec: number }>();
     try {
       await Promise.all(scenePlan.map(async (scene: any) => {
         const result = await ttsService.generateSceneNarration(projectId, Number(scene.scene_number), scene.narration);
@@ -83,7 +118,8 @@ export class RendersService {
       const blueprint = s.visual_blueprint || undefined;
       const themeColor = s.theme_color;
       const narration = sceneNarration.get(Number(s.scene_number));
-      const durationSec = Math.max(Number(s.duration_sec), (narration?.durationSec || 0) + 0.35);
+      const durationSec = Math.max(2.5, (narration?.durationSec || Number(s.duration_sec)) + (8 / fps));
+      if (durationSec > 5) throw new Error(`Scene ${idx + 1} narration is ${durationSec.toFixed(2)}s after the 8-frame tail; regenerate the scene within the 2.5-5 second limit.`);
       const durationInFrames = Math.max(1, Math.ceil(durationSec * fps));
       const transitionOutFrames = idx < scenePlan.length - 1
         ? Math.max(8, Math.min(15, Math.round(Number(s.transition_out_frames ?? blueprint.transition_out_frames ?? 12))))
@@ -218,11 +254,18 @@ export class RendersService {
       acc + s.durationInFrames - (index < formattedScenes.length - 1 ? s.transitionOutFrames || 0 : 0), 0);
     const backgroundAudioUrl = await audioBedService.generate(projectId, renderType, renderVersion, totalFrames / fps);
     let captionOffset = 0;
+    const sceneCaptions = await Promise.all(formattedScenes.map(async (scene: any) => this.buildMeasuredCaptions(
+      scene.narration,
+      sceneNarration.get(Number(scene.scene_number))?.audioPath,
+      scene.narrationDurationSec || scene.durationInFrames / fps,
+      fps,
+    )));
     const captions = formattedScenes.flatMap((scene: any, index: number) => {
-      const sceneCaptions = this.buildWordCaptions(scene.narration, scene.narrationDurationSec || scene.durationInFrames / fps, fps)
+      const captionsForScene = sceneCaptions[index];
+      const sceneCaptionsWithOffset = captionsForScene
         .map((caption: any) => ({ ...caption, startFrame: caption.startFrame + captionOffset, endFrame: caption.endFrame + captionOffset }));
       captionOffset += scene.durationInFrames - (index < formattedScenes.length - 1 ? scene.transitionOutFrames || 0 : 0);
-      return sceneCaptions;
+      return sceneCaptionsWithOffset;
     });
 
     const payload = {

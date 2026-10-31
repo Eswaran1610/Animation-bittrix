@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const remotionRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const cli = path.join(remotionRoot, 'node_modules', '.bin', 'remotion');
+const cli = path.join(remotionRoot, 'node_modules', '.bin', process.platform === 'win32' ? 'remotion.cmd' : 'remotion');
 const command = process.argv[2];
 const userArgs = process.argv.slice(3);
 

@@ -19,8 +19,7 @@ export const SceneFrame: React.FC<{
   return <AbsoluteFill style={{ background: `linear-gradient(145deg, ${colors.bg}, ${colors.bg2})`, color: colors.text, fontFamily: shortVideoFont, opacity: exit, overflow: 'hidden' }}>
     <div style={{ position: 'absolute', inset: -80, transform: `scale(${drift})`, background: `radial-gradient(circle at 80% 20%, ${accent}33, transparent 30%), radial-gradient(circle at 15% 78%, ${colors.accent}22, transparent 34%)` }} />
     <div style={{ position: 'absolute', inset: 0, opacity: 0.12, backgroundImage: `linear-gradient(${accent} 1px, transparent 1px), linear-gradient(90deg, ${accent} 1px, transparent 1px)`, backgroundSize: '72px 72px', transform: `translateY(${(frame * -0.25) % 72}px)` }} />
-    <div style={{ position: 'absolute', left: shortVideoSafeArea.left, right: shortVideoSafeArea.right, top: 120, display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: accent, fontSize: 24, fontWeight: 900, letterSpacing: 4, textTransform: 'uppercase' }}><span>{eyebrow}</span><span>{String(totalScenes).padStart(2, '0')} / SHORT</span></div>
     {children}
-    <div style={{ position: 'absolute', left: shortVideoSafeArea.left, right: shortVideoSafeArea.right, bottom: shortVideoSafeArea.bottom - 75, height: 6, borderRadius: 99, background: `${accent}33`, overflow: 'hidden' }}><div style={{ height: '100%', width: `${progress}%`, background: accent, boxShadow: `0 0 16px ${accent}` }} /></div>
+    <div style={{ position: 'absolute', left: shortVideoSafeArea.left, right: shortVideoSafeArea.right, bottom: shortVideoSafeArea.bottom + 40, height: 6, borderRadius: 99, background: `${accent}33`, overflow: 'hidden' }}><div style={{ height: '100%', width: `${progress}%`, background: accent, boxShadow: `0 0 16px ${accent}` }} /></div>
   </AbsoluteFill>;
 };

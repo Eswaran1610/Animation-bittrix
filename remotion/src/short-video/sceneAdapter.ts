@@ -59,6 +59,7 @@ export const sceneToTemplateProps = (scene: SceneData, styleProfile?: StyleProfi
       icon: iconForObject(scene),
       label: scene.title,
       cta: scene.on_screen_text,
+      narrationDurationSec: scene.narrationDurationSec,
     },
   };
 };

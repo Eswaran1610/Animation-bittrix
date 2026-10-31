@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Audio, Sequence, staticFile, useCurrentFrame } from 'remotion';
 import { TransitionSeries, linearTiming } from '@remotion/transitions';
-import { fade } from '@remotion/transitions/fade';
+import { slide } from '@remotion/transitions/slide';
 import { ShortVideoProps } from './shortVideoProps';
 import { PreloadAssets } from './components/PreloadAssets';
 import { TemplateScene } from './scenes/TemplateScene';
@@ -19,7 +19,7 @@ export const ShortVideo: React.FC<ShortVideoProps> = (props) => {
   const transitionNodes: React.ReactNode[] = [];
   props.scenes.forEach((scene, index) => {
     transitionNodes.push(<TransitionSeries.Sequence key={`scene-${scene.id}`} durationInFrames={scene.durationInFrames}><TemplateScene scene={scene} index={index} totalScenes={props.scenes.length} palette={props.palette} /></TransitionSeries.Sequence>);
-    if (index < props.scenes.length - 1) transitionNodes.push(<TransitionSeries.Transition key={`transition-${scene.id}`} timing={transitionTiming} presentation={fade()} />);
+    if (index < props.scenes.length - 1) transitionNodes.push(<TransitionSeries.Transition key={`transition-${scene.id}`} timing={transitionTiming} presentation={slide({ direction: index % 2 === 0 ? 'from-right' : 'from-left' })} />);
   });
   const whooshFrames = props.scenes.slice(0, -1).reduce<number[]>((frames, scene, index) => {
     frames.push((frames[index - 1] || 0) + scene.durationInFrames - shortVideoTransitionFrames);

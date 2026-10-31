@@ -1,0 +1,240 @@
+ANIMATION BITTRIX - SETUP ON ANOTHER COMPUTER
+================================================
+
+This project uses AGY for research/script planning, Kokoro for narration,
+Remotion + Chromium for rendering, PostgreSQL for persistence, and React/Vite
+for the dashboard.
+
+1. REQUIRED SOFTWARE
+--------------------
+
+Install these first:
+
+- Git
+- Node.js 22.12.0 (the exact version is in .nvmrc)
+- npm
+- Docker Desktop (recommended for PostgreSQL)
+- FFmpeg, including ffprobe
+- AGY CLI
+- A normal desktop/host Chromium environment for Remotion rendering
+
+Verify the tools:
+
+    node --version
+    npm --version
+    git --version
+    docker --version
+    ffmpeg -version
+    ffprobe -version
+    agy --version
+
+AGY must be installed using the official AGY installation method. Authenticate
+it on this computer by running `agy` interactively and completing its login.
+The backend uses the local AGY CLI; credentials are not placed in this repo.
+
+2. DOWNLOAD THE PROJECT
+-----------------------
+
+Clone the render branch:
+
+    git clone -b render https://github.com/Eswaran1610/Animation-bittrix.git
+    cd Animation-bittrix
+
+If the project is already cloned:
+
+    git checkout render
+    git pull origin render
+
+3. INSTALL NODE DEPENDENCIES
+----------------------------
+
+From the repository root:
+
+    npm run install:all
+
+This installs backend, frontend, and Remotion dependencies. It also prepares
+the optional Python motion-validation environment. The first install may take
+time because Kokoro and Remotion may download models/browsers later.
+
+If the optional motion setup fails because Python package downloads are blocked,
+the application can still run. Retry it later with:
+
+    npm run motion:setup
+
+4. CONFIGURE ENVIRONMENT FILES
+------------------------------
+
+Create the backend environment file:
+
+    cp backend/.env.example backend/.env
+
+Create the frontend environment file:
+
+    cp frontend/.env.example frontend/.env
+
+The defaults are suitable for local development:
+
+    Backend:  http://127.0.0.1:5000
+    Frontend: http://localhost:5173
+    Database: postgres://postgres:postgres@127.0.0.1:5434/animation_pipeline
+
+Never commit backend/.env or frontend/.env. If the repository is stored in an
+unusual location, set PROJECT_ROOT in backend/.env to the absolute repository
+path.
+
+5. START POSTGRESQL
+-------------------
+
+Make sure Docker Desktop is running, then from the repository root:
+
+    npm run db:start
+
+Check the database:
+
+    npm run db:status
+
+The database is available on port 5434. The Docker schema is loaded from
+database/schema.sql on first database creation.
+
+To stop it later:
+
+    npm run db:stop
+
+If Docker is unavailable, install PostgreSQL locally and make sure a database
+named animation_pipeline is available on port 5434 with user/password
+postgres/postgres. The project also supports an initialized database/pgdata
+directory through the db script.
+
+6. VERIFY THE CODE
+------------------
+
+Run the complete project check:
+
+    npm run build
+
+This runs:
+
+- backend TypeScript build
+- frontend production build
+- Remotion TypeScript check
+
+7. START THE APPLICATION
+------------------------
+
+Open three terminals in the repository root.
+
+Terminal 1 - database:
+
+    npm run db:start
+
+Terminal 2 - backend:
+
+    npm run backend:dev
+
+Terminal 3 - frontend:
+
+    npm run frontend:dev
+
+Open:
+
+    http://localhost:5173
+
+The backend health check is:
+
+    http://127.0.0.1:5000/api/health
+
+The Settings page can check the local AGY connection. AGY must be installed on
+the same computer that runs the backend.
+
+8. REMOTION / CHROMIUM CHECK
+----------------------------
+
+Run this from the repository root on a normal host computer:
+
+    npm run remotion:compositions
+
+The host wrapper uses port 3000 and detects Chromium automatically. If Chromium
+is installed in a custom location, set its path:
+
+    REMOTION_BROWSER_EXECUTABLE=/usr/bin/chromium npm run remotion:compositions
+
+Other common paths can be used, for example:
+
+    REMOTION_BROWSER_EXECUTABLE=/usr/bin/google-chrome npm run remotion:compositions
+
+The wrapper also supports:
+
+    REMOTION_PORT=3001
+    REMOTION_CHROME_MODE=headless-shell
+
+Do not expect Chromium rendering to work inside a restricted coding container
+that blocks Linux namespaces or localhost port allocation. Run Remotion from a
+normal host terminal or configure the container to allow Chromium and localhost.
+
+9. RENDER SCENE INSPECTION STILLS
+----------------------------------
+
+After the backend has generated render data, render one still per scene at 60%
+and create a contact sheet:
+
+    node scripts/render-scene-stills.mjs \
+      backend/media/render-data/PROJECT_ID_preview_vVERSION.json
+
+Output is written to:
+
+    qa/scene-stills/PROJECT_ID/
+
+To include reference fruit frames, set the reference video path:
+
+    BITTRIX_REFERENCE_VIDEO=/absolute/path/reference.mp4 \
+    node scripts/render-scene-stills.mjs \
+      backend/media/render-data/PROJECT_ID_preview_vVERSION.json
+
+10. FULL REMOTION RENDER
+------------------------
+
+Use a saved render-data JSON file as input props. From the repository root:
+
+    npm --prefix remotion run render:host -- \
+      --props ../backend/media/render-data/PROJECT_ID_preview_vVERSION.json
+
+The rendered video is written to remotion/out/video.mp4.
+
+11. IMPORTANT PROJECT RULES
+---------------------------
+
+- Do not commit .env files, credentials, or provider tokens.
+- Do not commit generated media, audio, downloaded assets, or PostgreSQL data.
+- Use the approved AGY script and approval gates before rendering production video.
+- Keep Remotion motion frame-driven; do not add CSS animation, setTimeout, or
+  wall-clock animation to scenes.
+- Keep each scene within the intended vertical safe area.
+- The AGY provider requires a hook first, CTA last, valid template data, and
+  scene timing/palette checks before rendering.
+- The production narration is generated per scene with Kokoro and measured by
+  ffprobe; do not replace it with an unmeasured guessed duration.
+
+12. COMMON COMMANDS
+-------------------
+
+    npm run build
+    npm run db:start
+    npm run db:status
+    npm run db:stop
+    npm run backend:dev
+    npm run frontend:dev
+    npm run remotion:compositions
+    npm run remotion:render
+    npm run qa:scene-stills -- backend/media/render-data/FILE.json
+
+13. MOVING PROJECTS BETWEEN COMPUTERS
+--------------------------------------
+
+Git transfers source code, lockfiles, templates, and configuration examples.
+It does not transfer ignored generated media, narration audio, downloaded
+assets, rendered videos, or PostgreSQL data.
+
+For a clean second computer, run the setup above and create a new project.
+If previous projects/videos are required, copy backend/media and database data
+separately using a secure method. Never copy secrets into Git or send them in
+chat.

@@ -60,6 +60,20 @@ export class VideoRenderer {
 
     const outputStats = await fs.stat(opts.outputPath);
     if (outputStats.size === 0) throw new Error('Remotion reported success but produced an empty video.');
+    const cueManifestPath = `${opts.propsPath}.cues.json`;
+    try {
+      await fs.access(cueManifestPath);
+      const python = path.join(projectPaths.root, '.venv-motion-checks', 'bin', 'python');
+      const verifier = path.join(projectPaths.root, 'scripts', 'verify_sync.py');
+      const { stdout, stderr } = await execFileAsync(python, [verifier, opts.outputPath, cueManifestPath], {
+        cwd: projectPaths.root,
+        timeout: 120000,
+        maxBuffer: 1024 * 1024,
+      });
+      console.log(`[VideoRenderer] Audio sync verification passed: ${(stdout || stderr).trim()}`);
+    } catch (err: any) {
+      throw new Error(`Rendered video failed audio-sync verification: ${err.stderr || err.stdout || err.message}`);
+    }
     return opts.outputPath;
   }
 }

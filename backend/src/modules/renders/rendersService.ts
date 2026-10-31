@@ -4,7 +4,8 @@ import { approvalsService } from '../approvals/approvalsService.js';
 import { videoRenderer } from './videoRenderer.js';
 import { ttsService } from '../audio/ttsService.js';
 import { assetFetcher } from '../assets/assetFetcher.js';
-import { sfxService } from '../audio/sfxService.js';
+import { sfxService, SfxRole } from '../audio/sfxService.js';
+import { audioBedService } from '../audio/audioBedService.js';
 import path from 'path';
 import fs from 'fs/promises';
 import { projectPaths } from '../../config/paths.js';
@@ -104,25 +105,76 @@ export class RendersService {
         }
       }));
 
-      // Add subtle, procedural entrance cues for the first few AGY-authored
-      // objects. Failed cue generation never blocks a valid video render.
-      const generatedCues = await Promise.allSettled(
-        blueprint.objects.slice(0, 4).map(async (object: any, objectIndex: number) => ({
-          frame: 10 + objectIndex * 9,
-          src: await sfxService.generateObjectCue(
-            projectId,
-            renderType,
-            renderVersion,
-            s.scene_number,
-            objectIndex,
-            object.label || object.id
-          ),
-          volume: 0.7,
-        }))
+      // Generate object sound cues using the procedural SFX library and role resolution
+      const lastHitTime: number[] = [];
+      const cueRequests: Array<{ hitFrame: number; role: SfxRole; sourceId: string; seedKey: string }> = [];
+
+      blueprint.objects.forEach((object: any, objectIndex: number) => {
+        // First scene enters at frame 10; subsequent scenes enter after the 12-frame incoming transition
+        const entranceHitFrame = Math.min(durationInFrames - 6, (idx === 0 ? 10 : 16) + objectIndex * 12);
+        const appearRole = sfxService.determineRole(object, 'appear');
+
+        // Space distinct sound events at least 8 frames apart
+        const isSpaced = lastHitTime.every((t) => Math.abs(t - entranceHitFrame) >= 8);
+        if (isSpaced) {
+          lastHitTime.push(entranceHitFrame);
+          cueRequests.push({
+            hitFrame: entranceHitFrame,
+            role: appearRole,
+            sourceId: `${s.scene_number}.object-${objectIndex + 1}.appear`,
+            seedKey: `${projectId}:${s.scene_number}:${objectIndex}:appear`,
+          });
+        }
+
+        const hasDestination = Number.isFinite(object.to_x) || Number.isFinite(object.to_y);
+        const motion = String(object.motion || '');
+        const isMoving = hasDestination || /move|slide|travel|float|drift|orbit|rotate|spin|revolve|bounce|pulse/i.test(motion);
+        if (isMoving) {
+          const moveRole = sfxService.determineRole(object, 'move');
+          const moveHitFrame = Math.min(durationInFrames - 18, Math.round(durationInFrames * 0.55) + (objectIndex % 3) * 6);
+          const isMoveSpaced = lastHitTime.every((t) => Math.abs(t - moveHitFrame) >= 8);
+          if (isMoveSpaced) {
+            lastHitTime.push(moveHitFrame);
+            cueRequests.push({
+              hitFrame: moveHitFrame,
+              role: moveRole,
+              sourceId: `${s.scene_number}.object-${objectIndex + 1}.motion`,
+              seedKey: `${projectId}:${s.scene_number}:${objectIndex}:motion`,
+            });
+          }
+        }
+      });
+
+      // Scene transition: whoosh at the midpoint of the transition
+      if (transitionOutFrames > 0 && idx < scenePlan.length - 1) {
+        const transitionHitFrame = durationInFrames - Math.round(transitionOutFrames / 2);
+        cueRequests.push({
+          hitFrame: transitionHitFrame,
+          role: 'whoosh',
+          sourceId: `${s.scene_number}.transition`,
+          seedKey: `${projectId}:${s.scene_number}:transition`,
+        });
+      }
+
+      // Sort by hitFrame
+      cueRequests.sort((a, b) => a.hitFrame - b.hitFrame);
+
+      // Resolve cues from sfxService, shifting start frame by transient duration for exact hits
+      const audioCues = await Promise.all(
+        cueRequests.map(async (req) => {
+          const cueInfo = await sfxService.getCueForRole(req.role, req.seedKey, fps);
+          const startFrame = Math.max(0, req.hitFrame - cueInfo.transientFrames);
+          return {
+            frame: startFrame,
+            hitFrame: req.hitFrame,
+            src: cueInfo.src,
+            role: cueInfo.role,
+            volume: cueInfo.volume,
+            durationFrames: cueInfo.durationFrames,
+            sourceId: req.sourceId,
+          };
+        })
       );
-      const audioCues = generatedCues
-        .filter((result): result is PromiseFulfilledResult<{ frame: number; src: string; volume: number }> => result.status === 'fulfilled')
-        .map((result) => result.value);
       if (audioCues.length === 0) {
         throw new Error(`Object sound generation failed for scene ${s.scene_number}; render refused without audio.`);
       }
@@ -141,6 +193,7 @@ export class RendersService {
         visual_direction: s.visual_direction,
         duration_sec: durationSec,
         durationInFrames,
+        transitionOutFrames,
         visualType,
         themeColor,
         narration: s.narration,
@@ -163,8 +216,8 @@ export class RendersService {
     const payload = {
       video: {
         title: projectTitle,
-        width: 1920,
-        height: 1080,
+        width: 1080,
+        height: 1920,
         fps,
         durationInFrames: totalFrames,
         style: 'AGY-authored content-specific motion plan rendered by Remotion',
@@ -185,6 +238,17 @@ export class RendersService {
     const renderDataPath = projectPaths.renderData(projectId, renderType, renderVersion);
     await fs.mkdir(projectPaths.renderDataDir, { recursive: true });
     await fs.writeFile(renderDataPath, JSON.stringify(payload, null, 2), 'utf-8');
+    let sceneOffset = 0;
+    const cueManifest = formattedScenes.flatMap((scene: any, sceneIndex: number) => {
+      const cues = (scene.audioCues || []).map((cue: any, cueIndex: number) => ({
+        hitFrame: sceneOffset + (cue.hitFrame ?? cue.frame),
+        role: cue.role || (cueIndex === 0 ? 'appear' : 'motion'),
+        sourceId: cue.sourceId || `${scene.id}.object-${cueIndex + 1}`,
+      }));
+      sceneOffset += scene.durationInFrames - (sceneIndex < formattedScenes.length - 1 ? scene.transitionOutFrames || 0 : 0);
+      return cues;
+    });
+    await fs.writeFile(`${renderDataPath}.cues.json`, JSON.stringify(cueManifest, null, 2), 'utf-8');
     console.log(`[RendersService] Prepared isolated AGY render props at ${renderDataPath} with ${formattedScenes.length} scenes (${totalFrames} frames) and audio: ${audioUrl || 'none'}`);
     return renderDataPath;
   }

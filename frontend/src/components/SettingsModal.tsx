@@ -147,8 +147,26 @@ export const SettingsModal: React.FC = () => {
                 Autonomous CLI & Agent orchestration engine for research, fact-checking, full script generation, and Remotion composition code.
               </p>
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '12px' }}>
-                Integration: Native local CLI
+                Integration: Native local CLI {agy?.cliAvailable === false ? '• CLI unavailable' : ''}
               </div>
+              <p style={{ fontSize: '12px', color: agy?.state === 'failed' ? '#fb7185' : 'var(--text-secondary)', lineHeight: '1.4', margin: '10px 0' }}>
+                {agy?.message || 'Checking local AGY status…'}
+              </p>
+              {!connected && (
+                <button type="button" className="btn btn-primary" disabled={busy || agy?.state === 'verifying'} onClick={() => void connectAgy()} style={{ width: '100%', justifyContent: 'center' }}>
+                  {busy || agy?.state === 'starting' ? <LoaderCircle size={15} /> : <LogIn size={15} />} Connect AGY
+                </button>
+              )}
+              {agy?.state === 'awaiting_code' && agy.authUrl && (
+                <form onSubmit={submitCode} style={{ marginTop: '12px', display: 'grid', gap: '8px' }}>
+                  <a className="btn btn-secondary" href={agy.authUrl} target="_blank" rel="noreferrer" style={{ justifyContent: 'center' }}>Open Google sign-in</a>
+                  <input className="input-text" value={authorizationCode} onChange={(event) => setAuthorizationCode(event.target.value)} placeholder="Paste authorization code" autoComplete="one-time-code" />
+                  <button type="submit" className="btn btn-primary" disabled={busy || !authorizationCode.trim()} style={{ justifyContent: 'center' }}>
+                    {busy ? <LoaderCircle size={15} /> : <CheckCircle2 size={15} />} Verify AGY
+                  </button>
+                </form>
+              )}
+              {agy?.state === 'failed' && <div style={{ display: 'flex', gap: '6px', marginTop: '8px', color: '#fb7185', fontSize: '11px' }}><AlertCircle size={14} /> No credentials are saved in this dashboard.</div>}
             </div>
 
             {/* Claude */}

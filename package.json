@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "install:all": "npm --prefix backend ci && npm --prefix frontend ci && npm --prefix remotion ci",
+    "install:all": "npm --prefix backend ci && npm --prefix frontend ci && npm --prefix remotion ci && npm run motion:setup",
+    "motion:setup": "node scripts/setup-motion-checks.mjs",
     "db:start": "node scripts/db.mjs start",
     "db:stop": "node scripts/db.mjs stop",
     "db:status": "node scripts/db.mjs status",

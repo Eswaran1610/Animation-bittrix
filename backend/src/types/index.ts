@@ -92,6 +92,12 @@ export interface BlueprintObject {
   to_x?: number;
   to_y?: number;
   motion?: string;
+  motion_plan?: {
+    enter_frame?: number;
+    exit_frame?: number;
+    idle?: 'float' | 'pulse' | 'orbit' | 'shimmer' | 'drift';
+    focal?: boolean;
+  };
   render_spec: BlueprintRenderSpec;
 }
 
@@ -132,6 +138,7 @@ export interface VisualBlueprint {
   purpose: string;
   layout: string;
   camera_motion: string;
+  transition_out_frames?: number;
   asset_queries: string[];
   objects: BlueprintObject[];
   website_view?: WebsiteView;
@@ -153,6 +160,7 @@ export interface ScenePlanItem {
   metric_data?: { label: string; value: number; unit: string } | null;
   image_search_query?: string | null;
   motion?: Array<Record<string, unknown>>;
+  transition_out_frames?: number;
   continuity_from_previous?: string;
   asset_suggestions?: string;
   visual_blueprint?: VisualBlueprint;

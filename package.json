@@ -16,6 +16,7 @@
     "remotion:compositions": "npm --prefix remotion run compositions:host",
     "remotion:render": "npm --prefix remotion run render:host",
     "qa:scene-stills": "node scripts/render-scene-stills.mjs",
+    "qa:quality-gate": "node scripts/qualityGate.mjs",
     "build": "npm run backend:build && npm run frontend:build && npm run remotion:typecheck"
   },
   "engines": {

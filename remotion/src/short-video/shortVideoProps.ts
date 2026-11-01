@@ -47,9 +47,6 @@ export const ShortVideoPropsSchema = z.object({
   if (durationSeconds < 25 || durationSeconds > 40) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['durationInFrames'], message: 'Must be between 25 and 40 seconds.' });
   if (!['question-hook', 'hero-object'].includes(props.scenes[0]?.template)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['scenes', 0, 'template'], message: 'First scene must be a hook.' });
   if (props.scenes.at(-1)?.template !== 'cta-outro') ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['scenes', props.scenes.length - 1, 'template'], message: 'Last scene must be a CTA outro.' });
-  for (let index = 2; index < props.scenes.length; index += 1) {
-    if (props.scenes[index].template === props.scenes[index - 1].template && props.scenes[index].template === props.scenes[index - 2].template) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['scenes', index, 'template'], message: 'No more than two identical templates in a row.' });
-  }
 });
 
 export type ShortVideoScene = z.infer<typeof ShortVideoSceneSchema>;

@@ -1,7 +1,7 @@
 ANIMATION BITTRIX - SETUP ON ANOTHER COMPUTER
 ================================================
 
-This project uses AGY for research/script planning, Kokoro for narration,
+This project uses Codex for research/script planning, Kokoro for narration,
 Remotion + Chromium for rendering, PostgreSQL for persistence, and React/Vite
 for the dashboard.
 
@@ -15,7 +15,8 @@ Install these first:
 - npm
 - Docker Desktop (recommended for PostgreSQL)
 - FFmpeg, including ffprobe
-- AGY CLI
+- Python 3 (3.10+) and pip
+- Codex CLI
 - A normal desktop/host Chromium environment for Remotion rendering
 
 Verify the tools:
@@ -26,11 +27,13 @@ Verify the tools:
     docker --version
     ffmpeg -version
     ffprobe -version
-    agy --version
+    python3 --version
+    pip3 --version
+    codex --version
 
-AGY must be installed using the official AGY installation method. Authenticate
-it on this computer by running `agy` interactively and completing its login.
-The backend uses the local AGY CLI; credentials are not placed in this repo.
+Codex must be installed using the official Codex installation method. Authenticate
+it on this computer by running `codex` interactively and completing its login.
+The backend uses the local Codex CLI; credentials are not placed in this repo.
 
 2. DOWNLOAD THE PROJECT
 -----------------------
@@ -60,6 +63,25 @@ If the optional motion setup fails because Python package downloads are blocked,
 the application can still run. Retry it later with:
 
     npm run motion:setup
+
+3b. INSTALL PYTHON DEPENDENCIES (FOR WHISPER & SFX)
+---------------------------------------------------
+
+Install the project-wide Python requirements (Whisper, PyTorch, NumPy, SciPy):
+
+    pip install -r requirements.txt
+
+Or on systems managing global packages (Debian/Ubuntu/Arch):
+
+    pip install -r requirements.txt --break-system-packages
+
+Download the Whisper base model once:
+
+    python3 -c "import whisper; whisper.load_model('base')"
+
+Ensure ~/.local/bin is in your PATH (e.g. in ~/.bashrc):
+
+    export PATH=$HOME/.local/bin:$PATH
 
 4. CONFIGURE ENVIRONMENT FILES
 ------------------------------
@@ -143,7 +165,7 @@ The backend health check is:
 
     http://127.0.0.1:5000/api/health
 
-The Settings page can check the local AGY connection. AGY must be installed on
+The Settings page can check the local Codex connection. Codex must be installed on
 the same computer that runs the backend.
 
 8. REMOTION / CHROMIUM CHECK
@@ -205,11 +227,11 @@ The rendered video is written to remotion/out/video.mp4.
 
 - Do not commit .env files, credentials, or provider tokens.
 - Do not commit generated media, audio, downloaded assets, or PostgreSQL data.
-- Use the approved AGY script and approval gates before rendering production video.
+- Use the approved Codex script and approval gates before rendering production video.
 - Keep Remotion motion frame-driven; do not add CSS animation, setTimeout, or
   wall-clock animation to scenes.
 - Keep each scene within the intended vertical safe area.
-- The AGY provider requires a hook first, CTA last, valid template data, and
+- The Codex provider requires a hook first, CTA last, valid template data, and
   scene timing/palette checks before rendering.
 - The production narration is generated per scene with Kokoro and measured by
   ffprobe; do not replace it with an unmeasured guessed duration.

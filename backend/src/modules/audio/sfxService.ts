@@ -2,6 +2,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs/promises';
+import { existsSync } from 'fs';
 import { projectPaths } from '../../config/paths.js';
 
 const execFileAsync = promisify(execFile);
@@ -86,24 +87,38 @@ export class SfxService {
     }
 
     if (needGenerate) {
-      const python = path.join(projectPaths.root, '.venv-motion-checks', 'bin', 'python');
+      const venvPython = process.platform === 'win32'
+        ? path.join(projectPaths.root, '.venv-motion-checks', 'Scripts', 'python.exe')
+        : path.join(projectPaths.root, '.venv-motion-checks', 'bin', 'python');
+      const candidates = [existsSync(venvPython) ? venvPython : null, 'python3', 'python'].filter(Boolean) as string[];
       const script = path.join(projectPaths.root, 'scripts', 'make_sfx.py');
-      try {
-        await execFileAsync(python, [script, '--out', sfxDir, '--seed', seed, '--variants', '4'], {
-          cwd: projectPaths.root,
-          timeout: 30000,
-        });
-        const content = await fs.readFile(manifestPath, 'utf-8');
-        this.cachedManifest = JSON.parse(content);
-        this.currentSeed = seed;
-      } catch (err: any) {
-        console.warn('[SfxService] make_sfx generation failed, falling back to existing manifest:', err.message);
+
+      let generated = false;
+      let lastError: any = null;
+      for (const pythonBin of candidates) {
+        try {
+          await execFileAsync(pythonBin, [script, '--out', sfxDir, '--seed', seed, '--variants', '4'], {
+            cwd: projectPaths.root,
+            timeout: 30000,
+          });
+          const content = await fs.readFile(manifestPath, 'utf-8');
+          this.cachedManifest = JSON.parse(content);
+          this.currentSeed = seed;
+          generated = true;
+          break;
+        } catch (err: any) {
+          lastError = err;
+        }
+      }
+
+      if (!generated) {
+        console.warn('[SfxService] make_sfx generation failed, falling back to existing manifest:', lastError?.message || 'unknown error');
         try {
           const content = await fs.readFile(manifestPath, 'utf-8');
           this.cachedManifest = JSON.parse(content);
           this.currentSeed = this.cachedManifest?.seed || 'fallback';
         } catch {
-          throw new Error(`Failed to load or generate SFX library: ${err.message}`);
+          throw new Error(`Failed to load or generate SFX library: ${lastError?.message || 'unknown error'}`);
         }
       }
     }
@@ -132,7 +147,7 @@ export class SfxService {
     }
 
     const label = String(object?.label || object?.id || '').toLowerCase();
-    const type = String(object?.type || '').toLowerCase();
+    const type = String(object?.type || object?.render_spec?.type || '').toLowerCase();
     const motion = String(object?.motion || '').toLowerCase();
 
     if (eventType === 'move') {
@@ -159,8 +174,8 @@ export class SfxService {
   /**
    * Resolve an audio cue for a given role and seeded key.
    */
-  async getCueForRole(role: SfxRole, seedKey: string, fps = 30): Promise<ResolvedSfxCue> {
-    const manifest = await this.ensureLibrary();
+  async getCueForRole(role: SfxRole, seedKey: string, fps = 30, librarySeed = 'starter-library'): Promise<ResolvedSfxCue> {
+    const manifest = await this.ensureLibrary(librarySeed);
     const pool = manifest.items.filter((item) => item.role === role);
     const fallbackPool = pool.length > 0 ? pool : manifest.items.filter((item) => item.role === 'pop');
     const selected = fallbackPool[hashText(seedKey) % fallbackPool.length];

@@ -8,21 +8,24 @@ interface LiveStatusBarProps {
     total_tokens?: number;
     estimated?: boolean;
   } | null;
+  liveUsage?: { total_tokens?: number; estimated?: boolean } | null;
   progress: number;
   label: string;
   connected: boolean;
 }
 
-export const LiveStatusBar: React.FC<LiveStatusBarProps> = ({ usage, progress, label, connected }) => {
+export const LiveStatusBar: React.FC<LiveStatusBarProps> = ({ usage, liveUsage, progress, label, connected }) => {
   const safeProgress = Math.max(0, Math.min(100, Math.round(progress)));
-  const totalTokens = Number(usage?.total_tokens || 0).toLocaleString();
+  const totalTokens = (Number(usage?.total_tokens || 0) + Number(liveUsage?.total_tokens || 0)).toLocaleString();
+  const showingLiveUsage = Boolean(liveUsage && Number(liveUsage.total_tokens || 0) > 0);
   return (
     <div style={{ background: '#0b1220', borderBottom: '1px solid var(--border-color)' }}>
       <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '8px 24px', display: 'flex', gap: '22px', alignItems: 'center', flexWrap: 'wrap', fontSize: '12px' }}>
         <span style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', color: 'var(--text-muted)' }}>
           <Activity size={14} color="#38bdf8" />
-          AGY tokens: <strong style={{ color: '#e2e8f0' }}>{totalTokens}</strong>
+          Codex tokens: <strong style={{ color: '#e2e8f0' }}>{totalTokens}</strong>
           {usage?.estimated && <span style={{ color: '#fbbf24' }}>(estimated)</span>}
+          {showingLiveUsage && <span style={{ color: '#38bdf8' }}>(live estimate)</span>}
         </span>
         <span style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', color: 'var(--text-muted)' }}>
           {connected ? <Wifi size={14} color="#4ade80" /> : <WifiOff size={14} color="#f87171" />}

@@ -5,6 +5,7 @@ import { Sparkles, Plus, Clock, FileText, Play, Trash2, ArrowRight, CheckCircle2
 interface DashboardProps {
   projects: Project[];
   loading: boolean;
+  liveUsage?: { total_tokens?: number; estimated?: boolean } | null;
   onSelectProject: (projectId: string) => void;
   onCreateProject: (content: string, type: 'text' | 'topic' | 'url', title?: string) => Promise<void>;
   onDeleteProject: (projectId: string) => Promise<void>;
@@ -13,6 +14,7 @@ interface DashboardProps {
 export const Dashboard: React.FC<DashboardProps> = ({
   projects,
   loading,
+  liveUsage,
   onSelectProject,
   onCreateProject,
   onDeleteProject,
@@ -22,9 +24,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [projectTitle, setProjectTitle] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const totalAgyTokens = projects.reduce((sum, project) => sum + Number(project.agy_total_tokens || 0), 0);
-  const totalAgyRuns = projects.reduce((sum, project) => sum + Number(project.agy_run_count || 0), 0);
-  const hasEstimatedUsage = projects.some((project) => project.agy_usage_estimated);
+  const totalCodexTokens = projects.reduce((sum, project) => sum + Number(project.codex_total_tokens || 0), 0) + Number(liveUsage?.total_tokens || 0);
+  const totalCodexRuns = projects.reduce((sum, project) => sum + Number(project.codex_run_count || 0), 0);
+  const hasEstimatedUsage = projects.some((project) => project.codex_usage_estimated) || Boolean(liveUsage);
   const formatTokens = (value: number) => new Intl.NumberFormat().format(value);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -79,7 +81,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             Start a New Animation Video
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
-            Submit your topic, pasted text, or URL. AGY will research and generate a full script, scene breakdown, and voice-over narration. 
+            Submit your topic, pasted text, or URL. Codex will research and generate a full script, scene breakdown, and voice-over narration.
             <strong style={{ color: 'var(--accent-blue)', marginLeft: '6px' }}>
               Requires explicit script & preview approvals before final render.
             </strong>
@@ -167,21 +169,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </form>
       </div>
 
-      {/* AGY Usage Summary */}
+      {/* Codex Usage Summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '36px' }}>
         <div className="glass-panel" style={{ padding: '18px 20px' }}>
-          <div style={{ color: 'var(--text-muted)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>AGY Tokens Used</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>Codex Tokens Used</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginTop: '8px' }}>
             <Cpu size={20} color="var(--accent-blue)" />
-            <strong style={{ fontSize: '25px' }}>{formatTokens(totalAgyTokens)}</strong>
+            <strong style={{ fontSize: '25px' }}>{formatTokens(totalCodexTokens)}</strong>
           </div>
           <div style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '5px' }}>
-            {hasEstimatedUsage ? 'Includes estimated runs until AGY reports native usage' : 'Reported by AGY process'}
+            {liveUsage ? 'Includes current live Codex estimate' : hasEstimatedUsage ? 'Includes estimated runs until Codex reports native usage' : 'Reported by Codex process'}
           </div>
         </div>
         <div className="glass-panel" style={{ padding: '18px 20px' }}>
-          <div style={{ color: 'var(--text-muted)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>AGY Runs</div>
-          <strong style={{ display: 'block', fontSize: '25px', marginTop: '8px' }}>{formatTokens(totalAgyRuns)}</strong>
+          <div style={{ color: 'var(--text-muted)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>Codex Runs</div>
+          <strong style={{ display: 'block', fontSize: '25px', marginTop: '8px' }}>{formatTokens(totalCodexRuns)}</strong>
           <div style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '5px' }}>Script and revision generations</div>
         </div>
       </div>
@@ -268,9 +270,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       <Play size={13} style={{ verticalAlign: '-2px', marginRight: '4px' }} />
                       Preview v{proj.current_preview_version || 0}
                     </span>
-                    <span title={proj.agy_usage_estimated ? 'Estimated from AGY input/output size' : 'Reported by AGY'}>
+                    <span title={proj.codex_usage_estimated ? 'Estimated from Codex input/output size' : 'Reported by Codex'}>
                       <Cpu size={13} style={{ verticalAlign: '-2px', marginRight: '4px' }} />
-                      AGY {formatTokens(Number(proj.agy_total_tokens || 0))} tokens{proj.agy_usage_estimated ? ' ~' : ''}
+                      Codex {formatTokens(Number(proj.codex_total_tokens || 0))} tokens{proj.codex_usage_estimated ? ' ~' : ''}
                     </span>
                   </div>
                 </div>

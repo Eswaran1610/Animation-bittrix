@@ -27,6 +27,10 @@ export class ProjectsService {
         `UPDATE projects SET stage = 'failed', status = 'Failed / Needs attention' WHERE id = $1`,
         [project.id]
       );
+      // Do not return HTTP 201 for a project whose required script was not
+      // generated. The failed project remains stored for inspection, while
+      // the API correctly tells the frontend that creation did not complete.
+      throw err;
     }
 
     const updatedRes = await query(`SELECT * FROM projects WHERE id = $1`, [project.id]);
@@ -41,16 +45,16 @@ export class ProjectsService {
       SELECT p.*,
         COALESCE((SELECT SUM(CASE WHEN ar.execution_metadata->>'total_tokens' ~ '^[0-9]+$'
           THEN (ar.execution_metadata->>'total_tokens')::bigint ELSE 0 END)
-          FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'agy'), 0)::bigint AS agy_total_tokens,
+          FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'codex'), 0)::bigint AS codex_total_tokens,
         COALESCE((SELECT SUM(CASE WHEN ar.execution_metadata->>'input_tokens' ~ '^[0-9]+$'
           THEN (ar.execution_metadata->>'input_tokens')::bigint ELSE 0 END)
-          FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'agy'), 0)::bigint AS agy_input_tokens,
+          FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'codex'), 0)::bigint AS codex_input_tokens,
         COALESCE((SELECT SUM(CASE WHEN ar.execution_metadata->>'output_tokens' ~ '^[0-9]+$'
           THEN (ar.execution_metadata->>'output_tokens')::bigint ELSE 0 END)
-          FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'agy'), 0)::bigint AS agy_output_tokens,
-        (SELECT COUNT(*)::int FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'agy') AS agy_run_count,
+          FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'codex'), 0)::bigint AS codex_output_tokens,
+        (SELECT COUNT(*)::int FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'codex') AS codex_run_count,
         COALESCE((SELECT BOOL_OR(COALESCE((ar.execution_metadata->>'estimated')::boolean, true))
-          FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'agy'), false) AS agy_usage_estimated
+          FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'codex'), false) AS codex_usage_estimated
       FROM projects p ORDER BY p.updated_at DESC
     `);
     return res.rows;

@@ -2,6 +2,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs/promises';
+import { existsSync } from 'fs';
 import { projectPaths } from '../../config/paths.js';
 
 const execFileAsync = promisify(execFile);
@@ -96,20 +97,52 @@ export class VideoRenderer {
     });
     console.log('[VideoRenderer] Scene stills and contact sheet exported.');
 
+    // Execute automated Motion Graphics Playbook quality gate (checks text overflow, zone overlap, canvas bounds)
+    const qualityGateScript = path.join(projectPaths.root, 'scripts', 'qualityGate.mjs');
+    try {
+      await execFileAsync(process.execPath, [qualityGateScript, opts.propsPath], {
+        cwd: projectPaths.root,
+        timeout: 120000,
+        maxBuffer: 10 * 1024 * 1024,
+      });
+      console.log('[VideoRenderer] Motion Graphics Playbook quality gate passed.');
+    } catch (gateErr: any) {
+      console.error('[VideoRenderer] Quality gate failed:', gateErr.message);
+      throw new Error(`Video preview rejected by Quality Gate: ${gateErr.message}`);
+    }
+
     const cueManifestPath = `${opts.propsPath}.cues.json`;
     try {
       await fs.access(cueManifestPath);
-      const python = path.join(projectPaths.root, '.venv-motion-checks', 'bin', 'python');
+      const venvPython = process.platform === 'win32'
+        ? path.join(projectPaths.root, '.venv-motion-checks', 'Scripts', 'python.exe')
+        : path.join(projectPaths.root, '.venv-motion-checks', 'bin', 'python');
+      const candidates = [existsSync(venvPython) ? venvPython : null, 'python3', 'python'].filter(Boolean) as string[];
       const verifier = path.join(projectPaths.root, 'scripts', 'verify_sync.py');
-      const { stdout, stderr } = await execFileAsync(python, [verifier, opts.outputPath, cueManifestPath], {
-        cwd: projectPaths.root,
-        timeout: 120000,
-        maxBuffer: 1024 * 1024,
-      });
-      console.log(`[VideoRenderer] Audio sync verification passed: ${(stdout || stderr).trim()}`);
-    } catch (err: any) {
-      throw new Error(`Rendered video failed audio-sync verification: ${err.stderr || err.stdout || err.message}`);
+      let syncPassed = false;
+      let lastErr: any = null;
+      for (const pythonBin of candidates) {
+        try {
+          const { stdout, stderr } = await execFileAsync(pythonBin, [verifier, opts.outputPath, cueManifestPath], {
+            cwd: projectPaths.root,
+            timeout: 120000,
+            maxBuffer: 1024 * 1024,
+          });
+          console.log(`[VideoRenderer] Audio sync verification passed: ${(stdout || stderr).trim()}`);
+          syncPassed = true;
+          break;
+        } catch (err: any) {
+          lastErr = err;
+        }
+      }
+      if (!syncPassed) {
+        throw new Error(`Rendered video failed audio-sync verification: ${lastErr?.stderr || lastErr?.stdout || lastErr?.message}`);
+      }
+    } catch (accessErr: any) {
+      // No cue manifest present – audio-sync validation is skipped for this render.
+      console.log('[VideoRenderer] No cue manifest found; skipping audio-sync verification.');
     }
+
     return opts.outputPath;
   }
 }

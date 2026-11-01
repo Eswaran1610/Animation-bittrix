@@ -32,6 +32,6 @@ export const ShortVideo: React.FC<ShortVideoProps> = (props) => {
     <Audio src={staticFile(props.narration)} volume={0.92} />
     <TransitionSeries>{transitionNodes}</TransitionSeries>
     {whooshFrames.map((cutFrame) => <Sequence key={cutFrame} from={cutFrame} durationInFrames={18}><Audio src={staticFile(props.whoosh)} volume={0.55} /></Sequence>)}
-    <div style={{ position: 'absolute', right: 120, bottom: 230, color: '#ffffff99', fontSize: 18, letterSpacing: 3, opacity: frame > props.durationInFrames - 60 ? 1 : 0 }}>BITTRIX / AGY</div>
+    <div style={{ position: 'absolute', right: 120, bottom: 230, color: '#ffffff99', fontSize: 18, letterSpacing: 3, opacity: frame > props.durationInFrames - 60 ? 1 : 0 }}>BITTRIX / Codex</div>
   </AbsoluteFill>;
 };

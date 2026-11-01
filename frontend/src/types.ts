@@ -37,11 +37,11 @@ export interface Project {
   current_preview_version: number;
   created_at: string;
   updated_at: string;
-  agy_total_tokens?: number | string;
-  agy_input_tokens?: number | string;
-  agy_output_tokens?: number | string;
-  agy_run_count?: number | string;
-  agy_usage_estimated?: boolean;
+  codex_total_tokens?: number | string;
+  codex_input_tokens?: number | string;
+  codex_output_tokens?: number | string;
+  codex_run_count?: number | string;
+  codex_usage_estimated?: boolean;
 }
 
 export interface ScriptSource {

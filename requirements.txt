@@ -1,0 +1,24 @@
+# ==============================================================================
+# ANIMATION BITTRIX - PYTHON DEPENDENCIES
+# ==============================================================================
+# This file defines all Python packages required across the project:
+# 1. Word-level caption generation (Whisper / OpenAI Whisper CLI)
+# 2. Sound effect synthesis (scripts/make_sfx.py)
+# 3. Audio/visual sync verification (scripts/verify_sync.py)
+# 4. Motion-checks & audio signal analysis
+# ==============================================================================
+
+# --- Whisper & Neural Audio Transcription ---
+openai-whisper>=20231117
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# --- Audio Signal Processing & Procedural SFX Synthesis ---
+# Used by: scripts/make_sfx.py, scripts/verify_sync.py, motion-checks
+numpy>=1.24.0
+scipy>=1.10.0
+
+# --- Supporting Libraries (automatically resolved, pinned for reference) ---
+tiktoken>=0.5.0
+numba>=0.58.0
+tqdm>=4.65.0

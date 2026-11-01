@@ -1,8 +1,12 @@
-import React from 'react';
+import React, { Suspense, useMemo } from 'react';
+import { useLoader } from '@react-three/fiber';
+import { ThreeCanvas } from '@remotion/three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { BlueprintObject, VisualBlueprint } from '../data/sceneTypes';
 import { springPresets } from '../theme';
 import { assetSource } from '../assetSource';
+import { MODEL_LIBRARY_FILE, ModelLibraryEntry, getModelLibraryEntry } from '../data/modelLibrary';
 
 interface BlueprintVisualProps {
   blueprint: VisualBlueprint;
@@ -109,28 +113,106 @@ const ThreeDObject: React.FC<{ object: BlueprintObject; frame: number; fps: numb
   const spin = frame * (0.55 + index * 0.07);
   const node = (key: string, left: string, top: string, size = 22) => <span key={key} style={{ position: 'absolute', left, top, width: size, height: size, borderRadius: '50%', background: `radial-gradient(circle at 30% 25%, #fff, ${color} 25%, #05070f 100%)`, boxShadow: `0 0 18px ${color}` }} />;
 
-  if (primitive === 'cube') {
-    const face = (key: string, transform: string, background: string) => <span key={key} style={{ position: 'absolute', inset: 0, width: 150, height: 150, border: `2px solid ${color}`, background, backfaceVisibility: 'hidden', transform }} />;
-    return <div style={{ ...style, width: 150, height: 150, transform: `${style.transform} rotateX(${spin * 0.6}deg) rotateY(${spin}deg)` }}><div style={{ width: 150, height: 150, position: 'relative', transformStyle: 'preserve-3d' }}>{face('front', 'translateZ(75px)', `${color}44`)}{face('back', 'rotateY(180deg) translateZ(75px)', `${color}22`)}{face('right', 'rotateY(90deg) translateZ(75px)', `${color}33`)}{face('left', 'rotateY(-90deg) translateZ(75px)', `${color}22`)}{face('top', 'rotateX(90deg) translateZ(75px)', `${color}55`)}{face('bottom', 'rotateX(-90deg) translateZ(75px)', `${color}11`)}</div></div>;
+ if (primitive === 'cube') {
+   const face = (key: string, transform: string, background: string) => <span key={key} style={{ position: 'absolute', inset: 0, width: 150, height: 150, border: `2px solid ${color}`, background, backfaceVisibility: 'hidden', transform }} />;
+   return <div style={{ ...style, width: 150, height: 150, transform: `${style.transform} rotateX(${spin * 0.6}deg) rotateY(${spin}deg)` }}><div style={{ width: 150, height: 150, position: 'relative', transformStyle: 'preserve-3d' }}>{face('front', 'translateZ(75px)', `${color}44`)}{face('back', 'rotateY(180deg) translateZ(75px)', `${color}22`)}{face('right', 'rotateY(90deg) translateZ(75px)', `${color}33`)}{face('left', 'rotateY(-90deg) translateZ(75px)', `${color}22`)}{face('top', 'rotateX(90deg) translateZ(75px)', `${color}55`)}{face('bottom', 'rotateX(-90deg) translateZ(75px)', `${color}11`)}</div></div>;
+ }
+  if (primitive === 'keyboard') {
+    const rows = [
+      ['Esc', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '⌫'],
+      ['Tab', 'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '['],
+      ['Caps', 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ';', '↵'],
+      ['Shift', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', ',', '.', '/', 'Shift'],
+      ['Ctrl', 'Fn', 'Alt', 'Space', 'Alt', '←', '↓', '→'],
+    ];
+    return <div style={{ ...style, width: 380, height: 210, transform: `${style.transform} rotateX(56deg)` }}>
+      <div style={{ position: 'absolute', inset: 0, padding: 14, border: `3px solid ${color}`, borderRadius: 22, background: `linear-gradient(145deg, ${color}99, #07101ddd 58%, #02040a)`, boxShadow: `0 18px 32px #000b, 0 0 32px ${color}88`, transformStyle: 'preserve-3d' }}>
+        <div style={{ position: 'absolute', left: 20, right: 20, top: 12, height: 5, borderRadius: 99, background: `linear-gradient(90deg, transparent, ${color}, transparent)`, boxShadow: `0 0 14px ${color}` }} />
+        <div style={{ position: 'relative', marginTop: 12, display: 'flex', flexDirection: 'column', gap: 5, transform: `translateZ(12px)` }}>
+          {rows.map((row, rowIndex) => <div key={rowIndex} style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+            {row.map((keyLabel, keyIndex) => {
+              const isSpace = keyLabel === 'Space';
+              const keyWidth = isSpace ? 104 : keyLabel.length > 3 ? 38 : 24;
+              const keyLift = Math.sin(frame * 0.08 + rowIndex * 0.7 + keyIndex) * 1.5;
+              return <span key={`${rowIndex}-${keyIndex}`} style={{ width: keyWidth, height: 20, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, color: '#fff', fontSize: 7, fontWeight: 800, background: `linear-gradient(145deg, #ffffffaa, ${color}99 35%, #101827)`, border: `1px solid ${color}bb`, boxShadow: `0 ${3 + keyLift}px 0 #02040a, 0 0 8px ${color}55`, transform: `translateY(${keyLift}px)` }}>{keyLabel}</span>;
+            })}
+          </div>)}
+        </div>
+      </div>
+    </div>;
   }
-  if (primitive === 'torus') return <div style={{ ...style, width: 210, height: 210, border: `22px solid ${color}`, borderRadius: '50%', boxShadow: `inset 0 0 28px ${color}, 0 0 28px ${color}88`, background: 'transparent', transform: `${style.transform} rotateX(${58 + Math.sin(frame * 0.02) * 12}deg) rotateY(${spin}deg)` }} />;
+ if (primitive === 'torus') return <div style={{ ...style, width: 210, height: 210, border: `22px solid ${color}`, borderRadius: '50%', boxShadow: `inset 0 0 28px ${color}, 0 0 28px ${color}88`, background: 'transparent', transform: `${style.transform} rotateX(${58 + Math.sin(frame * 0.02) * 12}deg) rotateY(${spin}deg)` }} />;
   if (primitive === 'cylinder') return <div style={{ ...style, width: 150, height: 210, borderRadius: '50% / 15%', border: `3px solid ${color}`, background: `linear-gradient(90deg, ${color}22, ${color}aa 48%, ${color}22)`, boxShadow: `0 0 30px ${color}77`, transform: `${style.transform} rotateY(${spin}deg)` }}><span style={{ position: 'absolute', inset: '-3px 0 auto', height: 42, border: `3px solid ${color}`, borderRadius: '50%', background: `${color}33` }} /></div>;
   if (primitive === 'molecule') return <div style={{ ...style, width: 240, height: 190, transform: `${style.transform} rotateY(${spin}deg)` }}><div style={{ position: 'absolute', left: 56, top: 62, width: 125, height: 65, border: `3px solid ${color}99`, borderRadius: '50%', transform: 'rotate(-25deg)', boxShadow: `0 0 20px ${color}55` }} />{node('center', '44%', '35%', 48)}{node('a', '4%', '44%')}{node('b', '78%', '18%')}{node('c', '68%', '72%')}</div>;
   return <div style={{ ...style, width: 190, height: 190, borderRadius: '50%', background: `radial-gradient(circle at 28% 22%, #ffffff 0%, ${color} 16%, ${color}88 42%, #05070f 78%)`, boxShadow: `0 0 45px ${color}aa, inset -22px -18px 28px #000b`, transform: `${style.transform} rotateY(${spin}deg)` }}><span style={{ position: 'absolute', inset: '18% 8%', border: `2px solid ${color}99`, borderRadius: '50%', transform: `rotate(${spin * 0.7}deg)` }} /></div>;
+};
+
+const SharedModel: React.FC<{ entry: ModelLibraryEntry; frame: number; color: string }> = ({ entry, frame, color }) => {
+  const gltf = useLoader(GLTFLoader, assetSource(MODEL_LIBRARY_FILE));
+  const model = useMemo(() => {
+    const namedNode = gltf.scene.getObjectByName(entry.node);
+    const clone = (namedNode || gltf.scene).clone(true);
+    clone.traverse((child) => {
+      if ('isMesh' in child && child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    return clone;
+  }, [entry.node, gltf.scene]);
+  const spin = frame * 0.012;
+  return <group rotation={entry.rotation || [0, 0, 0]}>
+    <primitive object={model} scale={entry.scale || 1} rotation={[0, spin, 0]} />
+    <pointLight color={color} intensity={0.4} distance={5} />
+  </group>;
+};
+
+class Model3DErrorBoundary extends React.Component<{ fallback: React.ReactNode; children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+const Model3DObject: React.FC<{ object: BlueprintObject; frame: number; fps: number; index: number; durationInFrames: number }> = ({ object, frame, fps, index, durationInFrames }) => {
+  const modelId = object.render_spec.model_id;
+  const entry = getModelLibraryEntry(modelId);
+  if (!modelId || !entry) {
+    return <ThreeDObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} />;
+  }
+  const color = object.color || '#38bdf8';
+  const style = objectStyle(object, frame, fps, index, durationInFrames);
+  return <Model3DErrorBoundary fallback={<ThreeDObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} />}>
+    <Suspense fallback={<ThreeDObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} />}>
+      <div style={{ ...style, width: 360, height: 360, background: 'transparent' }}>
+        <ThreeCanvas width={360} height={360} camera={{ position: [0, 0, 4], fov: 35 }} dpr={1} gl={{ alpha: true, antialias: true }} style={{ width: '100%', height: '100%' }}>
+          <ambientLight intensity={1.25} />
+          <directionalLight position={[3, 4, 5]} intensity={2.2} color={color} />
+          <directionalLight position={[-3, 1, 2]} intensity={1.1} color="#ffffff" />
+          <SharedModel entry={entry} frame={frame} color={color} />
+        </ThreeCanvas>
+      </div>
+    </Suspense>
+  </Model3DErrorBoundary>;
 };
 
 const BlueprintObjectView: React.FC<{ object: BlueprintObject; frame: number; fps: number; index: number; durationInFrames: number; imageAssets: Record<string, string> }> = ({ object, frame, fps, index, durationInFrames, imageAssets }) => {
   const color = object.color || '#38bdf8';
   const style = objectStyle(object, frame, fps, index, durationInFrames);
   const spec = object.render_spec;
-  // AGY may phrase an object query slightly differently from the scene-level
+  // Codex may phrase an object query slightly differently from the scene-level
   // query that produced the downloaded file. Prefer the exact match, then use
   // the first scene asset so a verified imported image never degrades to text.
   const imageUrl = (spec.asset_query ? imageAssets[spec.asset_query] : undefined) || Object.values(imageAssets)[0];
-  if (spec.type === '3d') return <ThreeDObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} />;
+  if (spec.type === '3d') return <Model3DObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} />;
   if (spec.type === 'image' && imageUrl) {
     const clipPath = index % 3 === 0 ? 'circle(48% at 50% 50%)' : index % 3 === 1 ? 'polygon(8% 0, 92% 0, 100% 82%, 50% 100%, 0 82%)' : 'inset(0 round 28px 4px 28px 4px)';
-    return <div style={{ ...style, width: 300 + (index % 2) * 100, height: 210, clipPath, border: `2px solid ${color}`, boxShadow: `0 0 32px ${color}77`, overflow: 'hidden' }}><Img src={assetSource(imageUrl)} alt={object.label || 'AGY-selected asset'} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: `saturate(1.25) contrast(1.08) hue-rotate(${index * 9}deg)` }} /><div style={{ position: 'absolute', left: '10%', bottom: '8%', color: '#fff', fontSize: '14px', fontWeight: 800, textShadow: `0 2px 14px #000, 0 0 12px ${color}` }}>{object.label}</div></div>;
+    return <div style={{ ...style, width: 300 + (index % 2) * 100, height: 210, clipPath, border: `2px solid ${color}`, boxShadow: `0 0 32px ${color}77`, overflow: 'hidden' }}><Img src={assetSource(imageUrl)} alt={object.label || 'Codex-selected asset'} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: `saturate(1.25) contrast(1.08) hue-rotate(${index * 9}deg)` }} /><div style={{ position: 'absolute', left: '10%', bottom: '8%', color: '#fff', fontSize: '14px', fontWeight: 800, textShadow: `0 2px 14px #000, 0 0 12px ${color}` }}>{object.label}</div></div>;
   }
   if (spec.type === 'vector') return <VectorObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} />;
   const text = spec.text || object.label || object.id;
@@ -145,8 +227,10 @@ export const BlueprintVisual: React.FC<BlueprintVisualProps> = ({ blueprint, ima
   return <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', perspective: '1200px', transformStyle: 'preserve-3d' }}>
     <div style={{ position: 'absolute', inset: 0, opacity: 0.22, backgroundImage: 'linear-gradient(rgba(148,163,184,.22) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.22) 1px, transparent 1px)', backgroundSize: '72px 72px', backgroundPosition: `${frame * 1.8}px ${frame * 1.1}px`, maskImage: 'linear-gradient(to bottom, transparent, black 18%, black 82%, transparent)' }} />
     <ParticleField frame={frame} color={coreColor} />
-    <KineticCore frame={frame} color={coreColor} />
-    <div style={{ position: 'absolute', top: 0, bottom: 0, width: 150, left: scan, opacity: 0.28, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,.16), transparent)', filter: 'blur(10px)', transform: 'skewX(-16deg)' }} />
+    {!blueprint.objects.some((obj) => obj.render_spec.type === '3d' || obj.render_spec.type === 'image' || (obj.render_spec.type === 'vector' && ((obj.render_spec.paths?.length ?? 0) > 0 || (obj.render_spec.circles?.length ?? 0) > 0 || (obj.render_spec.rects?.length ?? 0) > 0))) && (
+      <KineticCore frame={frame} color={coreColor} />
+    )}
+    <div style={{ position: 'absolute', top: 0, bottom: 0, width: 150, left: scan, opacity: 0.18, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,.16), transparent)', filter: 'blur(10px)', transform: 'skewX(-16deg)' }} />
     {blueprint.objects.map((object, index) => <BlueprintObjectView key={object.id} object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} imageAssets={imageAssets} />)}
   </div>;
 };

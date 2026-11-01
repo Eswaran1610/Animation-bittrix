@@ -16,12 +16,23 @@ export class AudioBedService {
     const remotionFile = path.join(remotionDirectory, fileName);
     await fs.mkdir(backendDirectory, { recursive: true });
     await fs.mkdir(remotionDirectory, { recursive: true });
-    const fadeOut = Math.max(0, durationSeconds - 0.8).toFixed(3);
-    await execFileAsync('ffmpeg', [
-      '-y', '-f', 'lavfi', '-i', `anoisesrc=color=pink:amplitude=0.55:duration=${durationSeconds.toFixed(3)}`,
-      '-af', `lowpass=f=900,highpass=f=55,afade=t=in:st=0:d=0.6,afade=t=out:st=${fadeOut}:d=0.8,volume=0.60,loudnorm=I=-14:TP=-1.5:LRA=7`,
-      '-ar', '44100', '-ac', '2', backendFile,
-    ], { timeout: 30000 });
+    const synthScript = path.join(path.dirname(new URL(import.meta.url).pathname), 'synthBed.py');
+    try {
+      await execFileAsync('python3', [
+        synthScript,
+        backendFile,
+        durationSeconds.toFixed(2),
+        '120',
+      ], { timeout: 30000 });
+    } catch {
+      // Fallback: harmonic sine waves chord progression if python is unavailable
+      const fadeOut = Math.max(0, durationSeconds - 0.8).toFixed(3);
+      await execFileAsync('ffmpeg', [
+        '-y', '-f', 'lavfi',
+        '-i', `sine=frequency=220:duration=${durationSeconds.toFixed(3)}[a];sine=frequency=330:duration=${durationSeconds.toFixed(3)}[b];sine=frequency=110:duration=${durationSeconds.toFixed(3)}[c];[a][b][c]amix=inputs=3,afade=t=in:st=0:d=0.8,afade=t=out:st=${fadeOut}:d=0.8,volume=0.25`,
+        '-ar', '44100', '-ac', '2', backendFile,
+      ], { timeout: 30000 });
+    }
     await fs.copyFile(backendFile, remotionFile);
     return `audio/beds/${fileName}`;
   }

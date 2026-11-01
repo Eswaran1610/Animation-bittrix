@@ -1,50 +1,61 @@
 import React from 'react';
-import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { shortVideoMotion, shortVideoPalettes, shortVideoSafeArea, shortVideoType, ShortVideoPalette } from '../designTokens';
+import { SceneTemplate } from '../../components/SceneTemplate';
+import { BlueprintVisual } from '../../components/BlueprintVisual';
 import { ShortVideoScene } from '../shortVideoProps';
-import { SceneFrame } from '../components/SceneFrame';
-import { KineticWords } from '../components/KineticWords';
+import { shortVideoPalettes, ShortVideoPalette } from '../designTokens';
+import { VisualBlueprint } from '../../data/sceneTypes';
 
-const Card: React.FC<{ color: string; children: React.ReactNode; style?: React.CSSProperties }> = ({ color, children, style }) => <div style={{ padding: 28, borderRadius: 28, background: `linear-gradient(145deg, #ffffff12, ${color}14)`, border: `2px solid ${color}88`, boxShadow: '0 22px 50px #0008', ...style }}>{children}</div>;
-const NumberBadge: React.FC<{ value: string; color: string }> = ({ value, color }) => <div style={{ width: 82, height: 82, borderRadius: '50%', border: `3px solid ${color}`, color, display: 'grid', placeItems: 'center', fontSize: 38, fontWeight: 900, flexShrink: 0 }}>{value}</div>;
+/**
+ * Playbook-compliant TemplateScene:
+ * Strictly bound to the 4-zone layout (Title, Bullets, Media Frame, Captions)
+ * ensuring zero overlap and responsive text fitting.
+ */
+export const TemplateScene: React.FC<{
+  scene: ShortVideoScene;
+  index: number;
+  totalScenes: number;
+  palette: ShortVideoPalette;
+  visualBlueprint?: VisualBlueprint;
+  imageAssets?: Record<string, string>;
+}> = ({ scene, palette, visualBlueprint, imageAssets }) => {
+  const colors = shortVideoPalettes[palette] || shortVideoPalettes.cool;
+  const color = scene.accent || colors.accent || '#22d3ee';
 
-export const TemplateScene: React.FC<{ scene: ShortVideoScene; index: number; totalScenes: number; palette: ShortVideoPalette }> = ({ scene, index, totalScenes, palette }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const colors = shortVideoPalettes[palette];
-  const color = scene.accent || colors.accent;
-  const reveal = spring({ frame, fps, config: shortVideoMotion.soft });
-  const items = scene.items?.length ? scene.items : ['Make the idea visible', 'Keep the motion purposeful', 'Land the takeaway'];
-  const metric = scene.metric || { value: '3x', label: 'more memorable when visual' };
-  const metricMatch = metric.value.match(/^(-?\d+(?:\.\d+)?)(.*)$/);
-  const animatedMetric = metricMatch
-    ? `${Math.round(interpolate(reveal, [0, 1], [0, Number(metricMatch[1])]))}${metricMatch[2]}`
-    : metric.value;
-  const panel: React.CSSProperties = { position: 'absolute', left: shortVideoSafeArea.left, right: shortVideoSafeArea.right, top: shortVideoSafeArea.top + 170 };
-  const title = (size: number = shortVideoType.headline) => <div><KineticWords words={scene.words} accent={color} fontSize={size} /><p style={{ margin: '32px 0 0', maxWidth: 800, color: `${colors.text}cc`, fontSize: shortVideoType.subline, lineHeight: 1.25, fontWeight: 600 }}>{scene.subtitle || scene.detail || 'A clear visual explanation in motion.'}</p></div>;
-  const itemRevealFrames = scene.narrationDurationSec ? Math.max(9, Math.round((scene.narrationDurationSec * fps) / Math.max(1, items.length))) : 9;
-  const stagger = (itemIndex: number) => spring({ frame: frame - itemIndex * itemRevealFrames, fps, config: shortVideoMotion.pop });
+  const title = (scene as any).title || (Array.isArray(scene.words) ? scene.words.join(' ') : 'Motion Overview');
+  const bullets = scene.items?.length
+    ? scene.items.slice(0, 3)
+    : scene.subtitle
+    ? [scene.subtitle]
+    : undefined;
 
-  const content = (() => {
-    switch (scene.template) {
-      case 'question-hook': return <div style={{ ...panel, textAlign: 'center' }}><div style={{ color, fontSize: 230, lineHeight: .8, fontWeight: 900, opacity: reveal, transform: `scale(${.7 + reveal * .3})` }}>?</div>{title(100)}</div>;
-      case 'hero-object': return <div style={panel}>{title()}<div style={{ position: 'absolute', left: '50%', top: 420, width: 520, height: 520, display: 'grid', placeItems: 'center', transform: `translateX(-50%) rotate(${Math.sin(frame * .025) * 8}deg) scale(${.8 + reveal * .2})`, fontSize: 310, borderRadius: '50%', background: `radial-gradient(circle, ${color}44, transparent 68%)`, filter: `drop-shadow(0 24px 24px ${colors.shadow})` }}>{scene.icon || '✦'}</div></div>;
-      case 'split-compare':
-      case 'before-after': return <div style={{ ...panel, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>{[0, 1].map((part) => <Card key={part} color={part ? color : colors.accent} style={{ minHeight: 520, transform: `translateY(${interpolate(reveal, [0, 1], [50, 0]) + part * 20}px)` }}><div style={{ color: part ? color : colors.accent, fontSize: 24, fontWeight: 900, letterSpacing: 3 }}>{scene.labels?.[part] || (part ? 'AFTER' : 'BEFORE')}</div><div style={{ fontSize: 150, margin: '70px 0', textAlign: 'center' }}>{scene.icons?.[part] || (part ? '→' : '○')}</div><div style={{ color: `${colors.text}cc`, fontSize: 35, fontWeight: 700 }}>{items[part] || 'The visual result'}</div></Card>)}</div>;
-      case 'stat-callout': return <div style={{ ...panel, textAlign: 'center' }}><div style={{ color, fontSize: 250, lineHeight: .9, fontWeight: 900, textShadow: `0 0 50px ${color}66`, transform: `scale(${.8 + reveal * .2})` }}>{animatedMetric}</div><div style={{ marginTop: 25, color: colors.text, fontSize: 48, fontWeight: 800 }}>{metric.label}</div>{title(78)}</div>;
-      case 'quote-focus': return <div style={{ ...panel, textAlign: 'center' }}><div style={{ color, fontSize: 160, lineHeight: .5, fontWeight: 900 }}>“</div><div style={{ margin: '60px auto', maxWidth: 850, color: colors.text, fontSize: 75, lineHeight: 1.12, fontWeight: 900 }}>{scene.quote || scene.words.join(' ')}</div><div style={{ color: `${colors.text}99`, fontSize: 32 }}>— {scene.attribution || 'the idea worth remembering'}</div></div>;
-      case 'list-reveal':
-      case 'steps-numbered': return <div style={panel}><div style={{ marginBottom: 52 }}>{title(86)}</div><div style={{ display: 'grid', gap: 20 }}>{items.slice(0, 3).map((item, itemIndex) => <div key={`${item}-${itemIndex}`} style={{ display: 'flex', alignItems: 'center', gap: 22, opacity: stagger(itemIndex), transform: `translateX(${interpolate(stagger(itemIndex), [0, 1], [80, 0])}px)` }}><NumberBadge value={scene.numbers?.[itemIndex] || String(itemIndex + 1)} color={color} /><div style={{ color: colors.text, fontSize: 46, fontWeight: 800 }}>{item}</div></div>)}</div></div>;
-      case 'timeline': return <div style={panel}><div style={{ marginBottom: 56 }}>{title(82)}</div><div style={{ position: 'relative', paddingLeft: 56, display: 'grid', gap: 38 }}><div style={{ position: 'absolute', left: 17, top: 12, bottom: 12, width: 4, background: `linear-gradient(${color}, transparent)` }} />{items.slice(0, 3).map((item, itemIndex) => <div key={`${item}-${itemIndex}`} style={{ position: 'relative', color: colors.text, fontSize: 46, fontWeight: 700, opacity: stagger(itemIndex) }}><span style={{ position: 'absolute', left: -56, top: 4, width: 38, height: 38, borderRadius: '50%', background: color, boxShadow: `0 0 20px ${color}` }} />{item}</div>)}</div></div>;
-      case 'chart-bar': return <div style={panel}><div style={{ marginBottom: 60 }}>{title(82)}</div><div style={{ display: 'flex', alignItems: 'end', justifyContent: 'center', gap: 28, height: 460 }}>{(scene.values || [35, 58, 82, 64]).slice(0, 5).map((value, itemIndex) => <div key={itemIndex} style={{ width: 110, height: `${value * 4.5}px`, maxHeight: 420, transformOrigin: 'bottom', transform: `scaleY(${stagger(itemIndex)})`, borderRadius: '18px 18px 4px 4px', background: `linear-gradient(${color}, ${colors.accent})`, boxShadow: `0 0 30px ${color}55` }} />)}</div></div>;
-      case 'map-pin': return <div style={{ ...panel, textAlign: 'center' }}><div style={{ marginBottom: 28 }}>{title(82)}</div><div style={{ position: 'relative', margin: '0 auto', width: 720, height: 650, borderRadius: '48% 52% 42% 58%', background: `repeating-linear-gradient(25deg, transparent 0 55px, ${color}22 56px 59px), repeating-linear-gradient(110deg, transparent 0 80px, ${color}18 81px 84px)`, border: `3px solid ${color}77`, transform: `rotate(${Math.sin(frame * .02) * 2}deg)` }}><div style={{ position: 'absolute', left: '52%', top: '38%', fontSize: 120, color, filter: `drop-shadow(0 0 20px ${color})`, transform: `translateY(${Math.sin(frame * .07) * 14}px)` }}>📍</div></div></div>;
-      case 'product-showcase': return <div style={{ ...panel, textAlign: 'center' }}><div style={{ marginBottom: 32 }}>{title(80)}</div><Card color={color} style={{ width: 680, height: 660, margin: '0 auto', display: 'grid', placeItems: 'center', transform: `perspective(900px) rotateY(${Math.sin(frame * .025) * 8}deg)` }}><div style={{ fontSize: 230, filter: `drop-shadow(0 25px 30px ${colors.shadow})` }}>{scene.icon || '◈'}</div><div style={{ color, fontSize: 26, letterSpacing: 4, fontWeight: 900 }}>{scene.label || 'FEATURED SUBJECT'}</div></Card></div>;
-      case 'fact-card': return <div style={{ ...panel, textAlign: 'center' }}><Card color={color} style={{ maxWidth: 840, margin: '0 auto', padding: 70, transform: `translateY(${interpolate(reveal, [0, 1], [70, 0])}px)` }}><div style={{ color, fontSize: 28, fontWeight: 900, letterSpacing: 6 }}>DID YOU KNOW?</div><div style={{ margin: '60px 0 35px', color: colors.text, fontSize: 68, lineHeight: 1.15, fontWeight: 900 }}>{scene.fact || scene.words.join(' ')}</div><div style={{ color: `${colors.text}aa`, fontSize: 38 }}>{scene.subtitle || 'A fact worth remembering.'}</div></Card></div>;
-      case 'icon-grid': return <div style={panel}><div style={{ marginBottom: 46 }}>{title(82)}</div><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>{items.slice(0, 6).map((item, itemIndex) => <Card key={`${item}-${itemIndex}`} color={color} style={{ minHeight: 210, textAlign: 'center', opacity: stagger(itemIndex) }}><div style={{ fontSize: 72 }}>{scene.icons?.[itemIndex] || ['✦', '◉', '◆', '●', '✚', '➜'][itemIndex]}</div><div style={{ marginTop: 16, color: colors.text, fontSize: 30, fontWeight: 800 }}>{item}</div></Card>)}</div></div>;
-      case 'cta-outro': return <div style={{ ...panel, textAlign: 'center' }}><div style={{ fontSize: 130, color, fontWeight: 900, transform: `scale(${.8 + reveal * .2})` }}>✓</div>{title(100)}<div style={{ marginTop: 64, display: 'inline-flex', padding: '22px 42px', borderRadius: 999, background: color, color: colors.shadow, fontSize: 34, fontWeight: 900, boxShadow: `0 15px 40px ${color}55` }}>{scene.cta || 'SAVE THIS IDEA'}</div></div>;
-      default: return <div style={panel}>{title()}</div>;
-    }
-  })();
+  const caption = scene.subtitle || scene.detail || '';
+  const screenshotUrl = imageAssets && Object.values(imageAssets).length > 0
+    ? Object.values(imageAssets)[0]
+    : undefined;
 
-  return <SceneFrame accent={color} eyebrow={`${String(index + 1).padStart(2, '0')} / ${scene.template.replace('-', ' ')}`} palette={palette} totalScenes={totalScenes}>{content}</SceneFrame>;
+  // Narration-aware bullet timing if narration duration is provided
+  const bulletTimings = scene.narrationDurationSec && bullets?.length
+    ? bullets.map((_, i) => 0.6 + i * (scene.narrationDurationSec! / (bullets.length + 0.5)))
+    : undefined;
+
+  const hasBlueprint = Boolean(visualBlueprint?.objects && visualBlueprint.objects.length > 0);
+
+  return (
+    <SceneTemplate
+      title={title}
+      bullets={bullets}
+      screenshotUrl={screenshotUrl}
+      caption={caption}
+      bulletTimings={bulletTimings}
+      accentColor={color}
+    >
+      {hasBlueprint && visualBlueprint && (
+        <BlueprintVisual
+          blueprint={visualBlueprint}
+          imageAssets={imageAssets}
+          durationInFrames={scene.durationInFrames}
+        />
+      )}
+    </SceneTemplate>
+  );
 };

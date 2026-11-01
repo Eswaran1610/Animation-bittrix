@@ -2,7 +2,7 @@ import React from 'react';
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { springPresets } from '../theme';
 
-/** Shared typography only; scene geometry is supplied by AGY visual blueprints. */
+/** Shared typography only; scene geometry is supplied by Codex visual blueprints. */
 export const KineticTitle: React.FC<{
   title: string;
   badge?: string;

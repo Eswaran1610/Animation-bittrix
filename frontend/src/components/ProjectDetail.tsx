@@ -350,7 +350,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
             {/* Research Notes & Sources */}
             <div style={{ background: '#0f172a', padding: '16px', borderRadius: '8px', marginBottom: '20px', border: '1px solid var(--border-color)' }}>
               <h4 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--accent-blue)', textTransform: 'uppercase', marginBottom: '8px' }}>
-                AGY Topic Interpretation & Research Notes
+                Codex Topic Interpretation & Research Notes
               </h4>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: '1.5' }}>
                 {activeScript.research_notes}
@@ -457,7 +457,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
               ) : (
                 <div style={{ marginBottom: '16px' }}>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px', lineHeight: '1.4' }}>
-                    Review the voice-over narration and scene plan. Approving authorizes AGY to create Remotion animation code and render a preview.
+                    Review the voice-over narration and scene plan. Approving authorizes Codex to create Remotion animation code and render a preview.
                   </p>
                   <button
                     onClick={handleApproveScript}
@@ -496,7 +496,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                 Request Script Changes
               </h4>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-                Provide feedback to AGY. A new script version will be generated while preserving history.
+                Provide feedback to Codex. A new script version will be generated while preserving history.
               </p>
               <textarea
                 className="input-textarea"
@@ -525,7 +525,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                 className="btn btn-secondary"
                 style={{ width: '100%' }}
               >
-                <Sparkles size={16} /> Request AGY Script Revision
+                <Sparkles size={16} /> Request Codex Script Revision
               </button>
             </div>
           </div>
@@ -711,7 +711,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                 Request Visual Corrections
               </h4>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: '1.4' }}>
-                AGY will preserve the approved narration, regenerate the visual plan from your feedback, and return it to Gate 1 for approval before a new preview is rendered.
+                Codex will preserve the approved narration, regenerate the visual plan from your feedback, and return it to Gate 1 for approval before a new preview is rendered.
               </p>
               <textarea
                 className="input-textarea"

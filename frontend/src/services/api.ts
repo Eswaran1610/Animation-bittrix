@@ -10,9 +10,9 @@ export const api = {
     return res.json();
   },
 
-  async getAgyUsage() {
-    const res = await fetch(`${API_BASE}/usage/agy`);
-    if (!res.ok) throw new Error('Failed to fetch AGY usage');
+  async getCodexUsage() {
+    const res = await fetch(`${API_BASE}/usage/codex`);
+    if (!res.ok) throw new Error('Failed to fetch Codex usage');
     return res.json() as Promise<{
       input_tokens: number;
       output_tokens: number;
@@ -22,29 +22,16 @@ export const api = {
     }>;
   },
 
-  async getAgyConnection() {
-    const res = await fetch(`${API_BASE}/auth/agy`);
-    if (!res.ok) throw new Error('Failed to check AGY connection');
-    return res.json() as Promise<AgyConnection>;
+  async getCodexConnection() {
+    const res = await fetch(`${API_BASE}/auth/codex`);
+    if (!res.ok) throw new Error('Failed to check Codex connection');
+    return res.json() as Promise<CodexConnection>;
   },
 
-  async connectAgy() {
-    const res = await fetch(`${API_BASE}/auth/agy`, { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to start AGY connection');
-    return res.json() as Promise<AgyConnection>;
-  },
-
-  async submitAgyAuthorizationCode(sessionId: string, code: string) {
-    const res = await fetch(`${API_BASE}/auth/agy/${sessionId}/code`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to submit AGY authorization code');
-    }
-    return res.json() as Promise<AgyConnection>;
+  async connectCodex() {
+    const res = await fetch(`${API_BASE}/auth/codex`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to start Codex connection');
+    return res.json() as Promise<CodexConnection>;
   },
 
   async listProjects(): Promise<Project[]> {
@@ -172,10 +159,8 @@ export const api = {
   },
 };
 
-export type AgyConnection = {
+export type CodexConnection = {
   cliAvailable: boolean;
-  state: 'unknown' | 'starting' | 'awaiting_code' | 'verifying' | 'connected' | 'failed';
-  sessionId?: string;
+  state: 'unknown' | 'connected' | 'failed';
   message: string;
-  authUrl?: string;
 };

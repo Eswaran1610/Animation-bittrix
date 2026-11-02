@@ -1,0 +1,551 @@
+AI ANIMATION PIPELINE - CONTINUATION HANDOFF
+=============================================
+
+Purpose
+-------
+This file is the practical handoff for another AI coding agent continuing work in
+the Animation-bittrix repository. Read this file, README.md, context.md, and the
+video-production-director skill before changing the video pipeline.
+
+Workspace
+---------
+Repository: Animation-bittrix
+Primary stack: React + Vite + TypeScript frontend, Express + TypeScript backend,
+PostgreSQL, AGY CLI, and Remotion.
+
+The repository is intended to be maintained through GitHub and cloned on both an
+office laptop and a home laptop. Source code and lockfiles are versioned. Local
+database records and generated media are intentionally not versioned.
+
+
+CURRENT STATE
+-------------
+
+The application builds successfully with:
+
+    npm run build
+
+This runs:
+
+    backend TypeScript build
+    frontend TypeScript + Vite production build
+    Remotion TypeScript check
+
+The local services were started and verified during the current session:
+
+    PostgreSQL: 127.0.0.1:5434
+    Backend:     http://127.0.0.1:5000
+    Frontend:    http://localhost:5173
+
+Backend health response was successful and reported PostgreSQL 5434. The Vite
+frontend proxy successfully reached /api/videos.
+
+On the current machine, Docker exists but `docker compose` is unavailable. The
+portable database script therefore used the native PostgreSQL fallback. The
+fallback required a temporary Unix socket directory (`-k /tmp`) because the
+default `/run/postgresql` socket path is not writable in this environment.
+
+
+STARTUP ON A FRESH MACHINE
+--------------------------
+
+Prerequisites:
+
+1. Node.js 22.12 or newer. `.nvmrc` pins 22.12.0 as the project baseline.
+2. Docker Desktop with the Compose plugin is recommended for PostgreSQL on
+   Windows, macOS, and Linux.
+3. AGY CLI installed and authenticated on the machine running the backend.
+4. FFmpeg and FFprobe installed and available on PATH. They are needed for
+   converting generated narration audio and reading its duration.
+5. A Chromium-compatible Remotion environment. Remotion downloads/uses its own
+   rendering dependencies through the remotion package setup.
+
+From the repository root:
+
+    npm run install:all
+
+Create local environment files from the templates. Do not commit them:
+
+    backend/.env.example  -> backend/.env
+    frontend/.env.example -> frontend/.env (optional if defaults are enough)
+
+Start services in separate terminals:
+
+    npm run db:start
+    npm run backend:dev
+    npm run frontend:dev
+
+Open:
+
+    http://localhost:5173
+
+Other useful commands:
+
+    npm run db:status
+    npm run db:stop
+    npm run build
+
+The root scripts use `npm --prefix`, so they do not depend on Bash `cd` syntax.
+Database startup is implemented in `scripts/db.mjs` and works as follows:
+
+1. If the configured database port is already reachable, it reports the DB as
+   already running.
+2. If `docker compose version` works, it runs `docker compose up -d postgres`.
+3. Otherwise, if native `pg_ctl` and `database/pgdata` exist, it starts native
+   PostgreSQL with a temporary socket directory.
+4. If neither is available, it reports that Docker or PostgreSQL must be
+   installed.
+
+
+PORTS, PATHS, AND ENVIRONMENT
+-----------------------------
+
+Default ports:
+
+    Frontend Vite: 5173
+    Backend API:   5000
+    PostgreSQL:    5434
+
+Backend environment (`backend/.env.example`):
+
+    HOST=127.0.0.1
+    PORT=5000
+    DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5434/animation_pipeline
+    PGHOST=127.0.0.1
+    PGPORT=5434
+    PGUSER=postgres
+    PGDATABASE=animation_pipeline
+    MEDIA_DIR=./media
+    KOKORO_MODEL=onnx-community/Kokoro-82M-v1.0-ONNX
+    KOKORO_VOICE=af_sarah
+    KOKORO_SPEED=1
+
+`MEDIA_DIR=./media` is resolved relative to the backend directory. Do not use
+the old developer-specific absolute paths from historical notes.
+
+`backend/src/config/paths.ts` derives the repository root from the source file
+location, not from the directory where Node was launched. It provides:
+
+    projectPaths.root
+    projectPaths.backendMedia
+    projectPaths.remotionRoot
+    projectPaths.remotionPublic
+    projectPaths.renderDataDir
+
+The optional `PROJECT_ROOT` environment variable is only needed if the checkout
+is mounted in a deliberately unusual layout.
+
+Frontend environment (`frontend/.env.example`):
+
+    VITE_API_BASE_URL=/api
+    VITE_BACKEND_URL=http://127.0.0.1:5000
+    VITE_PORT=5173
+    VITE_HOST=0.0.0.0
+
+`frontend/vite.config.ts` loads these values and proxies `/api`, `/media`, and
+`/ws` to the backend. The browser normally continues to use the same-origin
+`/api` path.
+
+If changing ports, update both sides. For example, if PostgreSQL moves from
+5434 to 5435, update `DATABASE_URL` and `PGPORT` in backend/.env, and start the
+database with the matching environment value for Docker/native startup. Avoid
+editing source files just to change a machine's ports.
+
+
+GITHUB OFFICE/HOME WORKFLOW
+---------------------------
+
+After changes are pushed from one laptop:
+
+    git pull
+    npm run install:all
+    npm run db:start
+    npm run backend:dev
+    npm run frontend:dev
+
+The committed package-lock files keep dependency versions reproducible. Node
+baseline is declared in `.nvmrc` and package engines.
+
+Git does NOT carry the following ignored local data:
+
+    database/pgdata/
+    backend/media/previews/*.mp4
+    backend/media/videos/*.mp4
+    backend/media/audio/*
+    backend/media/assets/*
+    backend/media/render-data/*
+    remotion/public/audio/*
+    remotion/public/assets/*
+    backend/.env and other environment files
+
+Therefore a `git pull` updates code but does not transfer previous projects,
+approval history, generated videos, voice files, or provider credentials. To
+share the same history between laptops, use a deliberate PostgreSQL backup and
+media backup/shared storage. Never commit API keys, OAuth tokens, or `.env`.
+
+
+PRODUCT WORKFLOW
+----------------
+
+The intended production contract is:
+
+    submitted topic/text/URL
+      -> AGY live research
+      -> AGY structured script, narration, and scene plan
+      -> human Gate 1 script approval
+      -> isolated AGY render props
+      -> Remotion preview render
+      -> human Gate 2 approval of the exact current preview
+      -> Remotion final 1080p render
+      -> videos library
+
+Gate rules:
+
+1. A preview cannot be rendered until the selected script version is explicitly
+   approved.
+2. A final video cannot be rendered until the current preview version is
+   explicitly approved.
+3. Approval of an old preview version does not authorize a newer preview.
+4. Visual corrections create a new script/scene-plan version and return through
+   Gate 1. Existing narration is preserved unless the user explicitly asks to
+   change narration.
+5. Remotion is the only video renderer. There is no generic FFmpeg substitute
+   for a failed Remotion render.
+
+
+AGY PROVIDER DETAILS
+--------------------
+
+File:
+
+    backend/src/modules/providers/agyProvider.ts
+
+AGY is currently the only active provider. The backend invokes the local `agy`
+CLI with:
+
+    agy --dangerously-skip-permissions --print-timeout 4m --print <prompt>
+
+The working directory is the dynamically resolved repository root.
+
+AGY is instructed to:
+
+- perform live web research and verify facts
+- return source URLs
+- create the full narration
+- create a unique scene plan for the submitted content
+- create a topic-specific visual blueprint for every scene
+- specify motion cues and scene-to-scene continuity
+- avoid generic templates, fixed object lists, copied topics, and fallback data
+
+The response must be valid JSON. The provider validates:
+
+- topic interpretation, research notes, fact-check notes
+- non-empty narration and source URLs
+- sequential scene numbers
+- integer scene durations of at least two seconds
+- required text, visual, motion, narration, and continuity fields
+- `visual_type: "blueprint"`
+- valid six-digit theme colors
+- complete visual blueprints with at least two objects per scene
+- unique object IDs and non-empty vector/image/text render specifications
+- distinct scene signatures
+
+AGY token usage is recorded in `agent_runs.execution_metadata`. Native usage is
+used if present in AGY output; otherwise the provider records an estimated
+input/output token count.
+
+AGY is not a web OAuth provider in this application. The AGY CLI must be
+installed and authenticated separately on each machine that runs the backend.
+
+
+VOICE / NARRATION DETAILS
+-------------------------
+
+Current source of truth:
+
+    backend/src/modules/audio/ttsService.ts
+
+The current implementation uses `kokoro-js`, not the older Edge-TTS description
+still present in some historical documentation. Defaults are:
+
+    Model: onnx-community/Kokoro-82M-v1.0-ONNX
+    Voice: af_sarah
+    Speed: 1
+    Device: CPU
+    Dtype: q8
+
+The process is:
+
+1. The approved script narration is passed to Kokoro.
+2. Kokoro writes a temporary WAV file in backend/media/audio.
+3. FFmpeg converts WAV to 128k MP3.
+4. FFprobe reads the final duration.
+5. The MP3 is copied to remotion/public/audio so Remotion can load it with
+   `staticFile()`.
+6. The backend records the audio URL inside isolated render props.
+
+Object entrance sound effects are also generated procedurally by
+`backend/src/modules/audio/sfxService.ts`. For up to four AGY-authored objects
+per scene, FFmpeg creates a short pitch derived from the project, scene, object
+index, and object label. The cues are copied into remotion/public/audio/sfx and
+stored as scene-relative `audioCues`; MainVideo mounts them at the object
+entrance frames. These are subtle non-musical cues, not copyrighted music.
+SFX are created for new preview/final renders, so an already-exported MP4 must
+be rendered again to contain them.
+
+Generated files include:
+
+    backend/media/audio/<project-id>_narration.mp3
+    remotion/public/audio/<project-id>_narration.mp3
+
+If voice generation fails, the render service currently logs a warning and can
+continue without narration audio. If narration must be mandatory in a future
+change, convert that warning into a render validation failure deliberately.
+
+
+REMOTION DETAILS
+----------------
+
+Remotion files:
+
+    remotion/src/Root.tsx
+    remotion/src/Composition.tsx
+    remotion/src/MainVideo.tsx
+    remotion/src/components/DynamicScene.tsx
+    remotion/src/components/BlueprintVisual.tsx
+    remotion/src/components/MotionElements.tsx
+    remotion/src/data/sceneTypes.ts
+
+Remotion does not import a static, topic-specific scene-data JSON file anymore.
+The old `remotion/src/data/scene-data.json` was removed. Each render receives
+isolated input props using the Remotion `--props` argument.
+
+Render props are written to:
+
+    backend/media/render-data/<project-id>_preview_v<version>.json
+    backend/media/render-data/<project-id>_final_v<version>.json
+
+The payload contains:
+
+    video.title
+    video.width = 1920
+    video.height = 1080
+    video.fps = 30
+    video.durationInFrames
+    video.generatedBy = "agy"
+    video.sourceProjectId
+    video.previewVersion
+    video.scriptVersion
+    video.audioUrl (when voice generation succeeds)
+    scenes[]
+
+Each scene contains AGY-authored:
+
+- title and on-screen text
+- subtitle and narration
+- theme color
+- duration and durationInFrames
+- motion cue
+- continuity metadata
+- content-specific visual blueprint
+- image asset map when AGY requested web assets
+- key takeaways and optional concept nodes/metrics
+
+`Root.tsx` rejects render input without `video`, `scenes`, or AGY provenance.
+`MainVideo.tsx` adds the synchronized `<Audio>` track and sequences all scenes
+at their calculated frame offsets. `DynamicScene.tsx` adds animated atmosphere,
+blueprint visuals, kinetic titles, subtitles, and takeaways. Motion is driven by
+Remotion frame APIs such as `useCurrentFrame`, `interpolate`, and `spring`.
+
+`BlueprintVisual.tsx` renders AGY objects as:
+
+- vector SVG shapes from AGY paths/circles/rects/lines/polygons
+- downloaded image objects using Remotion `<Img>` and `staticFile()`
+- dynamic text objects
+- procedural 3D primitives (`sphere`, `cube`, `torus`, `cylinder`, `molecule`)
+
+The procedural 3D primitives use frame-driven CSS 3D transforms and transparent
+depth layers; they do not require a Three.js dependency. AGY can choose the 3D
+primitive when the submitted topic benefits from depth, such as molecules,
+organs, planets, machines, or spatial mechanisms. Vector objects also receive
+transparent depth layers. Text/image objects use varied geometry and no longer
+use the same dark rectangular card wrapper.
+
+Object entrance, drift, rotation, scale, and sound cues are frame-driven or
+scene-data-driven. Do not reintroduce static topic-specific scene components,
+fixed placeholder labels, or a repeated card shell.
+
+
+RENDERING PIPELINE DETAILS
+--------------------------
+
+File:
+
+    backend/src/modules/renders/rendersService.ts
+
+Preview creation:
+
+1. Check Gate 1.
+2. Reject duplicate active preview renders.
+3. Insert a queued render_jobs row.
+4. Update project status to Rendering preview.
+5. Run background processing and publish WebSocket progress.
+6. Validate the AGY scene plan.
+7. Generate Kokoro narration and download requested Wikipedia assets.
+8. Write isolated render props.
+9. Call Remotion at scale 0.5.
+10. Mark render job completed and project Preview ready for review.
+
+Final creation:
+
+1. Check Gate 2 against the current preview version.
+2. Load the current approved script.
+3. Generate final isolated render props.
+4. Call Remotion at scale 1.0 for 1920x1080.
+5. Save the final MP4 under backend/media/videos.
+6. Insert render_jobs and videos records with duration and file size.
+7. Mark the project Completed.
+
+File:
+
+    backend/src/modules/renders/videoRenderer.ts
+
+The renderer invokes the Remotion CLI in the resolved remotion directory and
+passes `--props=<isolated-json-path>`, `--scale`, `--concurrency=3`, and
+`--overwrite`. A non-empty output file is required. A render error is surfaced;
+no substitute video is created.
+
+
+WEB ASSETS
+----------
+
+File:
+
+    backend/src/modules/assets/assetFetcher.ts
+
+AGY supplies image search phrases. The asset fetcher queries Wikipedia's API,
+selects a result with a thumbnail, downloads the image, and writes copies to:
+
+    backend/media/assets
+    remotion/public/assets
+
+The Remotion copy is required for rendering. Assets are generated per project
+and are ignored by Git.
+
+
+FRONTEND DETAILS
+----------------
+
+Main files:
+
+    frontend/src/App.tsx
+    frontend/src/services/api.ts
+    frontend/src/components/Dashboard.tsx
+    frontend/src/components/ProjectDetail.tsx
+    frontend/src/components/VideosLibrary.tsx
+    frontend/src/components/SettingsModal.tsx
+    frontend/src/components/LiveStatusBar.tsx
+
+The app loads projects, videos, health, and AGY usage on startup. It connects to
+`/ws` for pipeline/render progress and refreshes project details while a render
+is active.
+
+The Videos Library is dynamic. It uses each database record's `storage_url` in a
+real HTML5 video player, displays the joined project title, and provides a
+download link. The old fixed play-icon card and `Video #...` label were removed.
+
+The single login icon in the navbar currently opens AI Settings. It is only a
+navigation entry point. Real OAuth login for AGY, Claude Code, or Codex is NOT
+implemented. AGY is local CLI-based; Claude/Codex are adapter placeholders.
+Do not describe the icon as an authenticated OAuth connection.
+
+
+BACKEND API SUMMARY
+-------------------
+
+    GET  /api/health
+    GET  /api/projects
+    POST /api/projects
+    GET  /api/projects/:id
+    DELETE /api/projects/:id
+    GET  /api/usage/agy
+    POST /api/projects/:id/scripts/revise
+    POST /api/projects/:id/scripts/approve
+    POST /api/projects/:id/previews/render
+    POST /api/projects/:id/previews/revise
+    POST /api/projects/:id/previews/approve
+    POST /api/projects/:id/final-render
+    GET  /api/videos
+    WS   /ws
+
+
+KNOWN LIMITATIONS / NEXT WORK
+-----------------------------
+
+1. There is no user authentication, OAuth, or multi-user project sharing.
+2. AGY must be installed/authenticated locally per machine.
+3. Claude and Codex provider adapters are interfaces/placeholders; AGY is the
+   active provider.
+4. PostgreSQL and generated media are local. GitHub does not sync them.
+5. Docker Compose must be installed for the Docker database path. Without it,
+   native PostgreSQL is used if available.
+6. The app is a local development dashboard. Production deployment needs HTTPS,
+   authentication, shared object storage, hosted PostgreSQL, and per-user
+   project ownership.
+7. Some historical notes in context.md/content.md mention old paths, ports,
+   scene-data.json, and Edge-TTS. Treat current source files and this handoff as
+   authoritative when they conflict with historical notes.
+
+
+SAFE CHANGE RULES FOR THE NEXT AGENT
+------------------------------------
+
+- Read `.agents/skills/video-production-director/SKILL.md` before changing the
+  video planning/rendering workflow.
+- Preserve Gate 1 and Gate 2 enforcement.
+- Never add a hardcoded topic, scene plan, video URL, previous project ID, or
+  static fallback video.
+- Keep all filesystem paths derived through `projectPaths`.
+- Keep provider credentials out of frontend code and Git.
+- Use Remotion as the only renderer.
+- Run `npm run build` after meaningful changes.
+- Check `git diff --check` before handoff.
+- Preserve unrelated user changes in a dirty worktree.
+
+
+LATEST VERIFIED INKYANK VIDEO
+-----------------------------
+
+Project: InkYank website overview - 20s
+Project ID: 54234d4a-1c4a-4ad8-8bd1-64157fadd51e
+Approved script: v3
+Approved preview: v5
+Final video: backend/media/videos/54234d4a-1c4a-4ad8-8bd1-64157fadd51e_final.mp4
+
+Verification: 20.000-second video stream, 20.011-second audio stream, four
+content-specific browser-tour scenes, visible imported educational image,
+different homepage/AI/cybersecurity/enrollment layouts, procedural object
+motion, eight generated object sound cues, and text placed in a separate lower
+safe area from the upper website viewport. The final render is available from
+the running backend at /media/videos/54234d4a-1c4a-4ad8-8bd1-64157fadd51e_final.mp4.
+
+The AGY provider now makes one bounded repair pass when a response omits a
+visual blueprint, enforces an explicit duration such as 20s, and enforces an
+imported image when the request asks for images. TTS is fitted to the requested
+composition duration, object SFX are generated as short procedural WAV cues,
+and Remotion falls back to a downloaded scene asset when AGY's object query is
+phrased differently from the fetched query.
+
+
+STYLE VARIATION TRUST CONTRACT
+------------------------------
+
+New script plans must include a validated style_profile with an explicit
+family (cinematic-neon, editorial-paper, playful-pop, technical-terminal, or
+documentary-grid), topic-specific motif, five colors, motion language, and
+transition language. The backend persists that profile with the script and
+passes it into Remotion as video.styleProfile. The renderer consumes it for
+the canvas, browser chrome, surfaces, and motion treatment. Missing or invalid
+profiles are rejected for new AGY plans; older scripts remain renderable for
+backward compatibility. This is the auditable contract to check instead of
+trusting a prompt that merely says “make it dynamic.”

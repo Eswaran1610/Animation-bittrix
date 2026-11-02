@@ -5,14 +5,32 @@ import { Project, ProjectDetail, Script, Approval, RenderJob, VideoRecord } from
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
 
 export const api = {
+  async getAgyAuthStatus(): Promise<{ authenticated: boolean; cliInstalled: boolean; source: 'local-cli' | null; message?: string }> {
+    const res = await fetch(`${API_BASE}/auth/agy`);
+    if (!res.ok) throw new Error(`AGY login status endpoint returned ${res.status}`);
+    return res.json();
+  },
+
+  async connectAgy(): Promise<{ authenticated: boolean; cliInstalled: boolean; source: 'local-cli' | null; message?: string }> {
+    const res = await fetch(`${API_BASE}/auth/agy`, {
+      method: 'POST',
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const routeHint = res.status === 404 ? ' Restart the backend so the AGY connection route is loaded.' : '';
+      throw new Error(data.error || `AGY connection request returned ${res.status}.${routeHint}`);
+    }
+    return data;
+  },
+
   async getHealth() {
     const res = await fetch(`${API_BASE}/health`);
     return res.json();
   },
 
-  async getCodexUsage() {
-    const res = await fetch(`${API_BASE}/usage/codex`);
-    if (!res.ok) throw new Error('Failed to fetch Codex usage');
+  async getAgyUsage() {
+    const res = await fetch(`${API_BASE}/usage/agy`);
+    if (!res.ok) throw new Error('Failed to fetch AGY usage');
     return res.json() as Promise<{
       input_tokens: number;
       output_tokens: number;
@@ -22,16 +40,29 @@ export const api = {
     }>;
   },
 
-  async getCodexConnection() {
-    const res = await fetch(`${API_BASE}/auth/codex`);
-    if (!res.ok) throw new Error('Failed to check Codex connection');
-    return res.json() as Promise<CodexConnection>;
+  async getAgyConnection() {
+    const res = await fetch(`${API_BASE}/providers/agy/status`);
+    if (!res.ok) throw new Error('Failed to check AGY connection');
+    return res.json() as Promise<AgyConnection>;
   },
 
-  async connectCodex() {
-    const res = await fetch(`${API_BASE}/auth/codex`, { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to start Codex connection');
-    return res.json() as Promise<CodexConnection>;
+  async connectAgy() {
+    const res = await fetch(`${API_BASE}/providers/agy/connect`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to start AGY connection');
+    return res.json() as Promise<AgyConnection>;
+  },
+
+  async submitAgyAuthorizationCode(sessionId: string, code: string) {
+    const res = await fetch(`${API_BASE}/providers/agy/connect/${sessionId}/code`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to submit AGY authorization code');
+    }
+    return res.json() as Promise<AgyConnection>;
   },
 
   async listProjects(): Promise<Project[]> {
@@ -159,8 +190,10 @@ export const api = {
   },
 };
 
-export type CodexConnection = {
+export type AgyConnection = {
   cliAvailable: boolean;
-  state: 'unknown' | 'connected' | 'failed';
+  state: 'unknown' | 'starting' | 'awaiting_code' | 'verifying' | 'connected' | 'failed';
+  sessionId?: string;
   message: string;
+  authUrl?: string;
 };

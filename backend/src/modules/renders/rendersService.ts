@@ -10,10 +10,6 @@ import path from 'path';
 import fs from 'fs/promises';
 import { projectPaths } from '../../config/paths.js';
 import { realtime } from '../../realtime.js';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-
-const execFileAsync = promisify(execFile);
 
 export class RendersService {
   private buildWordCaptions(text: string, durationSec: number, fps: number) {
@@ -41,48 +37,16 @@ export class RendersService {
     });
   }
 
-  private async buildMeasuredCaptions(text: string, audioPath: string | undefined, durationSec: number, fps: number) {
-    if (!audioPath || process.env.DISABLE_WHISPER === '1') return this.buildWordCaptions(text, durationSec, fps);
-    const outputDir = path.join(projectPaths.backendMedia, 'captions');
-    const outputBase = path.basename(audioPath).replace(/\.[^.]+$/, '');
-    const outputPath = path.join(outputDir, `${outputBase}.json`);
-    try {
-      await fs.mkdir(outputDir, { recursive: true });
-      await execFileAsync(process.env.WHISPER_BIN || 'whisper', [
-        audioPath,
-        '--model', process.env.WHISPER_MODEL || 'base',
-        '--output_format', 'json',
-        '--output_dir', outputDir,
-        '--word_timestamps', 'True',
-      ], { timeout: 180000, maxBuffer: 2 * 1024 * 1024 });
-      const transcript = JSON.parse(await fs.readFile(outputPath, 'utf8'));
-      const words = (transcript.segments || []).flatMap((segment: any) => segment.words || [])
-        .filter((word: any) => typeof word.word === 'string' && Number.isFinite(word.start) && Number.isFinite(word.end));
-      if (words.length) {
-        return words.map((word: any) => ({
-          word: word.word.trim(),
-          startFrame: Math.max(0, Math.round(Number(word.start) * fps)),
-          endFrame: Math.max(1, Math.round(Number(word.end) * fps)),
-        }));
-      }
-    } catch {
-      // Whisper is optional. The deterministic audio-duration fallback keeps
-      // captions available when the local Whisper CLI/model is not installed.
-    }
-    return this.buildWordCaptions(text, durationSec, fps);
-  }
-
   /**
-   * Convert the approved Codex scene plan into isolated Remotion input props.
+   * Convert the approved AGY scene plan into isolated Remotion input props.
    */
   private async writeRemotionSceneData(
     projectId: string,
     projectTitle: string,
-   script: any,
-   renderVersion: number,
-    renderType: 'preview' | 'final' = 'preview',
-    progressCallback?: (progress: number, status: string) => Promise<void>
- ) {
+    script: any,
+    renderVersion: number,
+    renderType: 'preview' | 'final' = 'preview'
+  ) {
     const fps = 30;
     const scenePlan = script.scene_plan;
     if (!Array.isArray(scenePlan) || scenePlan.length === 0) {
@@ -90,67 +54,43 @@ export class RendersService {
     }
     const styleProfile = scenePlan.find((scene: any) => scene.style_profile)?.style_profile;
 
-    // 1. Generate one Kokoro clip per scene. FFprobe measures each clip and the
-    // measured duration drives that scene's visual duration; speech is never
-    // time-stretched to fit an estimated full-script duration.
-    const sceneNarration = new Map<number, { audioPath: string; staticUrl: string; durationSec: number }>();
-    let narrationCompleted = 0;
-    try {
-      await Promise.all(scenePlan.map(async (scene: any) => {
-        const result = await ttsService.generateSceneNarration(projectId, Number(scene.scene_number), scene.narration);
-        sceneNarration.set(Number(scene.scene_number), result);
-        narrationCompleted += 1;
-        if (progressCallback) {
-          await progressCallback(8 + Math.round((narrationCompleted / scenePlan.length) * 17), `Narration prepared for scene ${narrationCompleted}/${scenePlan.length}`);
-        }
-      }));
-    } catch (err: any) {
-      throw new Error(`Per-scene narration audio generation failed: ${err.message}`);
+    // 1. Generate Synchronized Neural Voiceover Audio via TTS
+    let audioUrl: string | undefined = undefined;
+    const plannedDurationSec = scenePlan.reduce((total: number, scene: any) => total + Number(scene.duration_sec || 0), 0);
+    let narrationDurationSec = 0;
+    if (script.narration) {
+      try {
+        const ttsResult = await ttsService.generateNarration(projectId, script.narration);
+        audioUrl = ttsResult.staticUrl;
+        narrationDurationSec = ttsResult.durationSec;
+      } catch (err: any) {
+        throw new Error(`Narration audio generation failed: ${err.message}`);
+      }
     }
-    const narrationDurationSec = Array.from(sceneNarration.values()).reduce((total, audio) => total + audio.durationSec, 0);
+
+    // Preserve natural speech speed. If narration is longer than AGY's visual
+    // estimate, stretch scene durations proportionally so no words are cut.
+    const audioPaddingSec = narrationDurationSec > 0 ? 0.35 : 0;
+    const durationScale = Math.max(1, (narrationDurationSec + audioPaddingSec) / Math.max(0.1, plannedDurationSec));
 
     // 2. Fetch Open Educational Web Diagrams for Scenes
-    let scenesPrepared = 0;
     const formattedScenes = await Promise.all(scenePlan.map(async (s: any, idx: number) => {
       const visualType = String(s.visual_type || '').toLowerCase();
-      if (visualType !== 'blueprint') throw new Error(`Scene ${idx + 1} must use an Codex visual blueprint; regenerate the script before rendering.`);
-      if (!s.visual_blueprint) throw new Error(`Scene ${idx + 1} has no Codex visual blueprint; render refused.`);
-      if (!Number.isFinite(Number(s.duration_sec)) || Number(s.duration_sec) < 2.5 || Number(s.duration_sec) > 5) {
-        throw new Error(`Scene ${idx + 1} must be between 2.5 and 5 seconds.`);
-      }
+      if (visualType !== 'blueprint') throw new Error(`Scene ${idx + 1} must use an AGY visual blueprint; regenerate the script before rendering.`);
+      if (!s.visual_blueprint) throw new Error(`Scene ${idx + 1} has no AGY visual blueprint; render refused.`);
+      if (!Number.isInteger(s.duration_sec) || s.duration_sec < 2) throw new Error(`Scene ${idx + 1} has no valid duration.`);
       if (!s.theme_color || !/^#[0-9a-f]{6}$/i.test(s.theme_color)) throw new Error(`Scene ${idx + 1} has no valid theme_color.`);
       if (!s.on_screen_text || !s.subtitle || !s.visual_direction || !s.motion_cue || !s.continuity_to_next || !s.narration) {
         throw new Error(`Scene ${idx + 1} is incomplete; render refused.`);
       }
-      const blueprint = s.visual_blueprint || undefined;
       const themeColor = s.theme_color;
-      const narration = sceneNarration.get(Number(s.scene_number));
-      // The approved plan's 2.5-5s value is a target for the visual beat, but
-      // the measured narration is authoritative for the rendered timeline.
-      // Never cut or time-stretch a spoken clip just to satisfy that target:
-      // doing so can remove words or make the voice sound unnatural. Let the
-      // scene grow when the generated clip needs more room and keep the next
-      // scene synchronized.
-      const plannedDurationSec = Number(s.duration_sec);
-      const narrationSec = narration?.durationSec || plannedDurationSec;
-      // Preserve the approved scene timing as the minimum. If measured speech
-      // needs more room, extend the scene; never shrink a requested 20-second
-      // plan merely because TTS happened to finish early.
-      const durationSec = Math.max(2.5, plannedDurationSec, narrationSec + (8 / fps));
-      if (durationSec > 5) {
-        console.warn(
-          `[RendersService] Scene ${idx + 1} narration measures ${narrationSec.toFixed(2)}s; ` +
-          `extending its visual timeline to ${durationSec.toFixed(2)}s to preserve the complete narration.`,
-        );
-      }
-      const durationInFrames = Math.max(1, Math.ceil(durationSec * fps));
-      const transitionOutFrames = idx < scenePlan.length - 1
-        ? Math.max(8, Math.min(15, Math.round(Number(s.transition_out_frames ?? blueprint.transition_out_frames ?? 12))))
-        : 0;
+      const durationInFrames = Math.max(1, Math.round(Number(s.duration_sec) * fps * durationScale));
+      const durationSec = durationInFrames / fps;
 
-      // Fetch every Codex-selected asset query for this scene. The blueprint decides
+      // Fetch every AGY-selected asset query for this scene. The blueprint decides
       // whether an image or procedural object is the right visual treatment.
       let imageUrl: string | undefined = undefined;
+      const blueprint = s.visual_blueprint || undefined;
       const assetQueries = Array.from(new Set([
         ...(s.image_search_query ? [s.image_search_query] : []),
         ...(blueprint?.asset_queries || []),
@@ -165,59 +105,33 @@ export class RendersService {
         }
       }));
 
-      // Generate object sound cues using one deterministic, render-specific
-      // procedural library. Roles come from the authored object labels/motion,
-      // while the seed keeps a render repeatable without reusing one global set.
-      const sfxLibrarySeed = `${projectId}:${renderType}:${renderVersion}`;
-      await sfxService.ensureLibrary(sfxLibrarySeed);
+      // Generate object sound cues using the procedural SFX library and role resolution
       const lastHitTime: number[] = [];
       const cueRequests: Array<{ hitFrame: number; role: SfxRole; sourceId: string; seedKey: string }> = [];
-      const movingObjectIndexes = blueprint.objects.map((object: any, objectIndex: number) => {
-        const hasDestination = Number.isFinite(object.to_x) || Number.isFinite(object.to_y);
-        const motion = String(object.motion || '');
-        return hasDestination || /move|slide|travel|float|drift|orbit|rotate|spin|revolve|bounce|pulse/i.test(motion) ? objectIndex : -1;
-      }).filter((objectIndex: number) => objectIndex >= 0);
-      const focalMovingObjectIndex = movingObjectIndexes.find((objectIndex: number) => blueprint.objects[objectIndex]?.motion_plan?.focal) ?? movingObjectIndexes[0];
 
       blueprint.objects.forEach((object: any, objectIndex: number) => {
-        // Only trigger appear sound for the focal object or primary 2 subjects to prevent noise clutter
-        const isPrimary = objectIndex < 2 || object?.motion_plan?.focal;
-        if (isPrimary) {
-          // Visual entrance apex: matches spring hit timing in BlueprintVisual
-          const plannedEnter = object.motion_plan?.enter_frame;
-          const entranceHitFrame = Math.min(
-            durationInFrames - 8,
-            Number.isFinite(plannedEnter) ? Math.max(4, plannedEnter! + 6) : (idx === 0 ? 8 : 14) + objectIndex * 7
-          );
-          const appearRole = sfxService.determineRole(object, 'appear');
+        // First scene enters at frame 10; subsequent scenes enter after the 12-frame incoming transition
+        const entranceHitFrame = Math.min(durationInFrames - 6, (idx === 0 ? 10 : 16) + objectIndex * 12);
+        const appearRole = sfxService.determineRole(object, 'appear');
 
-          // Space distinct sound events at least 8 frames apart
-          const isSpaced = lastHitTime.every((t) => Math.abs(t - entranceHitFrame) >= 8);
-          if (isSpaced) {
-            lastHitTime.push(entranceHitFrame);
-            cueRequests.push({
-              hitFrame: entranceHitFrame,
-              role: appearRole,
-              sourceId: `${s.scene_number}.object-${objectIndex + 1}.appear`,
-              seedKey: `${projectId}:${s.scene_number}:${objectIndex}:appear`,
-            });
-          }
+        // Space distinct sound events at least 8 frames apart
+        const isSpaced = lastHitTime.every((t) => Math.abs(t - entranceHitFrame) >= 8);
+        if (isSpaced) {
+          lastHitTime.push(entranceHitFrame);
+          cueRequests.push({
+            hitFrame: entranceHitFrame,
+            role: appearRole,
+            sourceId: `${s.scene_number}.object-${objectIndex + 1}.appear`,
+            seedKey: `${projectId}:${s.scene_number}:${objectIndex}:appear`,
+          });
         }
 
-        // Active purposeful motion: only trigger sound if the object has a real movement trajectory
-        // (Do NOT trigger motion sound for idle drift, subtle float, or stationary objects)
-        const hasDestination = (Number.isFinite(object.to_x) && object.to_x !== object.x) || (Number.isFinite(object.to_y) && object.to_y !== object.y);
+        const hasDestination = Number.isFinite(object.to_x) || Number.isFinite(object.to_y);
         const motion = String(object.motion || '');
-        const hasActiveMotion = hasDestination || /^(?=.*(?:slide|fly|travel|zoom|push|whip|spring|bounce|launch|drop|impact|pop))(?!.*(?:idle|subtle|drift|float)).*$/i.test(motion);
-
-        if (hasActiveMotion && objectIndex === focalMovingObjectIndex) {
+        const isMoving = hasDestination || /move|slide|travel|float|drift|orbit|rotate|spin|revolve|bounce|pulse/i.test(motion);
+        if (isMoving) {
           const moveRole = sfxService.determineRole(object, 'move');
-          // Movement window matches BlueprintVisual movement progress
-          const plan = object.motion_plan;
-          const movementStart = Math.min(durationInFrames - 1, plan?.enter_frame ?? (12 + objectIndex * 6));
-          const movementEnd = Math.max(movementStart + 1, durationInFrames - 22);
-          const moveHitFrame = Math.min(durationInFrames - 12, movementStart + Math.round((movementEnd - movementStart) * 0.35));
-
+          const moveHitFrame = Math.min(durationInFrames - 18, Math.round(durationInFrames * 0.55) + (objectIndex % 3) * 6);
           const isMoveSpaced = lastHitTime.every((t) => Math.abs(t - moveHitFrame) >= 8);
           if (isMoveSpaced) {
             lastHitTime.push(moveHitFrame);
@@ -231,37 +145,6 @@ export class RendersService {
         }
       });
 
-      // Bullets / Takeaways sound: light tick for each bullet reveal
-      const bulletItems = (s.key_takeaways || s.items || []).slice(0, 3);
-      bulletItems.forEach((_: any, bIdx: number) => {
-        const bulletHitFrame = Math.min(durationInFrames - 12, 22 + bIdx * 8);
-        const isSpaced = lastHitTime.every((t) => Math.abs(t - bulletHitFrame) >= 6);
-        if (isSpaced) {
-          lastHitTime.push(bulletHitFrame);
-          cueRequests.push({
-            hitFrame: bulletHitFrame,
-            role: 'tick',
-            sourceId: `${s.scene_number}.bullet-${bIdx + 1}`,
-            seedKey: `${projectId}:${s.scene_number}:bullet:${bIdx}`,
-          });
-        }
-      });
-
-      // Final CTA sting: short chime or ding on the closing scene
-      if (s.role === 'cta' || idx === scenePlan.length - 1) {
-        const ctaHitFrame = Math.max(12, durationInFrames - 24);
-        const isSpaced = lastHitTime.every((t) => Math.abs(t - ctaHitFrame) >= 6);
-        if (isSpaced) {
-          lastHitTime.push(ctaHitFrame);
-          cueRequests.push({
-            hitFrame: ctaHitFrame,
-            role: 'ding',
-            sourceId: `${s.scene_number}.cta-sting`,
-            seedKey: `${projectId}:${s.scene_number}:cta`,
-          });
-        }
-      }
-
       // Scene transition: whoosh at the midpoint of the transition
       if (transitionOutFrames > 0 && idx < scenePlan.length - 1) {
         const transitionHitFrame = durationInFrames - Math.round(transitionOutFrames / 2);
@@ -273,23 +156,13 @@ export class RendersService {
         });
       }
 
-      // Defensive fallback: ensure at least one subtle entrance sound per scene
-      if (cueRequests.length === 0) {
-        cueRequests.push({
-          hitFrame: 14,
-          role: 'pop',
-          sourceId: `${s.scene_number}.appear`,
-          seedKey: `${projectId}:${s.scene_number}:fallback`,
-        });
-      }
-
       // Sort by hitFrame
       cueRequests.sort((a, b) => a.hitFrame - b.hitFrame);
 
       // Resolve cues from sfxService, shifting start frame by transient duration for exact hits
       const audioCues = await Promise.all(
         cueRequests.map(async (req) => {
-          const cueInfo = await sfxService.getCueForRole(req.role, req.seedKey, fps, sfxLibrarySeed);
+          const cueInfo = await sfxService.getCueForRole(req.role, req.seedKey, fps);
           const startFrame = Math.max(0, req.hitFrame - cueInfo.transientFrames);
           return {
             frame: startFrame,
@@ -304,10 +177,6 @@ export class RendersService {
       );
       if (audioCues.length === 0) {
         throw new Error(`Object sound generation failed for scene ${s.scene_number}; render refused without audio.`);
-      }
-      scenesPrepared += 1;
-      if (progressCallback) {
-        await progressCallback(25 + Math.round((scenesPrepared / scenePlan.length) * 65), `Prepared visual assets and motion for scene ${scenesPrepared}/${scenePlan.length}`);
       }
 
       return {
@@ -328,8 +197,6 @@ export class RendersService {
         visualType,
         themeColor,
         narration: s.narration,
-        narrationAudio: narration?.staticUrl,
-        narrationDurationSec: narration?.durationSec,
         audioCues,
         image_url: imageUrl,
         image_assets: imageAssets,
@@ -338,29 +205,13 @@ export class RendersService {
         continuity_to_next: s.continuity_to_next,
         motion: s.motion || [],
         continuity: {
-          fromPrevious: s.continuity_from_previous || (idx === 0 ? 'opening' : 'carried from previous scene as specified by Codex'),
+          fromPrevious: s.continuity_from_previous || (idx === 0 ? 'opening' : 'carried from previous scene as specified by AGY'),
           toNext: s.continuity_to_next
         }
       };
     }));
 
-    const totalFrames = formattedScenes.reduce((acc: number, s: any, index: number) =>
-      acc + s.durationInFrames - (index < formattedScenes.length - 1 ? s.transitionOutFrames || 0 : 0), 0);
-    const backgroundAudioUrl = await audioBedService.generate(projectId, renderType, renderVersion, totalFrames / fps);
-    let captionOffset = 0;
-    const sceneCaptions = await Promise.all(formattedScenes.map(async (scene: any) => this.buildMeasuredCaptions(
-      scene.narration,
-      sceneNarration.get(Number(scene.scene_number))?.audioPath,
-      scene.narrationDurationSec || scene.durationInFrames / fps,
-      fps,
-    )));
-    const captions = formattedScenes.flatMap((scene: any, index: number) => {
-      const captionsForScene = sceneCaptions[index];
-      const sceneCaptionsWithOffset = captionsForScene
-        .map((caption: any) => ({ ...caption, startFrame: caption.startFrame + captionOffset, endFrame: caption.endFrame + captionOffset }));
-      captionOffset += scene.durationInFrames - (index < formattedScenes.length - 1 ? scene.transitionOutFrames || 0 : 0);
-      return sceneCaptionsWithOffset;
-    });
+    const totalFrames = formattedScenes.reduce((acc: number, s: any) => acc + s.durationInFrames, 0);
 
     const payload = {
       video: {
@@ -369,15 +220,16 @@ export class RendersService {
         height: 1920,
         fps,
         durationInFrames: totalFrames,
-        targetDurationSec: scenePlan.reduce((sum: number, scene: any) => sum + Number(scene.duration_sec || 0), 0),
-        style: 'Codex-authored content-specific motion plan rendered by Remotion',
-        generatedBy: 'codex',
+        style: 'AGY-authored content-specific motion plan rendered by Remotion',
+        generatedBy: 'agy',
         sourceProjectId: projectId,
         previewVersion: renderVersion,
         scriptVersion: script.version,
+        audioUrl,
         audioDurationSec: narrationDurationSec || undefined,
-        backgroundAudioUrl,
-        captions,
+        captions: script.narration
+          ? this.buildWordCaptions(script.narration, narrationDurationSec, fps)
+          : [],
         styleProfile
       },
       scenes: formattedScenes
@@ -397,7 +249,7 @@ export class RendersService {
       return cues;
     });
     await fs.writeFile(`${renderDataPath}.cues.json`, JSON.stringify(cueManifest, null, 2), 'utf-8');
-    console.log(`[RendersService] Prepared isolated Codex render props at ${renderDataPath} with ${formattedScenes.length} scenes (${totalFrames} frames) and per-scene narration audio.`);
+    console.log(`[RendersService] Prepared isolated AGY render props at ${renderDataPath} with ${formattedScenes.length} scenes (${totalFrames} frames) and audio: ${audioUrl || 'none'}`);
     return renderDataPath;
   }
 
@@ -480,20 +332,14 @@ export class RendersService {
         `UPDATE render_jobs SET status = 'rendering', progress = 5, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
         [renderJobId]
       );
-      realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress: 5, status: 'Preparing dynamic Codex render' });
+      realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress: 5, status: 'Preparing dynamic AGY render' });
 
       // Prepare dynamic scene data for the live Remotion Player (including
       // neural TTS, object cues, and web diagrams). Chromium MP4 rendering is
       // reserved for the final approved video.
-      const publishPreviewProgress = async (progress: number, status: string) => {
-        await query(
-          `UPDATE render_jobs SET progress = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
-          [renderJobId, progress]
-        );
-        realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress, status });
-      };
-      await this.writeRemotionSceneData(projectId, projectTitle, script, previewVersion, 'preview', publishPreviewProgress);
-      await publishPreviewProgress(95, 'Live Remotion TSX preview ready');
+      await this.writeRemotionSceneData(projectId, projectTitle, script, previewVersion);
+      realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress: 20, status: 'Assets and Kokoro narration prepared' });
+      realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress: 95, status: 'Live Remotion TSX preview ready' });
 
       await query(
         `UPDATE render_jobs

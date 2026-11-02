@@ -17,8 +17,9 @@ export function App() {
   const [videos, setVideos] = useState<VideoRecord[]>([]);
   const [healthInfo, setHealthInfo] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [agyUsage, setAgyUsage] = useState<any>(null);
-  const [liveProgress, setLiveProgress] = useState({ progress: 0, label: 'Waiting for a pipeline run' });
+ const [codexUsage, setCodexUsage] = useState<any>(null);
+  const [liveCodexUsage, setLiveCodexUsage] = useState<any>(null);
+ const [liveProgress, setLiveProgress] = useState({ progress: 0, label: 'Waiting for a pipeline run' });
   const [liveConnected, setLiveConnected] = useState(false);
   const reconnectTimerRef = useRef<number | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -31,12 +32,12 @@ export function App() {
         api.listProjects().catch(() => []),
         api.listVideos().catch(() => []),
         api.getHealth().catch(() => null),
-        api.getAgyUsage().catch(() => null),
+        api.getCodexUsage().catch(() => null),
       ]);
       setProjects(projs);
       setVideos(vids);
       setHealthInfo(health);
-      setAgyUsage(usage);
+      setCodexUsage(usage);
 
       // If a project is selected, refresh its details too
       if (selectedProjectId) {
@@ -60,8 +61,8 @@ export function App() {
     let disposed = false;
 
     const refreshUsage = async () => {
-      const usage = await api.getAgyUsage().catch(() => null);
-      if (usage) setAgyUsage(usage);
+      const usage = await api.getCodexUsage().catch(() => null);
+      if (usage) setCodexUsage(usage);
     };
 
     const applyProgress = (event: any) => {
@@ -94,10 +95,14 @@ export function App() {
       socket.onmessage = (message) => {
       try {
         const event = JSON.parse(message.data);
-        if (event.type === 'token_usage') {
-          // The API is authoritative; do not add event deltas locally because
-          // reconnects and snapshots can otherwise produce incorrect totals.
-          void refreshUsage();
+       if (event.type === 'token_usage') {
+         // The API is authoritative; do not add event deltas locally because
+         // reconnects and snapshots can otherwise produce incorrect totals.
+          setLiveCodexUsage(null);
+         void refreshUsage();
+       }
+        if (event.type === 'codex_usage_progress') {
+          setLiveCodexUsage(event.active ? event : null);
         }
         if (event.type === 'pipeline_progress' || event.type === 'render_progress') {
           applyProgress(event);
@@ -168,7 +173,7 @@ export function App() {
         onRefresh={loadData}
         healthInfo={healthInfo}
       />
-      <LiveStatusBar usage={agyUsage} progress={liveProgress.progress} label={liveProgress.label} connected={liveConnected} />
+      <LiveStatusBar usage={codexUsage} liveUsage={liveCodexUsage} progress={liveProgress.progress} label={liveProgress.label} connected={liveConnected} />
 
       <main style={{ flex: 1 }}>
         {selectedProjectId && projectDetail ? (
@@ -190,10 +195,11 @@ export function App() {
         ) : (
           <>
             {currentTab === 'dashboard' && (
-              <Dashboard
-                projects={projects}
-                loading={loading}
-                onSelectProject={handleSelectProject}
+             <Dashboard
+               projects={projects}
+               loading={loading}
+                liveUsage={liveCodexUsage}
+               onSelectProject={handleSelectProject}
                 onCreateProject={handleCreateProject}
                 onDeleteProject={handleDeleteProject}
               />

@@ -5,7 +5,7 @@ export interface TokenUsage {
   output_tokens: number;
   total_tokens: number;
   estimated: boolean;
-  source: 'agy' | 'estimated';
+  source: 'codex' | 'estimated';
 }
 
 export interface ResearchAndScriptRequest {

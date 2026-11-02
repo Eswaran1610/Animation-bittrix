@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Motion Graphics Playbook</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f4f6f8;--panel:#fff;--ink:#141a22;--mute:#5b6675;--line:#d9dfe6;--acc:#0a8fa6;--bad:#c2410c;--ok:#15803d;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1117;--panel:#161c25;--ink:#e8edf3;--mute:#9aa6b5;--line:#27303c;--acc:#22d3ee;--bad:#fb923c;--ok:#4ade80}}
+:root[data-theme="dark"]{--bg:#0d1117;--panel:#161c25;--ink:#e8edf3;--mute:#9aa6b5;--line:#27303c;--acc:#22d3ee;--bad:#fb923c;--ok:#4ade80}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.6 Manrope,system-ui,sans-serif}
+header{padding:40px 24px 8px;max-width:1180px;margin:auto}
+h1{font-size:clamp(30px,5vw,52px);line-height:1.08;margin:0 0 12px;font-weight:800;letter-spacing:-.02em}
+header p{max-width:62ch;color:var(--mute);margin:0}
+.wrap{max-width:1180px;margin:auto;padding:24px;display:grid;grid-template-columns:minmax(300px,380px) 1fr;gap:40px;align-items:start}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}}
+aside{position:sticky;top:16px}
+@media(max-width:860px){aside{position:static}}
+#view{width:100%;aspect-ratio:9/16;max-height:78vh;margin:auto;position:relative;overflow:hidden;border-radius:14px;border:1px solid var(--line);background:#05080c}
+#stage{position:absolute;left:0;top:0;width:1080px;height:1920px;transform-origin:0 0;color:#fff;
+background:radial-gradient(900px 700px at 20% 0,#0e3b4a 0,#071018 70%);display:grid;grid-template-rows:340px 360px 700px 200px;gap:40px;padding:100px 80px;font-family:Manrope,system-ui,sans-serif}
+.z{min-height:0;overflow:visible;position:relative}
+.zones .z{outline:3px dashed rgba(34,211,238,.8);background:rgba(34,211,238,.07)}
+.zones .z::after{content:attr(data-n);position:absolute;right:8px;top:6px;font:700 28px Manrope;color:#22d3ee}
+#title{font-weight:800;font-size:96px;line-height:1.05;letter-spacing:-.02em;margin:0;overflow:hidden;height:100%}
+#bul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:22px;font-size:52px;font-weight:600;line-height:1.25}
+#bul li{display:flex;gap:22px;align-items:flex-start}
+#bul li::before{content:"";flex:none;width:18px;height:18px;margin-top:20px;border-radius:50%;background:#22d3ee}
+.z3{display:flex}
+.frame{flex:1;border-radius:28px;overflow:hidden;background:#fff;box-shadow:0 30px 80px rgba(0,0,0,.55);display:flex;flex-direction:column}
+.bar{height:56px;background:#e7ebf0;display:flex;align-items:center;gap:10px;padding:0 22px;flex:none}
+.bar i{width:16px;height:16px;border-radius:50%;background:#b8c1cc}
+.shot{flex:1;position:relative;overflow:hidden}
+.shot>div{position:absolute;inset:0;transform-origin:30% 20%;background:linear-gradient(135deg,#0a8fa6,#0b2b3a);color:#fff;padding:50px}
+.shot h4{font-size:60px;margin:0 0 20px;line-height:1.1}
+.shot span{display:inline-block;background:#fff;color:#0b2b3a;border-radius:16px;padding:22px 34px;margin:10px 10px 0 0;font-size:34px;font-weight:700}
+.z4{display:flex;align-items:center;justify-content:center}
+#cap{background:rgba(0,0,0,.62);border-radius:26px;padding:26px 40px;font-size:50px;font-weight:600;line-height:1.25;text-align:center;max-width:100%}
+#cap b{font-weight:600;color:#9fb3c4}#cap b.on{color:#22d3ee}
+.ctl{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;align-items:center}
+button,label.chk{font:600 14px Manrope,sans-serif;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px;border-radius:10px;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+button.p{background:var(--acc);border-color:var(--acc);color:#04222a}
+input[type=range]{flex:1;min-width:120px;accent-color:var(--acc)}
+#fr{font-size:13px;color:var(--mute);min-width:70px;text-align:right}
+#qa{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;font-size:14px}
+#qa h3{margin:0 0 6px;font-size:15px}
+#qa p{margin:2px 0}.ok{color:var(--ok)}.bad{color:var(--bad)}
+section{margin:0 0 36px}
+h2{font-size:26px;margin:0 0 10px;letter-spacing:-.01em}
+section>p{color:var(--mute);margin:0 0 12px;max-width:66ch}
+.rules{display:grid;gap:10px;padding:0;margin:0;list-style:none}
+.rules li{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:10px;padding:12px 16px}
+.rules b{display:block}.rules span{color:var(--mute);font-size:15px}
+.rules li.no{border-left-color:var(--bad)}
+pre{background:#0b1118;color:#d6e2ee;border-radius:12px;padding:16px;overflow-x:auto;font:13px/1.55 ui-monospace,Menlo,monospace;margin:12px 0}
+.tbl{overflow-x:auto}table{border-collapse:collapse;width:100%;min-width:480px;font-size:15px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line)}th{color:var(--mute);font-weight:600}
+.chk-list{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.chk-list label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+.chk-list input{margin-top:6px;accent-color:var(--acc)}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<header>
+<h1>Motion graphics playbook for your video pipeline</h1>
+<p>One scene, built the right way. Scrub it, break it, and watch the quality gate catch the problem. Then copy the rules into your pipeline.</p>
+</header>
+<div class="wrap">
+<aside>
+<div id="view"><div id="stage" class="zones">
+<div class="z" data-n="Title"><h1 id="title"></h1></div>
+<div class="z" data-n="Bullets"><ul id="bul"></ul></div>
+<div class="z z3" data-n="Media"><div class="frame" id="media"><div class="bar"><i></i><i></i><i></i></div><div class="shot"><div id="shot"><h4>Real projects.<br>Real mentors.</h4><span>Foundations</span><span>Build</span><span>Intern</span><span>Certify</span></div></div></div></div>
+<div class="z z4" data-n="Captions"><div id="cap"></div></div>
+</div></div>
+<div class="ctl">
+<button class="p" id="play">Pause</button><button id="rep">Replay</button>
+<input type="range" id="sc" min="0" max="149" value="0" aria-label="Frame"><span id="fr"></span>
+</div>
+<div class="ctl">
+<label class="chk"><input type="checkbox" id="zt" checked> Show zones</label>
+<label class="chk"><input type="checkbox" id="fit" checked> Auto-fit text</label>
+<button id="brk">Break it: long text</button>
+</div>
+<div id="qa" aria-live="polite"></div>
+</aside>
+
+<main>
+<section><h2>1. Think in frames, not in CSS timing</h2>
+<p>Every frame must be a pure function of the frame number. That is how Remotion works, and it is why you can scrub the sample above. Nothing depends on what happened before, so previews and final renders always match.</p>
+<pre>const FPS = 30, DURATION = 150;           // 5 seconds
+const clamp = (v) =&gt; Math.min(1, Math.max(0, v));
+const progress = (f, start, len) =&gt; clamp((f - start) / len);
+const easeOut = (t) =&gt; 1 - Math.pow(1 - t, 3);
+
+// every element: opacity + 20-30px slide, driven only by f
+const p = easeOut(progress(f, 24 + i * 8, 16));
+el.style.opacity = p;
+el.style.transform = `translateY(${(1 - p) * 24}px)`;</pre></section>
+
+<section><h2>2. Layout rules</h2>
+<ul class="rules">
+<li><b>Lock one canvas</b><span>1080×1920 for vertical, 1920×1080 for horizontal. Put the numbers in one constants file and import it everywhere.</span></li>
+<li><b>Split the canvas into zones that never share pixels</b><span>Safe margin 80px, then title, bullets, media, captions. Toggle “Show zones” on the sample to see them.</span></li>
+<li><b>Use flex or grid inside each zone</b><span>Wrapped text then pushes siblings down. Absolute positioning is what caused the overlaps in your screencast.</span></li>
+<li><b>Limit the content</b><span>Title: 2 lines. Bullets: 3 maximum, 1–2 lines each. Caption: 2 lines.</span></li>
+<li class="no"><b>Never</b><span>Place text over a screenshot, let captions enter the media zone, or clip a title at the canvas edge.</span></li></ul></section>
+
+<section><h2>3. Treat screenshots like footage</h2>
+<ul class="rules">
+<li><b>Crop to one idea</b><span>Hero, one card, one feature. A full-page capture shrunk to 300px is unreadable.</span></li>
+<li><b>Fill the media zone width</b><span>Minimum 85% of the zone width, inside a browser or device frame with rounded corners and a deep soft shadow.</span></li>
+<li><b>Move slowly</b><span>Scale from 1.0 to 1.08 over the whole scene, or pan about 6%. Slow beats fancy.</span></li></ul></section>
+
+<section><h2>4. Animation rules</h2>
+<div class="tbl"><table>
+<tr><th>Thing</th><th>Value</th></tr>
+<tr><td>Entrance</td><td>12–20 frames, ease-out or spring</td></tr>
+<tr><td>Exit</td><td>6–10 frames, shorter than entrance</td></tr>
+<tr><td>Stagger between bullets</td><td>6–8 frames</td></tr>
+<tr><td>Slide distance</td><td>20–30px plus fade</td></tr>
+<tr><td>Scene transition</td><td>10–12 frame crossfade or slide, never a hard cut</td></tr>
+<tr><td>Things moving at once</td><td>3 or fewer</td></tr>
+<tr><td>Linear easing</td><td>Only for continuous drift like the screenshot push</td></tr>
+</table></div></section>
+
+<section><h2>5. Type and color</h2>
+<ul class="rules">
+<li><b>One family, two weights, three sizes</b><span>Title 96px, body 52px, caption 50px at 1080 wide. Never below 44px on a vertical video.</span></li>
+<li><b>One accent color</b><span>Dark background, white text, one accent for emphasis and the active caption word.</span></li>
+<li><b>Highlight with color, not size</b><span>Changing size reflows the caption line and makes it jump.</span></li>
+<li><b>Auto-fit instead of hoping</b><span>If the title overflows, shrink the font in 4px steps down to a minimum. Try the “Break it” button with Auto-fit on and off.</span></li></ul>
+<pre>function fitText(el, max = 96, min = 56) {
+  let s = max;
+  el.style.fontSize = s + 'px';
+  while (el.scrollHeight &gt; el.clientHeight &amp;&amp; s &gt; min) {
+    s -= 4; el.style.fontSize = s + 'px';
+  }
+}</pre></section>
+
+<section><h2>6. Narration and timing</h2>
+<ul class="rules">
+<li><b>Voice sets the duration</b><span>Scene length = voiceover length + about 0.4s. Never hardcode seconds.</span></li>
+<li><b>Use word timestamps</b><span>Reveal each bullet when the narrator starts that sentence. Highlight the caption word being spoken.</span></li>
+<li><b>Order of work</b><span>Script → voiceover → timestamps → layout → animation → sound. Audio timing is last because it depends on final durations.</span></li></ul></section>
+
+<section><h2>7. Sound</h2>
+<div class="tbl"><table>
+<tr><th>Role</th><th>Sound</th><th>When</th></tr>
+<tr><td>transition</td><td>soft whoosh, 0.3s</td><td>scene cut</td></tr>
+<tr><td>reveal</td><td>light tick</td><td>each bullet</td></tr>
+<tr><td>cta</td><td>short sting</td><td>final scene</td></tr>
+<tr><td>music</td><td>low loop</td><td>duck 6–8 dB under voice</td></tr>
+</table></div></section>
+
+<section><h2>8. The quality gate</h2>
+<p>This is the part that makes the pipeline reliable. Before “Approve Preview”, render the start, middle, and end frame of every scene and run automatic checks. The panel under the sample runs the same logic live. Fail means regenerate, not ship.</p>
+<pre>for (const scene of scenes) {
+  for (const f of [0, mid, end - 1]) {
+    renderFrame(scene, f);
+    const issues = [
+      ...zoneOverflow(scene),      // content taller than its zone
+      ...zoneOverlap(scene),       // two zones touching
+      ...outOfCanvas(scene),       // text past the edge
+      ...tooSmall(scene, 'media')  // screenshot under 85% width
+    ];
+    if (issues.length) return regenerate(scene, issues);
+  }
+}</pre></section>
+
+<section><h2>Pipeline checklist</h2>
+<ul class="chk-list">
+<li><label><input type="checkbox"> One canvas size defined in a constants file</label></li>
+<li><label><input type="checkbox"> Every scene uses the four zones</label></li>
+<li><label><input type="checkbox"> Screenshots are cropped, framed, and at least 85% of zone width</label></li>
+<li><label><input type="checkbox"> Animations are functions of the frame number</label></li>
+<li><label><input type="checkbox"> Scene durations come from the voiceover</label></li>
+<li><label><input type="checkbox"> Captions live only in the bottom band</label></li>
+<li><label><input type="checkbox"> Sound map has transition, reveal, and cta roles</label></li>
+<li><label><input type="checkbox"> The quality gate runs before preview approval</label></li>
+</ul></section>
+</main>
+</div>
+
+<script>
+(function(){
+var FPS=30,DUR=150,frame=0,playing=true,last=0;
+var $=function(i){return document.getElementById(i)};
+var stage=$('stage'),view=$('view'),title=$('title'),bul=$('bul'),cap=$('cap'),shot=$('shot'),media=$('media');
+var T0='Four steps to tech mastery';
+var B0=['Learn the fundamentals','Build projects with a team','Finish with a real internship'];
+var TL='Four steps to tech mastery that take you from first lines of code to a certified internship';
+var BL=['Learn the fundamentals of programming, networking, and security in guided sessions','Build real projects together with a team of mentors and peers every single week','Finish with a certified, hands-on internship placement'];
+var W='Learn by building real projects with expert mentors'.split(' ');
+var long=false;
+var clamp=function(v){return Math.min(1,Math.max(0,v))};
+var prog=function(f,s,l){return clamp((f-s)/l)};
+var ease=function(t){return 1-Math.pow(1-t,3)};
+
+function build(){
+  title.textContent=long?TL:T0;
+  bul.innerHTML='';
+  (long?BL:B0).forEach(function(t){var li=document.createElement('li');li.textContent=t;bul.appendChild(li)});
+  cap.innerHTML=W.map(function(w){return '<b>'+w+'</b>'}).join(' ');
+  fit();
+}
+function fit(){
+  title.style.fontSize='96px';
+  if(!$('fit').checked)return;
+  var s=96;while(title.scrollHeight>title.clientHeight&&s>56){s-=4;title.style.fontSize=s+'px'}
+}
+function scale(){var s=view.clientWidth/1080;stage.style.transform='scale('+s+')'}
+
+function render(f){
+  var exit=1-prog(f,DUR-10,10);
+  var p=ease(prog(f,0,18));
+  title.style.opacity=p*exit;title.style.transform='translateY('+((1-p)*28)+'px)';
+  var li=bul.children;
+  for(var i=0;i<li.length;i++){var q=ease(prog(f,24+i*8,16));li[i].style.opacity=q*exit;li[i].style.transform='translateY('+((1-q)*24)+'px)'}
+  var m=ease(prog(f,16,20));
+  media.style.opacity=m*exit;media.style.transform='translateY('+((1-m)*40)+'px)';
+  shot.style.transform='scale('+(1+0.08*f/DUR)+')';
+  var c=ease(prog(f,40,12));
+  cap.style.opacity=c*exit;
+  var idx=Math.floor(prog(f,44,96)*W.length);
+  var ws=cap.children;for(var j=0;j<ws.length;j++)ws[j].className=(j===idx&&f>=44&&f<140)?'on':'';
+}
+
+function rect(el){return el.getBoundingClientRect()}
+function check(){
+  var keep=frame;render(70);
+  var zs=Array.prototype.slice.call(stage.querySelectorAll('.z'));
+  var names=['Title','Bullets','Media','Captions'];
+  var out=[],boxes=[],sv=stage.getBoundingClientRect(),tol=2;
+  zs.forEach(function(z,i){
+    var zr=rect(z),l=1e9,t=1e9,r=-1e9,b=-1e9;
+    Array.prototype.forEach.call(z.children,function(c){var cr=rect(c);l=Math.min(l,cr.left);t=Math.min(t,cr.top);r=Math.max(r,cr.right);b=Math.max(b,cr.bottom)});
+    if(z.children[0]&&z.children[0].scrollHeight>z.children[0].clientHeight+1&&i===0)out.push(names[i]+' text is clipped inside its zone');
+    if(b>zr.bottom+tol||r>zr.right+tol)out.push(names[i]+' content spills out of its zone');
+    if(l<sv.left-tol||r>sv.right+tol||t<sv.top-tol||b>sv.bottom+tol)out.push(names[i]+' leaves the canvas');
+    boxes.push({l:l,t:t,r:r,b:b});
+  });
+  for(var a=0;a<4;a++)for(var c=a+1;c<4;c++){
+    var A=boxes[a],B=boxes[c];
+    if(A.l<B.r&&A.r>B.l&&A.t<B.b&&A.b>B.t)out.push(names[a]+' overlaps '+names[c]);
+  }
+  var mw=rect(media).width/rect(zs[2]).width;
+  if(mw<0.85)out.push('Screenshot is only '+Math.round(mw*100)+'% of the media zone width');
+  render(keep);
+  var q=$('qa');
+  q.innerHTML='<h3>Quality gate (frame 70 check)</h3>'+(out.length?out.map(function(o){return '<p class="bad">Fail: '+o+'</p>'}).join('')+'<p>Regenerate this scene before preview.</p>':'<p class="ok">Pass: no overflow, no overlap, nothing off canvas, media fills its zone.</p>');
+}
+
+function ui(){$('fr').textContent='f '+Math.round(frame)+' / '+DUR;$('sc').value=Math.min(149,Math.round(frame))}
+function tick(ts){
+  if(playing){
+    if(!last)last=ts;
+    frame+=(ts-last)/1000*FPS;last=ts;
+    if(frame>=DUR)frame=0;
+    render(frame);ui();
+  }else last=0;
+  requestAnimationFrame(tick);
+}
+
+$('play').onclick=function(){playing=!playing;this.textContent=playing?'Pause':'Play'};
+$('rep').onclick=function(){frame=0;playing=true;$('play').textContent='Pause'};
+$('sc').oninput=function(){playing=false;$('play').textContent='Play';frame=+this.value;render(frame);ui()};
+$('zt').onchange=function(){stage.classList.toggle('zones',this.checked)};
+$('fit').onchange=function(){fit();check()};
+$('brk').onclick=function(){long=!long;this.textContent=long?'Restore short text':'Break it: long text';build();check()};
+window.addEventListener('resize',scale);
+
+build();scale();render(0);ui();check();
+requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

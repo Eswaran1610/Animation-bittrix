@@ -26,6 +26,16 @@ export interface BlueprintObject {
     primitive?: 'sphere' | 'cube' | 'torus' | 'cylinder' | 'molecule' | 'keyboard';
     /** Named node in the shared Remotion GLB model library. */
     model_id?: string;
+    /** Backend-resolved, project-local GLB path injected after plan approval. */
+    model_url?: string;
+    /** Direct URL selected by Codex research; downloaded by the backend. */
+    model_download_url?: string;
+    asset_download_url?: string;
+    asset_source_url?: string;
+    asset_license?: string;
+    asset_attribution?: string;
+    /** Backend-resolved project-local image path. */
+    asset_url?: string;
     viewBox?: [number, number, number, number];
     paths?: Array<{ d: string; fill?: string; stroke?: string; strokeWidth?: number; opacity?: number }>;
     circles?: Array<{ cx: number; cy: number; r: number; fill?: string; stroke?: string; strokeWidth?: number; opacity?: number }>;

@@ -56,6 +56,7 @@ export interface ScenePlanItem {
   on_screen_text: string;
   visual_direction: string;
   asset_suggestions?: string;
+  visual_blueprint?: { objects?: Array<{ id?: string; label?: string; render_spec?: Record<string, any> }> };
 }
 
 export interface Script {

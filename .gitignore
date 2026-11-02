@@ -26,10 +26,12 @@ backend/media/audio/sfx/
 backend/media/render-data/*.json
 backend/media/assets/*
 !backend/media/assets/.gitkeep
+backend/media/projects/
 remotion/public/audio/*
 !remotion/public/audio/.gitkeep
 remotion/public/assets/*
 !remotion/public/assets/.gitkeep
+remotion/public/projects/
 
 # Environment variables
 .env

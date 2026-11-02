@@ -94,10 +94,11 @@ export class RendersService {
     // measured duration drives that scene's visual duration; speech is never
     // time-stretched to fit an estimated full-script duration.
     const sceneNarration = new Map<number, { audioPath: string; staticUrl: string; durationSec: number }>();
+    const projectAssets: Array<Record<string, unknown>> = [];
     let narrationCompleted = 0;
     try {
       await Promise.all(scenePlan.map(async (scene: any) => {
-        const result = await ttsService.generateSceneNarration(projectId, Number(scene.scene_number), scene.narration);
+        const result = await ttsService.generateSceneNarration(projectId, Number(scene.scene_number), scene.narration, renderVersion);
         sceneNarration.set(Number(scene.scene_number), result);
         narrationCompleted += 1;
         if (progressCallback) {
@@ -108,6 +109,70 @@ export class RendersService {
       throw new Error(`Per-scene narration audio generation failed: ${err.message}`);
     }
     const narrationDurationSec = Array.from(sceneNarration.values()).reduce((total, audio) => total + audio.durationSec, 0);
+    // TTS duration can differ slightly from the text estimate used during
+    // planning. Keep the approved narration and total video length intact by
+    // borrowing scene frames from beats with slack. If all scenes together still
+    // overflow, preserve the approved words and regenerate them at a modestly
+    // faster Kokoro rate before rejecting the preview.
+    const plannedSceneFrames = scenePlan.map((scene: any) => Math.max(1, Math.round(Number(scene.duration_sec) * fps)));
+    const targetSceneFrameTotal = plannedSceneFrames.reduce((sum: number, frames: number) => sum + frames, 0);
+    const requiredSceneFrames = () => scenePlan.map((scene: any) => {
+      const spoken = sceneNarration.get(Number(scene.scene_number))?.durationSec || 0;
+      return Math.max(Math.round(2.5 * fps), Math.ceil((spoken + 8 / fps) * fps));
+    });
+    let minSceneFrames = requiredSceneFrames();
+    let requiredFrames = minSceneFrames.reduce((sum: number, frames: number) => sum + frames, 0);
+    const maxSpeedMultiplier = ttsService.getMaxSceneSpeedMultiplier();
+    let narrationSpeedMultiplier = 1;
+    // Kokoro's measured duration does not always scale linearly with its speed
+    // setting. Re-probe the same approved words and adjust from the observed
+    // remaining overflow, rather than trusting a single estimated speed jump.
+    for (let attempt = 0; requiredFrames > targetSceneFrameTotal && attempt < 3 && narrationSpeedMultiplier < maxSpeedMultiplier; attempt += 1) {
+      const estimatedMultiplier = narrationSpeedMultiplier === 1
+        ? (requiredFrames / targetSceneFrameTotal) + 0.03
+        : narrationSpeedMultiplier * (requiredFrames / targetSceneFrameTotal) * 1.02;
+      const requestedSpeedMultiplier = Math.min(maxSpeedMultiplier, estimatedMultiplier);
+      if (requestedSpeedMultiplier <= narrationSpeedMultiplier + 0.001) break;
+      narrationSpeedMultiplier = requestedSpeedMultiplier;
+      console.warn(`[RendersService] Approved narration needs ${(requiredFrames / fps).toFixed(2)}s in a ${(targetSceneFrameTotal / fps).toFixed(2)}s plan; recalculating the same approved words at ${narrationSpeedMultiplier.toFixed(2)}x Kokoro speed (attempt ${attempt + 1}).`);
+      await Promise.all(scenePlan.map(async (scene: any) => {
+        const result = await ttsService.generateSceneNarration(
+          projectId,
+          Number(scene.scene_number),
+          scene.narration,
+          renderVersion,
+          narrationSpeedMultiplier,
+        );
+        sceneNarration.set(Number(scene.scene_number), result);
+      }));
+      minSceneFrames = requiredSceneFrames();
+      requiredFrames = minSceneFrames.reduce((sum: number, frames: number) => sum + frames, 0);
+    }
+    if (requiredFrames > targetSceneFrameTotal) {
+      throw new Error(`Approved narration still needs ${(requiredFrames / fps).toFixed(2)}s after the supported narration pacing adjustment, but only ${(targetSceneFrameTotal / fps).toFixed(2)}s is available before transition overlaps. Shorten the narration and approve a new script.`);
+    }
+    const allocatedSceneFrames = [...minSceneFrames];
+    let framesToAllocate = targetSceneFrameTotal - requiredFrames;
+    // Restore each approved scene duration where its narration leaves room.
+    for (let index = 0; index < allocatedSceneFrames.length && framesToAllocate > 0; index += 1) {
+      const plannedSlack = Math.max(0, plannedSceneFrames[index] - allocatedSceneFrames[index]);
+      const restored = Math.min(plannedSlack, framesToAllocate);
+      allocatedSceneFrames[index] += restored;
+      framesToAllocate -= restored;
+    }
+    // If an overlong spoken beat consumed the available slack, place leftover
+    // time in other scenes with shorter narration while preserving exact total.
+    const maxRenderedSceneFrames = Math.round(6.5 * fps);
+    for (let index = 0; index < allocatedSceneFrames.length && framesToAllocate > 0; index += 1) {
+      const extra = Math.min(maxRenderedSceneFrames - allocatedSceneFrames[index], framesToAllocate);
+      if (extra > 0) {
+        allocatedSceneFrames[index] += extra;
+        framesToAllocate -= extra;
+      }
+    }
+    if (framesToAllocate > 0) {
+      throw new Error('The approved narration cannot fit inside the requested runtime without exceeding the supported scene timing. Shorten the narration and approve a new script.');
+    }
 
     // 2. Fetch Open Educational Web Diagrams for Scenes
     let scenesPrepared = 0;
@@ -125,51 +190,56 @@ export class RendersService {
       const blueprint = s.visual_blueprint || undefined;
       const themeColor = s.theme_color;
       const narration = sceneNarration.get(Number(s.scene_number));
-      // The approved plan's 2.5-5s value is a target for the visual beat, but
-      // the measured narration is authoritative for the rendered timeline.
-      // Never cut or time-stretch a spoken clip just to satisfy that target:
-      // doing so can remove words or make the voice sound unnatural. Let the
-      // scene grow when the generated clip needs more room and keep the next
-      // scene synchronized.
-      const plannedDurationSec = Number(s.duration_sec);
-      const narrationSec = narration?.durationSec || plannedDurationSec;
-      // Preserve the approved scene timing as the minimum. If measured speech
-      // needs more room, extend the scene; never shrink a requested 20-second
-      // plan merely because TTS happened to finish early.
-      const durationSec = Math.max(2.5, plannedDurationSec, narrationSec + (8 / fps));
-      if (durationSec > 5) {
-        console.warn(
-          `[RendersService] Scene ${idx + 1} narration measures ${narrationSec.toFixed(2)}s; ` +
-          `extending its visual timeline to ${durationSec.toFixed(2)}s to preserve the complete narration.`,
-        );
-      }
-      const durationInFrames = Math.max(1, Math.ceil(durationSec * fps));
+      // The TTS-aware frame allocation preserves every approved word while
+      // redistributing visual time across the fixed total runtime.
+      const durationInFrames = allocatedSceneFrames[idx];
+      const durationSec = durationInFrames / fps;
       const transitionOutFrames = idx < scenePlan.length - 1
         ? Math.max(8, Math.min(15, Math.round(Number(s.transition_out_frames ?? blueprint.transition_out_frames ?? 12))))
         : 0;
 
-      // Fetch every Codex-selected asset query for this scene. The blueprint decides
-      // whether an image or procedural object is the right visual treatment.
+      // Download the exact assets selected by Codex research. The CLI chooses
+      // the source; the backend owns storage, licensing metadata, and staging.
       let imageUrl: string | undefined = undefined;
-      const assetQueries = Array.from(new Set([
-        ...(s.image_search_query ? [s.image_search_query] : []),
-        ...(blueprint?.asset_queries || []),
-        ...((blueprint?.objects || []).map((object: any) => object.render_spec?.asset_query).filter(Boolean))
-      ]));
       const imageAssets: Record<string, string> = {};
-      await Promise.all(assetQueries.map(async (queryToSearch, assetIndex) => {
-        const fetched = await assetFetcher.fetchDiagramForTopic(projectId, s.scene_number * 100 + assetIndex, queryToSearch);
-        if (fetched) {
-          imageAssets[queryToSearch] = fetched.staticUrl;
-          if (!imageUrl) imageUrl = fetched.staticUrl;
+      await Promise.all((blueprint.objects || []).map(async (object: any) => {
+        const spec = object.render_spec || {};
+        const isImage = spec.type === 'image';
+        const isDownloadedModel = spec.type === '3d' && Boolean(spec.model_download_url);
+        if (!isImage && !isDownloadedModel) return;
+        const downloadUrl = isImage ? spec.asset_download_url : spec.model_download_url;
+        if (typeof downloadUrl !== 'string' || !downloadUrl.trim()) {
+          throw new Error(`Scene ${s.scene_number} object "${object.label || object.id}" is marked ${isImage ? 'image' : 'downloaded 3D'} but Codex supplied no direct asset download URL.`);
         }
+        const fetched = await assetFetcher.fetchCodexSelectedAsset({
+          projectId,
+          previewVersion: renderVersion,
+          sceneNumber: Number(s.scene_number),
+          objectId: String(object.id),
+          title: String(object.label || object.id),
+          kind: isImage ? 'image' : '3d-model',
+          downloadUrl,
+          sourceUrl: String(spec.asset_source_url || ''),
+          license: String(spec.asset_license || ''),
+          attribution: typeof spec.asset_attribution === 'string' ? spec.asset_attribution : undefined,
+        });
+        if (isImage) {
+          spec.asset_url = fetched.staticUrl;
+          if (spec.asset_query) imageAssets[spec.asset_query] = fetched.staticUrl;
+          imageAssets[downloadUrl] = fetched.staticUrl;
+          if (!imageUrl) imageUrl = fetched.staticUrl;
+        } else {
+          spec.model_url = fetched.staticUrl;
+        }
+        projectAssets.push({ type: fetched.kind, sceneNumber: fetched.sceneNumber, objectId: fetched.objectId, title: fetched.title, path: fetched.localPath, projectUrl: `/media/${fetched.staticUrl}`, remotionUrl: fetched.staticUrl, downloadUrl: fetched.downloadUrl, sourceUrl: fetched.sourceUrl, license: fetched.license, attribution: fetched.attribution || null, fileSizeBytes: fetched.fileSizeBytes });
       }));
 
       // Generate object sound cues using one deterministic, render-specific
       // procedural library. Roles come from the authored object labels/motion,
       // while the seed keeps a render repeatable without reusing one global set.
       const sfxLibrarySeed = `${projectId}:${renderType}:${renderVersion}`;
-      await sfxService.ensureLibrary(sfxLibrarySeed);
+      const sfxScope = { projectId, previewVersion: renderVersion };
+      await sfxService.ensureLibrary(sfxLibrarySeed, sfxScope);
       const lastHitTime: number[] = [];
       const cueRequests: Array<{ hitFrame: number; role: SfxRole; sourceId: string; seedKey: string }> = [];
       const movingObjectIndexes = blueprint.objects.map((object: any, objectIndex: number) => {
@@ -289,7 +359,7 @@ export class RendersService {
       // Resolve cues from sfxService, shifting start frame by transient duration for exact hits
       const audioCues = await Promise.all(
         cueRequests.map(async (req) => {
-          const cueInfo = await sfxService.getCueForRole(req.role, req.seedKey, fps, sfxLibrarySeed);
+          const cueInfo = await sfxService.getCueForRole(req.role, req.seedKey, fps, sfxLibrarySeed, sfxScope);
           const startFrame = Math.max(0, req.hitFrame - cueInfo.transientFrames);
           return {
             frame: startFrame,
@@ -298,6 +368,7 @@ export class RendersService {
             role: cueInfo.role,
             volume: cueInfo.volume,
             durationFrames: cueInfo.durationFrames,
+            transientMs: cueInfo.transientMs,
             sourceId: req.sourceId,
           };
         })
@@ -344,6 +415,18 @@ export class RendersService {
       };
     }));
 
+    // Use the same per-scene and transition frame rounding that the renderer
+    // receives. Rounding the sum of decimal seconds separately can differ by a
+    // frame, and the old correction removed that frame from the final narration.
+    const plannedTimelineFrames = Math.max(1,
+      targetSceneFrameTotal - formattedScenes.slice(0, -1)
+        .reduce((sum: number, scene: any) => sum + (scene.transitionOutFrames || 0), 0));
+    const currentTimelineFrames = formattedScenes.reduce((acc: number, s: any, index: number) =>
+      acc + s.durationInFrames - (index < formattedScenes.length - 1 ? s.transitionOutFrames || 0 : 0), 0);
+    const lastScene = formattedScenes.at(-1);
+    if (lastScene && currentTimelineFrames !== plannedTimelineFrames) {
+      throw new Error(`Internal preview timeline mismatch: expected ${plannedTimelineFrames} frames but allocated ${currentTimelineFrames}.`);
+    }
     const totalFrames = formattedScenes.reduce((acc: number, s: any, index: number) =>
       acc + s.durationInFrames - (index < formattedScenes.length - 1 ? s.transitionOutFrames || 0 : 0), 0);
     const backgroundAudioUrl = await audioBedService.generate(projectId, renderType, renderVersion, totalFrames / fps);
@@ -369,7 +452,7 @@ export class RendersService {
         height: 1920,
         fps,
         durationInFrames: totalFrames,
-        targetDurationSec: scenePlan.reduce((sum: number, scene: any) => sum + Number(scene.duration_sec || 0), 0),
+        targetDurationSec: totalFrames / fps,
         style: 'Codex-authored content-specific motion plan rendered by Remotion',
         generatedBy: 'codex',
         sourceProjectId: projectId,
@@ -386,10 +469,16 @@ export class RendersService {
     const renderDataPath = projectPaths.renderData(projectId, renderType, renderVersion);
     await fs.mkdir(projectPaths.renderDataDir, { recursive: true });
     await fs.writeFile(renderDataPath, JSON.stringify(payload, null, 2), 'utf-8');
+    const projectAssetDir = path.join(projectPaths.backendMedia, 'projects', projectId, 'previews', `v${renderVersion}`);
+    await fs.mkdir(projectAssetDir, { recursive: true });
+    await fs.writeFile(path.join(projectAssetDir, 'asset-manifest.json'), JSON.stringify({ projectId, scriptVersion: script.version, previewVersion: renderVersion, assets: projectAssets }, null, 2), 'utf-8');
     let sceneOffset = 0;
     const cueManifest = formattedScenes.flatMap((scene: any, sceneIndex: number) => {
       const cues = (scene.audioCues || []).map((cue: any, cueIndex: number) => ({
         hitFrame: sceneOffset + (cue.hitFrame ?? cue.frame),
+        startFrame: sceneOffset + cue.frame,
+        transientMs: cue.transientMs,
+        src: cue.src,
         role: cue.role || (cueIndex === 0 ? 'appear' : 'motion'),
         sourceId: cue.sourceId || `${scene.id}.object-${cueIndex + 1}`,
       }));
@@ -437,9 +526,7 @@ export class RendersService {
     }
 
     const currentPreviewVersion = (projectRes.rows[0].current_preview_version || 0) + 1;
-    // Gate 2 previews are played from the Remotion TSX composition in the
-    // browser. Store the prepared props URL instead of rendering an MP4 here.
-    const previewUrl = `/api/projects/${projectId}/previews/${currentPreviewVersion}/props`;
+    const previewUrl = `/media/previews/${projectId}_preview_v${currentPreviewVersion}.mp4`;
 
     const renderJobRes = await query(
       `INSERT INTO render_jobs (
@@ -482,9 +569,7 @@ export class RendersService {
       );
       realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress: 5, status: 'Preparing dynamic Codex render' });
 
-      // Prepare dynamic scene data for the live Remotion Player (including
-      // neural TTS, object cues, and web diagrams). Chromium MP4 rendering is
-      // reserved for the final approved video.
+      // Prepare and render the exact Remotion composition that Gate 2 reviews.
       const publishPreviewProgress = async (progress: number, status: string) => {
         await query(
           `UPDATE render_jobs SET progress = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
@@ -493,7 +578,20 @@ export class RendersService {
         realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress, status });
       };
       await this.writeRemotionSceneData(projectId, projectTitle, script, previewVersion, 'preview', publishPreviewProgress);
-      await publishPreviewProgress(95, 'Live Remotion TSX preview ready');
+      const propsPath = projectPaths.renderData(projectId, 'preview', previewVersion);
+      const previewProps = JSON.parse(await fs.readFile(propsPath, 'utf8'));
+      const previewDiskPath = path.join(projectPaths.backendMedia, 'previews', `${projectId}_preview_v${previewVersion}.mp4`);
+      await publishPreviewProgress(92, 'Rendering Remotion preview video');
+      await videoRenderer.renderVideo({
+        outputPath: previewDiskPath,
+        title: projectTitle,
+        subheading: script.scene_plan[0].subtitle,
+        versionLabel: `PREVIEW • v${previewVersion}`,
+        scale: 1,
+        propsPath,
+        scenes: previewProps.scenes,
+      });
+      await publishPreviewProgress(98, 'Headless preview and quality checks complete');
 
       await query(
         `UPDATE render_jobs
@@ -551,8 +649,19 @@ export class RendersService {
     );
     const script = scriptRes.rows[0];
 
-    // Write dynamic scene data for Remotion
-    const renderPropsPath = await this.writeRemotionSceneData(projectId, project.title, script, previewVersion, 'final');
+    // Final render consumes the exact props and asset URLs that were used for
+    // the approved browser preview. Never refetch media or regenerate audio.
+    const approvedPreviewPropsPath = projectPaths.renderData(projectId, 'preview', previewVersion);
+    const previewProps = JSON.parse(await fs.readFile(approvedPreviewPropsPath, 'utf8'));
+    if (previewProps.video.previewVersion !== previewVersion || previewProps.video.scriptVersion !== scriptVersion) {
+      throw new Error('The approved preview inputs do not match the current script and preview versions; render a fresh preview before finalizing.');
+    }
+    const renderPropsPath = projectPaths.renderData(projectId, 'final', previewVersion);
+    await fs.mkdir(projectPaths.renderDataDir, { recursive: true });
+    await fs.copyFile(approvedPreviewPropsPath, renderPropsPath);
+    await fs.copyFile(`${approvedPreviewPropsPath}.cues.json`, `${renderPropsPath}.cues.json`).catch((error: any) => {
+      if (error?.code !== 'ENOENT') throw error;
+    });
 
     // Real output path on disk
     const diskPath = path.join(projectPaths.backendMedia, 'videos', `${projectId}_final.mp4`);

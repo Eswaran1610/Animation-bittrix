@@ -45,7 +45,8 @@ export class VideoRenderer {
           opts.outputPath,
           `--props=${opts.propsPath}`,
           `--scale=${scale}`,
-          '--concurrency=3',
+          `--concurrency=${process.env.REMOTION_CONCURRENCY || '1'}`,
+          `--timeout=${process.env.REMOTION_FRAME_TIMEOUT_MS || 120000}`,
           '--overwrite'
         ],
         {
@@ -71,7 +72,7 @@ export class VideoRenderer {
     const [fpsNumerator, fpsDenominator] = String(videoStream?.r_frame_rate || '0/1').split('/').map(Number);
     const measuredFps = fpsDenominator ? fpsNumerator / fpsDenominator : 0;
     if (videoStream?.width !== 1080 || videoStream?.height !== 1920 || Math.abs(measuredFps - 30) > 0.01) {
-      throw new Error(`Final render format check failed: expected 1080x1920 at 30fps, got ${videoStream?.width}x${videoStream?.height} at ${measuredFps}fps.`);
+      throw new Error(`Remotion render format check failed: expected 1080x1920 at 30fps, got ${videoStream?.width}x${videoStream?.height} at ${measuredFps}fps.`);
     }
     console.log('[VideoRenderer] ffprobe format check passed: 1080x1920 at 30fps.');
 
@@ -85,7 +86,7 @@ export class VideoRenderer {
     ]);
     const audioStream = JSON.parse(audioProbeOutput).streams?.[0];
     if (!audioStream || Number(audioStream.channels) < 1 || Number(audioStream.duration || 0) <= 0) {
-      throw new Error('Final render audio check failed: no usable audio stream was encoded.');
+      throw new Error('Remotion render audio check failed: no usable audio stream was encoded.');
     }
     console.log(`[VideoRenderer] ffprobe audio check passed: ${audioStream.codec_name}, ${audioStream.channels} channels, ${audioStream.sample_rate} Hz.`);
 
@@ -114,33 +115,44 @@ export class VideoRenderer {
     const cueManifestPath = `${opts.propsPath}.cues.json`;
     try {
       await fs.access(cueManifestPath);
-      const venvPython = process.platform === 'win32'
-        ? path.join(projectPaths.root, '.venv-motion-checks', 'Scripts', 'python.exe')
-        : path.join(projectPaths.root, '.venv-motion-checks', 'bin', 'python');
-      const candidates = [existsSync(venvPython) ? venvPython : null, 'python3', 'python'].filter(Boolean) as string[];
-      const verifier = path.join(projectPaths.root, 'scripts', 'verify_sync.py');
-      let syncPassed = false;
-      let lastErr: any = null;
-      for (const pythonBin of candidates) {
-        try {
-          const { stdout, stderr } = await execFileAsync(pythonBin, [verifier, opts.outputPath, cueManifestPath], {
-            cwd: projectPaths.root,
-            timeout: 120000,
-            maxBuffer: 1024 * 1024,
-          });
-          console.log(`[VideoRenderer] Audio sync verification passed: ${(stdout || stderr).trim()}`);
-          syncPassed = true;
-          break;
-        } catch (err: any) {
-          lastErr = err;
-        }
+    } catch (error: any) {
+      throw new Error(`Audio-sync verification cannot run because the cue manifest is missing: ${error?.message || error}`);
+    }
+
+    const venvPython = process.platform === 'win32'
+      ? path.join(projectPaths.root, '.venv-motion-checks', 'Scripts', 'python.exe')
+      : path.join(projectPaths.root, '.venv-motion-checks', 'bin', 'python');
+    const candidates = [existsSync(venvPython) ? venvPython : null, 'python3', 'python'].filter(Boolean) as string[];
+    const verifier = path.join(projectPaths.root, 'scripts', 'verify_sync.py');
+    let verifierPython: string | undefined;
+    let dependencyError: any = null;
+    for (const pythonBin of candidates) {
+      try {
+        await execFileAsync(pythonBin, ['-c', 'import numpy, scipy'], {
+          cwd: projectPaths.root,
+          timeout: 15000,
+          maxBuffer: 1024 * 1024,
+        });
+        verifierPython = pythonBin;
+        break;
+      } catch (err: any) {
+        dependencyError = err;
       }
-      if (!syncPassed) {
-        throw new Error(`Rendered video failed audio-sync verification: ${lastErr?.stderr || lastErr?.stdout || lastErr?.message}`);
-      }
-    } catch (accessErr: any) {
-      // No cue manifest present – audio-sync validation is skipped for this render.
-      console.log('[VideoRenderer] No cue manifest found; skipping audio-sync verification.');
+    }
+    if (!verifierPython) {
+      const detail = dependencyError?.stderr || dependencyError?.message || 'no Python interpreter is available';
+      throw new Error(`Audio-sync verification requires NumPy and SciPy. Run npm run motion:setup, then render again. ${detail}`);
+    }
+    try {
+      const { stdout, stderr } = await execFileAsync(verifierPython, [verifier, opts.outputPath, cueManifestPath], {
+        cwd: projectPaths.root,
+        timeout: 120000,
+        maxBuffer: 1024 * 1024,
+      });
+      console.log(`[VideoRenderer] Audio sync verification passed: ${(stdout || stderr).trim()}`);
+    } catch (err: any) {
+      const detail = err?.stdout || err?.stderr || err?.message || 'audio-sync validation failed';
+      throw new Error(`Rendered video failed audio-sync verification: ${detail}`);
     }
 
     return opts.outputPath;

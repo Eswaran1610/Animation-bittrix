@@ -9,10 +9,15 @@ const execFileAsync = promisify(execFile);
 const KOKORO_MODEL = process.env.KOKORO_MODEL || 'onnx-community/Kokoro-82M-v1.0-ONNX';
 const KOKORO_VOICE = process.env.KOKORO_VOICE || 'af_sarah';
 const KOKORO_SPEED = Number(process.env.KOKORO_SPEED || '1');
+const KOKORO_MAX_SPEED = Number(process.env.KOKORO_MAX_SPEED || '1.25');
 
 let kokoroModelPromise: Promise<KokoroTTS> | undefined;
 
 export class TTSService {
+  getMaxSceneSpeedMultiplier(): number {
+    return Math.max(1, KOKORO_MAX_SPEED / KOKORO_SPEED);
+  }
+
   private async getKokoro(): Promise<KokoroTTS> {
     if (!kokoroModelPromise) {
       console.log(`[TTSService] Loading Kokoro model ${KOKORO_MODEL} (${KOKORO_VOICE}, CPU q8)...`);
@@ -69,20 +74,21 @@ export class TTSService {
   }
 
   /** Generate and probe one scene clip so visual timing follows real speech. */
-  async generateSceneNarration(projectId: string, sceneNumber: number, text: string): Promise<{ audioPath: string; staticUrl: string; durationSec: number }> {
+  async generateSceneNarration(projectId: string, sceneNumber: number, text: string, renderVersion = 1, speedMultiplier = 1): Promise<{ audioPath: string; staticUrl: string; durationSec: number }> {
     const mediaDir = path.join(projectPaths.backendMedia, 'audio');
     const remotionPublicDir = path.join(projectPaths.remotionPublic, 'audio');
     await fs.mkdir(mediaDir, { recursive: true });
     await fs.mkdir(remotionPublicDir, { recursive: true });
 
-    const fileName = `${projectId}_scene_${String(sceneNumber).padStart(2, '0')}_narration.mp3`;
+    const fileName = `${projectId}_preview_v${renderVersion}_scene_${String(sceneNumber).padStart(2, '0')}_narration.mp3`;
     const backendFile = path.join(mediaDir, fileName);
     const remotionFile = path.join(remotionPublicDir, fileName);
-    const wavFile = path.join(mediaDir, `${projectId}_scene_${String(sceneNumber).padStart(2, '0')}_kokoro.wav`);
+    const wavFile = path.join(mediaDir, `${projectId}_preview_v${renderVersion}_scene_${String(sceneNumber).padStart(2, '0')}_kokoro.wav`);
     const kokoro = await this.getKokoro();
+    const voiceSpeed = Math.min(KOKORO_MAX_SPEED, KOKORO_SPEED * speedMultiplier);
     const audio = await kokoro.generate(text.replace(/[\r\n]+/g, ' ').trim(), {
       voice: KOKORO_VOICE as any,
-      speed: KOKORO_SPEED,
+      speed: voiceSpeed,
     });
     await audio.save(wavFile);
     await execFileAsync('ffmpeg', ['-y', '-i', wavFile, '-codec:a', 'libmp3lame', '-b:a', '128k', backendFile], { timeout: 60000 });
@@ -93,7 +99,7 @@ export class TTSService {
     ]);
     const durationSec = parseFloat(stdout.trim()) || 0;
     await fs.copyFile(backendFile, remotionFile);
-    console.log(`[TTSService] Scene ${sceneNumber} narration ready: ${remotionFile} (${durationSec.toFixed(2)}s)`);
+    console.log(`[TTSService] Scene ${sceneNumber} narration ready at ${voiceSpeed.toFixed(2)}x: ${remotionFile} (${durationSec.toFixed(2)}s)`);
     return { audioPath: backendFile, staticUrl: `audio/${fileName}`, durationSec };
   }
 }

@@ -1,6 +1,9 @@
 import { query } from '../../config/db.js';
 import { Project } from '../../types/index.js';
 import { scriptsService } from '../scripts/scriptsService.js';
+import fs from 'fs/promises';
+import path from 'path';
+import { projectPaths } from '../../config/paths.js';
 
 export class ProjectsService {
   /**
@@ -90,7 +93,33 @@ export class ProjectsService {
    */
   async deleteProject(id: string): Promise<boolean> {
     const res = await query(`DELETE FROM projects WHERE id = $1 RETURNING id`, [id]);
-    return res.rows.length > 0;
+    if (!res.rows.length) return false;
+    const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '_');
+    await Promise.all([
+      fs.rm(path.join(projectPaths.backendMedia, 'projects', safeId), { recursive: true, force: true }),
+      fs.rm(path.join(projectPaths.remotionPublic, 'projects', safeId), { recursive: true, force: true }),
+      fs.rm(path.join(projectPaths.root, 'qa', 'scene-stills', safeId), { recursive: true, force: true }),
+    ]);
+    for (const [root, directory] of [
+      [projectPaths.backendMedia, 'audio'], [projectPaths.backendMedia, 'captions'],
+      [projectPaths.backendMedia, 'previews'], [projectPaths.backendMedia, 'videos'],
+      [projectPaths.backendMedia, 'render-data'], [projectPaths.remotionPublic, 'audio'],
+    ]) {
+      const target = path.join(root, directory);
+      try {
+        for (const entry of await fs.readdir(target)) {
+          if (entry.startsWith(`${safeId}_`)) await fs.rm(path.join(target, entry), { recursive: true, force: true });
+        }
+      } catch (error: any) {
+        if (error?.code !== 'ENOENT') throw error;
+      }
+    }
+    for (const bedsDir of [path.join(projectPaths.backendMedia, 'audio', 'beds'), path.join(projectPaths.remotionPublic, 'audio', 'beds')]) {
+      try {
+        for (const entry of await fs.readdir(bedsDir)) if (entry.startsWith(`${safeId}_`)) await fs.rm(path.join(bedsDir, entry), { force: true });
+      } catch (error: any) { if (error?.code !== 'ENOENT') throw error; }
+    }
+    return true;
   }
 }
 

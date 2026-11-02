@@ -2,6 +2,7 @@ import React, { Suspense, useMemo } from 'react';
 import { useLoader } from '@react-three/fiber';
 import { ThreeCanvas } from '@remotion/three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import * as THREE from 'three';
 import { Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { BlueprintObject, VisualBlueprint } from '../data/sceneTypes';
 import { springPresets } from '../theme';
@@ -147,10 +148,10 @@ const ThreeDObject: React.FC<{ object: BlueprintObject; frame: number; fps: numb
   return <div style={{ ...style, width: 190, height: 190, borderRadius: '50%', background: `radial-gradient(circle at 28% 22%, #ffffff 0%, ${color} 16%, ${color}88 42%, #05070f 78%)`, boxShadow: `0 0 45px ${color}aa, inset -22px -18px 28px #000b`, transform: `${style.transform} rotateY(${spin}deg)` }}><span style={{ position: 'absolute', inset: '18% 8%', border: `2px solid ${color}99`, borderRadius: '50%', transform: `rotate(${spin * 0.7}deg)` }} /></div>;
 };
 
-const SharedModel: React.FC<{ entry: ModelLibraryEntry; frame: number; color: string }> = ({ entry, frame, color }) => {
-  const gltf = useLoader(GLTFLoader, assetSource(MODEL_LIBRARY_FILE));
+const SharedModel: React.FC<{ entry?: ModelLibraryEntry; modelUrl?: string; frame: number; color: string }> = ({ entry, modelUrl, frame, color }) => {
+  const gltf = useLoader(GLTFLoader, assetSource(modelUrl || MODEL_LIBRARY_FILE));
   const model = useMemo(() => {
-    const namedNode = gltf.scene.getObjectByName(entry.node);
+    const namedNode = entry?.node ? gltf.scene.getObjectByName(entry.node) : null;
     const clone = (namedNode || gltf.scene).clone(true);
     clone.traverse((child) => {
       if ('isMesh' in child && child.isMesh) {
@@ -159,10 +160,21 @@ const SharedModel: React.FC<{ entry: ModelLibraryEntry; frame: number; color: st
       }
     });
     return clone;
-  }, [entry.node, gltf.scene]);
+  }, [entry?.node, gltf.scene]);
   const spin = frame * 0.012;
-  return <group rotation={entry.rotation || [0, 0, 0]}>
-    <primitive object={model} scale={entry.scale || 1} rotation={[0, spin, 0]} />
+  const fitScale = useMemo(() => {
+    if (entry) return entry.scale || 1;
+    const bounds = new THREE.Box3().setFromObject(model);
+    const size = bounds.getSize(new THREE.Vector3());
+    const largestDimension = Math.max(size.x, size.y, size.z, 0.001);
+    return 2.2 / largestDimension;
+  }, [entry, model]);
+  const center = useMemo(() => {
+    const bounds = new THREE.Box3().setFromObject(model);
+    return bounds.getCenter(new THREE.Vector3());
+  }, [model]);
+  return <group rotation={entry?.rotation || [0, 0, 0]}>
+    <primitive object={model} scale={fitScale} position={entry ? [0, 0, 0] : [-center.x * fitScale, -center.y * fitScale, -center.z * fitScale]} rotation={[0, spin, 0]} />
     <pointLight color={color} intensity={0.4} distance={5} />
   </group>;
 };
@@ -174,6 +186,10 @@ class Model3DErrorBoundary extends React.Component<{ fallback: React.ReactNode; 
     return { failed: true };
   }
 
+  componentDidCatch(error: Error) {
+    console.error(`[PLAYBOOK QA FAIL] Downloaded 3D model failed to load: ${error.message}`);
+  }
+
   render() {
     return this.state.failed ? this.props.fallback : this.props.children;
   }
@@ -182,19 +198,23 @@ class Model3DErrorBoundary extends React.Component<{ fallback: React.ReactNode; 
 const Model3DObject: React.FC<{ object: BlueprintObject; frame: number; fps: number; index: number; durationInFrames: number }> = ({ object, frame, fps, index, durationInFrames }) => {
   const modelId = object.render_spec.model_id;
   const entry = getModelLibraryEntry(modelId);
-  if (!modelId || !entry) {
+  const modelUrl = object.render_spec.model_url;
+  if ((!modelId || !entry) && !modelUrl) {
     return <ThreeDObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} />;
   }
   const color = object.color || '#38bdf8';
   const style = objectStyle(object, frame, fps, index, durationInFrames);
-  return <Model3DErrorBoundary fallback={<ThreeDObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} />}>
-    <Suspense fallback={<ThreeDObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} />}>
+  const fallback = modelUrl
+    ? <div style={{ ...style, width: 300, padding: 12, color: '#fecaca', background: '#450a0a', border: '2px solid #ef4444', borderRadius: 10, fontSize: 14, fontWeight: 800, textAlign: 'center' }}>3D MODEL FAILED TO LOAD: {object.label || object.id}</div>
+    : <ThreeDObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} />;
+  return <Model3DErrorBoundary fallback={fallback}>
+    <Suspense fallback={fallback}>
       <div style={{ ...style, width: 360, height: 360, background: 'transparent' }}>
         <ThreeCanvas width={360} height={360} camera={{ position: [0, 0, 4], fov: 35 }} dpr={1} gl={{ alpha: true, antialias: true }} style={{ width: '100%', height: '100%' }}>
           <ambientLight intensity={1.25} />
           <directionalLight position={[3, 4, 5]} intensity={2.2} color={color} />
           <directionalLight position={[-3, 1, 2]} intensity={1.1} color="#ffffff" />
-          <SharedModel entry={entry} frame={frame} color={color} />
+          <SharedModel entry={entry} modelUrl={modelUrl} frame={frame} color={color} />
         </ThreeCanvas>
       </div>
     </Suspense>
@@ -205,10 +225,9 @@ const BlueprintObjectView: React.FC<{ object: BlueprintObject; frame: number; fp
   const color = object.color || '#38bdf8';
   const style = objectStyle(object, frame, fps, index, durationInFrames);
   const spec = object.render_spec;
-  // Codex may phrase an object query slightly differently from the scene-level
-  // query that produced the downloaded file. Prefer the exact match, then use
-  // the first scene asset so a verified imported image never degrades to text.
-  const imageUrl = (spec.asset_query ? imageAssets[spec.asset_query] : undefined) || Object.values(imageAssets)[0];
+  // A specifically requested query must resolve to its own fetched image; do
+  // not silently show a different object's asset when that query is missing.
+  const imageUrl = spec.asset_url || (spec.asset_query ? imageAssets[spec.asset_query] : Object.values(imageAssets)[0]);
   if (spec.type === '3d') return <Model3DObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} />;
   if (spec.type === 'image' && imageUrl) {
     const clipPath = index % 3 === 0 ? 'circle(48% at 50% 50%)' : index % 3 === 1 ? 'polygon(8% 0, 92% 0, 100% 82%, 50% 100%, 0 82%)' : 'inset(0 round 28px 4px 28px 4px)';

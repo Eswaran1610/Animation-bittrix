@@ -13,7 +13,6 @@ export const DynamicScene: React.FC<{
   const color = scene.themeColor || styleProfile?.primary || '#22d3ee';
   const title = scene.on_screen_text || scene.title || 'Dynamic Overview';
   const bullets = scene.key_takeaways?.length ? scene.key_takeaways.slice(0, 3) : undefined;
-  const caption = scene.subtitle || scene.narration || '';
   const firstImageAsset = scene.image_assets ? Object.values(scene.image_assets)[0] : undefined;
 
   const visualContent = (() => {
@@ -44,7 +43,6 @@ export const DynamicScene: React.FC<{
       title={title}
       bullets={bullets}
       screenshotUrl={firstImageAsset}
-      caption={caption}
       accentColor={color}
     >
       {visualContent}

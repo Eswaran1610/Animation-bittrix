@@ -21,7 +21,7 @@ const findBrowser = () => {
     if (fs.existsSync(candidate)) return candidate;
   }
   try {
-    return execFileSync('which', ['chromium'], { encoding: 'utf8' }).trim() || undefined;
+    return execFileSync('which', ['chromium'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || undefined;
   } catch {
     return undefined;
   }

@@ -1,7 +1,7 @@
 # AI Animation Pipeline
 
 An end-to-end autonomous motion-graphics animation platform combining:
-- **AGY Autonomous Agent** with active live web research and skill reference (`video-production-director`)
+- **Codex Autonomous Agent** with active live web research and skill reference (`video-production-director`)
 - **Remotion** deterministic motion-graphics engine with Chromium headless rendering
 - **Neural Voiceover TTS** via Microsoft Edge Neural Voice (`edge-tts`)
 - **Dynamic Web Diagram Asset Fetcher** via Wikimedia Commons / Wikipedia API
@@ -18,7 +18,7 @@ AnimationPipeline/
 │   ├── src/
 │   │   ├── modules/
 │   │   │   ├── projects/     # Project lifecycle
-│   │   │   ├── providers/    # AGY Provider with active web search & skill planning
+│   │   │   ├── providers/    # Codex Provider with active web search & skill planning
 │   │   │   ├── scripts/      # Script versioning & change requests
 │   │   │   ├── approvals/    # Gate 1 & Gate 2 human verification
 │   │   │   ├── audio/        # edge-tts neural voiceover narration
@@ -51,7 +51,7 @@ Prerequisites:
 
 - Node.js 22.12+ (the repository pins this baseline in `.nvmrc`)
 - Docker Desktop, recommended for the same PostgreSQL setup on Windows, macOS, and Linux
-- AGY CLI installed and authenticated on the machine that runs the backend
+- Codex CLI installed and authenticated on the machine that runs the backend
 - FFmpeg and FFprobe available on the backend machine for audio conversion
 
 Clone the repository, then run these commands from the repository root:
@@ -106,11 +106,11 @@ Generated videos, audio, downloaded assets, and the PostgreSQL data directory ar
 
 The production path is intentionally strict:
 
-`submitted content → AGY live research → AGY narration + scene plan → human Gate 1 approval → Remotion preview → human Gate 2 approval → final Remotion video`
+`submitted content → Codex live research → Codex narration + scene plan → human Gate 1 approval → Remotion preview → human Gate 2 approval → final Remotion video`
 
-AGY's returned plan is validated before it is stored. Scene type, colors, text, nodes, metrics, asset queries, motion cues, and continuity must be present in the AGY response; the renderer does not invent missing scene content. If Remotion fails, the request fails—there is no generic FFmpeg substitute that could be mistaken for the requested video. Visual corrections create a new AGY plan version and must pass Gate 1 again, while the approved narration is preserved unless a narration change is requested.
+Codex's returned plan is validated before it is stored. Scene type, colors, text, nodes, metrics, asset queries, motion cues, and continuity must be present in the Codex response; the renderer does not invent missing scene content. If Remotion fails, the request fails—there is no generic FFmpeg substitute that could be mistaken for the requested video. Visual corrections create a new Codex plan version and must pass Gate 1 again, while the approved narration is preserved unless a narration change is requested.
 
-The Remotion composition also rejects a stale/manual scene-data file unless the backend has marked it with AGY provenance.
+The Remotion composition also rejects a stale/manual scene-data file unless the backend has marked it with Codex provenance.
 
 ---
 

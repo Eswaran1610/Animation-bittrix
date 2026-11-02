@@ -1,27 +1,27 @@
 import { query } from '../../config/db.js';
 import { Script, ScriptSource, ScenePlanItem } from '../../types/index.js';
-import { AGYProvider } from '../providers/agyProvider.js';
+import { CodexProvider } from '../providers/codexProvider.js';
 import { realtime } from '../../realtime.js';
 
-const agyProvider = new AGYProvider();
+const codexProvider = new CodexProvider();
 
 const persistStyleProfile = (scenePlan: ScenePlanItem[], styleProfile: any): ScenePlanItem[] =>
   scenePlan.map((scene, index) => index === 0 ? { ...scene, style_profile: styleProfile } : scene);
 
 export class ScriptsService {
   /**
-   * Generate initial script (v1) using AGY provider.
+   * Generate initial script (v1) using Codex provider.
    */
   async generateInitialScript(projectId: string, inputContent: string, inputType: 'text' | 'topic' | 'url'): Promise<Script> {
-    realtime.publish({ type: 'pipeline_progress', projectId, stage: 'research', progress: 5, status: 'AGY researching submitted content' });
-    const researchResult = await agyProvider.generateScript({
+    realtime.publish({ type: 'pipeline_progress', projectId, stage: 'research', progress: 5, status: 'Codex researching submitted content' });
+    const researchResult = await codexProvider.generateScript({
       projectId,
       topicOrContent: inputContent,
       inputType,
     });
 
     const version = 1;
-    realtime.publish({ type: 'pipeline_progress', projectId, stage: 'script_plan', progress: 75, status: 'AGY script and scene plan ready' });
+    realtime.publish({ type: 'pipeline_progress', projectId, stage: 'script_plan', progress: 75, status: 'Codex script and scene plan ready' });
 
     const res = await query(
       `INSERT INTO scripts (
@@ -42,7 +42,7 @@ export class ScriptsService {
 
     await query(
       `INSERT INTO agent_runs (provider, task, project_id, input_references, output_references, execution_metadata)
-       VALUES ('agy', 'research_script', $1, $2, $3, $4)`,
+       VALUES ('codex', 'research_script', $1, $2, $3, $4)`,
       [
         projectId,
         JSON.stringify({ inputType, contentLength: inputContent.length }),
@@ -88,7 +88,7 @@ export class ScriptsService {
     const projectRes = await query(`SELECT input_content, input_type FROM projects WHERE id = $1`, [projectId]);
     if (projectRes.rows.length === 0) throw new Error('Project not found while revising script.');
 
-    const researchResult = await agyProvider.generateScript({
+    const researchResult = await codexProvider.generateScript({
       projectId,
       topicOrContent: projectRes.rows[0].input_content,
       inputType: projectRes.rows[0].input_type,
@@ -96,7 +96,7 @@ export class ScriptsService {
       changeRequestFeedback: feedbackNotes,
       existingNarration: changeNarration ? undefined : previousScript.narration // Rule: preserve narration unless explicitly asked
     });
-    realtime.publish({ type: 'pipeline_progress', projectId, stage: 'script_revision', progress: 75, status: `AGY revised script v${newVersion} ready` });
+    realtime.publish({ type: 'pipeline_progress', projectId, stage: 'script_revision', progress: 75, status: `Codex revised script v${newVersion} ready` });
 
     const res = await query(
       `INSERT INTO scripts (
@@ -118,7 +118,7 @@ export class ScriptsService {
 
     await query(
       `INSERT INTO agent_runs (provider, task, project_id, input_references, output_references, execution_metadata)
-       VALUES ('agy', 'research_script_revision', $1, $2, $3, $4)`,
+       VALUES ('codex', 'research_script_revision', $1, $2, $3, $4)`,
       [
         projectId,
         JSON.stringify({ inputType: projectRes.rows[0].input_type, contentLength: projectRes.rows[0].input_content.length, previousScriptVersion: previousScript.version }),

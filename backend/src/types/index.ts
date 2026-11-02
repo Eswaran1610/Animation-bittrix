@@ -37,11 +37,11 @@ export interface Project {
   current_preview_version: number;
   created_at: string;
   updated_at: string;
-  agy_total_tokens?: number;
-  agy_input_tokens?: number;
-  agy_output_tokens?: number;
-  agy_run_count?: number;
-  agy_usage_estimated?: boolean;
+  codex_total_tokens?: number;
+  codex_input_tokens?: number;
+  codex_output_tokens?: number;
+  codex_run_count?: number;
+  codex_usage_estimated?: boolean;
 }
 
 export interface AgentRun {
@@ -69,7 +69,9 @@ export interface ScriptSource {
 
 export type BlueprintRenderSpec = {
   type: 'vector' | 'image' | 'text' | '3d';
-  primitive?: 'sphere' | 'cube' | 'torus' | 'cylinder' | 'molecule';
+  primitive?: 'sphere' | 'cube' | 'torus' | 'cylinder' | 'molecule' | 'keyboard';
+  /** Named node in the shared Remotion GLB model library. */
+  model_id?: string;
   viewBox?: [number, number, number, number];
   paths?: Array<{ d: string; fill?: string; stroke?: string; strokeWidth?: number; opacity?: number }>;
   circles?: Array<{ cx: number; cy: number; r: number; fill?: string; stroke?: string; strokeWidth?: number; opacity?: number }>;
@@ -146,6 +148,8 @@ export interface VisualBlueprint {
 
 export interface ScenePlanItem {
   scene_number: number;
+  role?: 'hook' | 'body' | 'cta';
+  template?: 'hero-object' | 'split-compare' | 'stat-callout' | 'list-reveal' | 'quote-focus' | 'timeline' | 'steps-numbered' | 'map-pin' | 'chart-bar' | 'before-after' | 'question-hook' | 'cta-outro' | 'product-showcase' | 'fact-card' | 'icon-grid';
   duration_sec: number;
   on_screen_text: string;
   subtitle: string;

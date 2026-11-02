@@ -3,7 +3,7 @@
 ## Executive Summary
 An end-to-end AI Animation Pipeline application where:
 1. User submits content (topic, text, or URL) via the dashboard.
-2. AGY conducts research, planning, and drafts a structured script with sources, complete narration, and scene-by-scene breakdown.
+2. Codex conducts research, planning, and drafts a structured script with sources, complete narration, and scene-by-scene breakdown.
 3. **Gate 1 (Script Approval):** Human verifies, edits, or requests changes. Only explicit approval unlocks animation generation.
 4. System creates creative direction, scene plan, assets, and Remotion composition code.
 5. System renders a fast preview video.
@@ -18,7 +18,7 @@ An end-to-end AI Animation Pipeline application where:
    - No final render before explicit approval of the *current* preview version (an older preview's approval does not transfer).
 2. **Narration Integrity:** Visual/code corrections must NOT alter approved narration unless the user explicitly requests script revision.
 3. **Remotion is integrated by default:** No separate user login or external account required.
-4. **Provider Abstraction:** AGY is the primary active provider now; Claude and Codex are designed as pluggable provider adapters for later.
+4. **Provider Abstraction:** Codex is the primary active provider now; Claude and Codex are designed as pluggable provider adapters for later.
 5. **Security:** API keys and credentials reside strictly on the backend/worker, never in frontend code. AI-generated code is treated as untrusted and validated.
 
 ---
@@ -30,7 +30,7 @@ An end-to-end AI Animation Pipeline application where:
 - **Animation & Rendering:** Remotion (@remotion/bundler, @remotion/renderer, @remotion/shapes, @remotion/transitions)
 - **Voiceover Engine:** Neural TTS (`edge-tts` Microsoft Edge Neural Voice `en-US-ChristopherNeural` + `ffmpeg`)
 - **Web Asset Ingestion:** Live Wikipedia / Wikimedia Commons API for verified open scientific diagrams
-- **AI Providers:** AGY CLI/SDK adapter (current, with active tool permissions), Claude / Codex (future provider adapters)
+- **AI Providers:** Codex CLI/SDK adapter (current, with active tool permissions), Claude / Codex (future provider adapters)
 - **Media Storage:** Local media server with object storage / Cloudinary migration path
 
 ---
@@ -44,7 +44,7 @@ AnimationPipeline/
 │   │   ├── db/               # PostgreSQL schema & connection pool
 │   │   ├── modules/
 │   │   │   ├── projects/     # Project lifecycle management
-│   │   │   ├── providers/    # AI Provider adapter (AGY, Claude, Codex)
+│   │   │   ├── providers/    # AI Provider adapter (Codex, Claude, Codex)
 │   │   │   ├── research/     # Topic research & fact checking
 │   │   │   ├── scripts/      # Script generation, versioning & diffs
 │   │   │   ├── approvals/    # Gate 1 (Script) & Gate 2 (Preview) gatekeeper
@@ -91,7 +91,7 @@ AnimationPipeline/
 - [x] **Milestone 0:** Specification intake and architecture design
 - [x] **Milestone 1:** Frontend UI (Dashboard, Content Input, Project Cards, Detail Views, Script & Preview Review panels)
 - [x] **Milestone 2:** Backend & PostgreSQL setup (Schema, APIs, versioned models, approval gates)
-- [x] **Milestone 3:** AGY Research & Script versioning workflow (Gate 1 enforcement verified)
+- [x] **Milestone 3:** Codex Research & Script versioning workflow (Gate 1 enforcement verified)
 - [x] **Milestone 4:** Remotion composition generation & Preview rendering worker (verified)
 - [x] **Milestone 5:** Preview revision & Versioned Approval (Gate 2 enforcement verified)
 - [x] **Milestone 6:** Final video rendering & delivery library (verified)

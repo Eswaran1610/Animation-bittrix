@@ -23,7 +23,9 @@ export interface BlueprintObject {
   };
   render_spec: {
     type: 'vector' | 'image' | 'text' | '3d';
-    primitive?: 'sphere' | 'cube' | 'torus' | 'cylinder' | 'molecule';
+    primitive?: 'sphere' | 'cube' | 'torus' | 'cylinder' | 'molecule' | 'keyboard';
+    /** Named node in the shared Remotion GLB model library. */
+    model_id?: string;
     viewBox?: [number, number, number, number];
     paths?: Array<{ d: string; fill?: string; stroke?: string; strokeWidth?: number; opacity?: number }>;
     circles?: Array<{ cx: number; cy: number; r: number; fill?: string; stroke?: string; strokeWidth?: number; opacity?: number }>;
@@ -108,6 +110,8 @@ export interface SceneData {
   visualType: 'blueprint';
   themeColor: string;
   narration: string;
+  narrationAudio?: string;
+  narrationDurationSec?: number;
   audioCues?: Array<{ frame: number; src: string; volume?: number; hitFrame?: number; role?: string; sourceId?: string; durationFrames?: number }>;
   image_url?: string;
   image_assets?: Record<string, string>;
@@ -122,13 +126,15 @@ export interface SceneDataPayload {
     height: number;
     fps: number;
     durationInFrames: number;
+    targetDurationSec?: number;
     style: string;
-    generatedBy: 'agy';
+    generatedBy: 'codex';
     sourceProjectId: string;
     previewVersion: number;
     scriptVersion: number;
     audioUrl?: string;
     audioDurationSec?: number;
+    backgroundAudioUrl?: string;
     captions?: CaptionWord[];
     styleProfile?: StyleProfile;
   };

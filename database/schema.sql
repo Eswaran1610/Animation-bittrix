@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     job_type VARCHAR(50) NOT NULL, -- 'research_script', 'generate_animation', 'render_preview', 'render_final'
-    provider VARCHAR(50) DEFAULT 'agy', -- 'agy', 'claude', 'codex'
+    provider VARCHAR(50) DEFAULT 'codex', -- 'codex', 'claude'
     status VARCHAR(50) NOT NULL DEFAULT 'pending', -- 'pending', 'claimed', 'running', 'completed', 'failed'
     attempts INT DEFAULT 0,
     max_attempts INT DEFAULT 3,
@@ -111,7 +111,7 @@ CREATE TABLE IF NOT EXISTS videos (
 -- Agent Runs Table (Audit log for AI interactions)
 CREATE TABLE IF NOT EXISTS agent_runs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    provider VARCHAR(50) NOT NULL, -- 'agy', 'claude', 'codex'
+    provider VARCHAR(50) NOT NULL, -- 'codex', 'claude'
     task VARCHAR(100) NOT NULL,
     project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
     input_references JSONB DEFAULT '{}'::jsonb,

@@ -17,7 +17,7 @@ const run = (command, args) => {
 
 if (!existsSync(environmentPython)) {
   console.log('Creating local motion-validation environment…');
-  run(python, ['-m', 'venv', environment]);
+  run(python, ['-m', 'venv', '--system-site-packages', environment]);
 }
 console.log('Installing motion-validation dependencies…');
 run(environmentPython, ['-m', 'pip', 'install', '--disable-pip-version-check', '-r', requirements]);

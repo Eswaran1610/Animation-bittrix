@@ -1,5 +1,5 @@
 {
- "seed": "c45025b1-13bc-4100-b91c-84d1a225602c",
+ "seed": "d5fa8544-6d40-46c1-ae10-dc83282b8dd5:preview:1",
  "sampleRate": 48000,
  "items": [
   {
@@ -101,40 +101,40 @@
   {
    "file": "sfx/whoosh_01.wav",
    "role": "whoosh",
-   "transientMs": 488.0,
-   "durationMs": 698,
+   "transientMs": 434.7,
+   "durationMs": 685,
    "gain": 0.7,
    "peakDb": -1.0
   },
   {
    "file": "sfx/whoosh_02.wav",
    "role": "whoosh",
-   "transientMs": 488.0,
-   "durationMs": 693,
+   "transientMs": 506.7,
+   "durationMs": 684,
    "gain": 0.7,
    "peakDb": -1.0
   },
   {
    "file": "sfx/whoosh_03.wav",
    "role": "whoosh",
-   "transientMs": 493.3,
-   "durationMs": 734,
+   "transientMs": 352.0,
+   "durationMs": 566,
    "gain": 0.7,
    "peakDb": -1.0
   },
   {
    "file": "sfx/whoosh_04.wav",
    "role": "whoosh",
-   "transientMs": 557.3,
-   "durationMs": 785,
+   "transientMs": 448.0,
+   "durationMs": 723,
    "gain": 0.7,
    "peakDb": -1.0
   },
   {
    "file": "sfx/slide_01.wav",
    "role": "slide",
-   "transientMs": 154.7,
-   "durationMs": 305,
+   "transientMs": 136.0,
+   "durationMs": 262,
    "gain": 0.5,
    "peakDb": -1.0
   },
@@ -142,7 +142,7 @@
    "file": "sfx/slide_02.wav",
    "role": "slide",
    "transientMs": 173.3,
-   "durationMs": 282,
+   "durationMs": 245,
    "gain": 0.5,
    "peakDb": -1.0
   },
@@ -150,47 +150,47 @@
    "file": "sfx/slide_03.wav",
    "role": "slide",
    "transientMs": 141.3,
-   "durationMs": 257,
+   "durationMs": 308,
    "gain": 0.5,
    "peakDb": -1.0
   },
   {
    "file": "sfx/slide_04.wav",
    "role": "slide",
-   "transientMs": 192.0,
-   "durationMs": 305,
+   "transientMs": 181.3,
+   "durationMs": 320,
    "gain": 0.5,
    "peakDb": -1.0
   },
   {
    "file": "sfx/riser_01.wav",
    "role": "riser",
-   "transientMs": 904.0,
-   "durationMs": 936,
+   "transientMs": 909.3,
+   "durationMs": 931,
    "gain": 0.55,
    "peakDb": -1.0
   },
   {
    "file": "sfx/riser_02.wav",
    "role": "riser",
-   "transientMs": 994.7,
-   "durationMs": 1022,
+   "transientMs": 1112.0,
+   "durationMs": 1167,
    "gain": 0.55,
    "peakDb": -1.0
   },
   {
    "file": "sfx/riser_03.wav",
    "role": "riser",
-   "transientMs": 1146.7,
-   "durationMs": 1161,
+   "transientMs": 981.3,
+   "durationMs": 1071,
    "gain": 0.55,
    "peakDb": -1.0
   },
   {
    "file": "sfx/riser_04.wav",
    "role": "riser",
-   "transientMs": 1034.7,
-   "durationMs": 1047,
+   "transientMs": 1058.7,
+   "durationMs": 1094,
    "gain": 0.55,
    "peakDb": -1.0
   },
@@ -229,7 +229,7 @@
   {
    "file": "sfx/sparkle_01.wav",
    "role": "sparkle",
-   "transientMs": 122.7,
+   "transientMs": 45.3,
    "durationMs": 600,
    "gain": 0.5,
    "peakDb": -1.0
@@ -237,7 +237,7 @@
   {
    "file": "sfx/sparkle_02.wav",
    "role": "sparkle",
-   "transientMs": 10.7,
+   "transientMs": 218.7,
    "durationMs": 600,
    "gain": 0.5,
    "peakDb": -1.0
@@ -245,7 +245,7 @@
   {
    "file": "sfx/sparkle_03.wav",
    "role": "sparkle",
-   "transientMs": 16.0,
+   "transientMs": 165.3,
    "durationMs": 600,
    "gain": 0.5,
    "peakDb": -1.0
@@ -253,7 +253,7 @@
   {
    "file": "sfx/sparkle_04.wav",
    "role": "sparkle",
-   "transientMs": 210.7,
+   "transientMs": 98.7,
    "durationMs": 600,
    "gain": 0.5,
    "peakDb": -1.0
@@ -293,39 +293,39 @@
   {
    "file": "sfx/draw_01.wav",
    "role": "draw",
-   "transientMs": 221.3,
-   "durationMs": 447,
+   "transientMs": 314.7,
+   "durationMs": 498,
    "gain": 0.4,
    "peakDb": -1.0
   },
   {
    "file": "sfx/draw_02.wav",
    "role": "draw",
-   "transientMs": 200.0,
-   "durationMs": 403,
+   "transientMs": 154.7,
+   "durationMs": 363,
    "gain": 0.4,
    "peakDb": -1.0
   },
   {
    "file": "sfx/draw_03.wav",
    "role": "draw",
-   "transientMs": 218.7,
-   "durationMs": 417,
+   "transientMs": 288.0,
+   "durationMs": 478,
    "gain": 0.4,
    "peakDb": -1.0
   },
   {
    "file": "sfx/draw_04.wav",
    "role": "draw",
-   "transientMs": 237.3,
-   "durationMs": 386,
+   "transientMs": 296.0,
+   "durationMs": 492,
    "gain": 0.4,
    "peakDb": -1.0
   },
   {
    "file": "sfx/count_01.wav",
    "role": "count",
-   "transientMs": 360.0,
+   "transientMs": 269.3,
    "durationMs": 600,
    "gain": 0.45,
    "peakDb": -1.0
@@ -333,7 +333,7 @@
   {
    "file": "sfx/count_02.wav",
    "role": "count",
-   "transientMs": 269.3,
+   "transientMs": 360.0,
    "durationMs": 600,
    "gain": 0.45,
    "peakDb": -1.0

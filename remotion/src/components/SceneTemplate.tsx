@@ -396,17 +396,17 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
       >
         <div
           style={{
-            background: 'rgba(0,0,0,0.68)',
+            background: parsedCaptionWords.length ? 'rgba(0,0,0,0.68)' : 'transparent',
             borderRadius: 26,
-            padding: '24px 38px',
+            padding: parsedCaptionWords.length ? '24px 38px' : 0,
             fontSize: 48,
             fontWeight: 600,
             lineHeight: 1.25,
             textAlign: 'center',
             maxWidth: '100%',
             opacity: capOpacity,
-            border: '1px solid rgba(255,255,255,0.08)',
-            boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+            border: parsedCaptionWords.length ? '1px solid rgba(255,255,255,0.08)' : 'none',
+            boxShadow: parsedCaptionWords.length ? '0 10px 30px rgba(0,0,0,0.5)' : 'none',
           }}
         >
           {parsedCaptionWords.map((word, j) => {

@@ -36,6 +36,23 @@ const contrastRatio = (foreground: string, background: string) => {
   return (light + 0.05) / (dark + 0.05);
 };
 
+const SUPPORTED_RENDER_TYPES = ['vector', 'image', 'text', '3d'] as const;
+const SUPPORTED_3D_PRIMITIVES = ['sphere', 'cube', 'torus', 'cylinder', 'molecule', 'keyboard'] as const;
+const SUPPORTED_TEMPLATES = ['hero-object', 'split-compare', 'stat-callout', 'list-reveal', 'quote-focus', 'timeline', 'steps-numbered', 'map-pin', 'chart-bar', 'before-after', 'question-hook', 'cta-outro', 'product-showcase', 'fact-card', 'icon-grid'] as const;
+const MAX_BLUEPRINT_OBJECTS_PER_SCENE = 8;
+
+const installedModelManifest = () => {
+  try {
+    return JSON.parse(readFileSync(path.join(projectPaths.remotionRoot, 'src/data/modelLibrary.json'), 'utf8')) as {
+      library_file?: string;
+      models?: Record<string, unknown>;
+    };
+  } catch {
+    return { models: {} };
+  }
+};
+const INSTALLED_MODEL_MANIFEST = installedModelManifest();
+
 // Server-controlled production contract. Users submit content only; these
 // rules keep every CODEX response renderable, relevant, accessible, and safe for
 // the Remotion pipeline.
@@ -67,6 +84,17 @@ export class CodexProvider implements AIProvider {
     return seconds && seconds >= 20 && seconds <= 40 ? seconds : undefined;
   }
 
+  private sceneTransitionOverlapSec(scenes: any[]): number {
+    return scenes.slice(0, -1).reduce((sum, scene) => {
+      const frames = Number(scene.transition_out_frames ?? 12);
+      return sum + Math.max(8, Math.min(15, Number.isFinite(frames) ? frames : 12)) / 30;
+    }, 0);
+  }
+
+  private actualTimelineDurationSec(scenes: any[]): number {
+    return scenes.reduce((sum, scene) => sum + Number(scene.duration_sec || 0), 0) - this.sceneTransitionOverlapSec(scenes);
+  }
+
   private requiresImportedImage(input: ResearchAndScriptRequest): boolean {
     return /\bimages?\b|import(?:ed|\s+an?)?\s+image/i.test(`${input.topicOrContent} ${input.changeRequestFeedback || ''}`);
   }
@@ -80,8 +108,8 @@ export class CodexProvider implements AIProvider {
   }
 
   private requiresResearch(input: ResearchAndScriptRequest): boolean {
-    const content = `${input.topicOrContent} ${input.changeRequestFeedback || ''}`;
-    return input.inputType === 'url' || this.isWebsiteVisit(input) || /\b(research|source|sources|verify|fact[- ]?check|factual|latest|current|news|statistics?|study|studies|paper|citation|article|compare|comparison|review)\b/i.test(content);
+    void input;
+    return true;
   }
 
   private videoComplexity(input: ResearchAndScriptRequest): VideoComplexity {
@@ -138,18 +166,19 @@ export class CodexProvider implements AIProvider {
     return /timeout waiting for response|codex cli timed out|econnreset|etimedout|temporarily unavailable|rate limit|502|503|504/.test(message);
   }
 
-  private async sharedModelLibraryInstruction(): Promise<string> {
-    try {
-      const manifestPath = `${projectPaths.remotionRoot}/src/data/modelLibrary.json`;
-      const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as { library_file?: string; models?: Record<string, unknown> };
-      const modelIds = Object.keys(manifest.models || {});
-      if (modelIds.length > 0) {
-        return `SHARED 3D MODEL LIBRARY: These named models are installed in one shared GLB (${manifest.library_file || 'models/library.glb'}): ${modelIds.join(', ')}. For a real model, use render_spec.type "3d" with model_id set to one of these exact IDs. A scene may contain many 3D objects and may use different IDs or repeat an ID with different transforms.`;
-      }
-    } catch {
-      // The renderer still supports procedural primitives when no model manifest exists.
-    }
-    return 'SHARED 3D MODEL LIBRARY: No named GLB models are installed yet. Use content-specific procedural 3D primitives for now; when a named model is available, set render_spec.model_id and keep every object content-specific.';
+  private projectRenderContract(): Record<string, unknown> {
+    const models = INSTALLED_MODEL_MANIFEST;
+    return {
+      composition: { id: 'MainComposition', width: 1080, height: 1920, fps: 30, renderer: 'Remotion; fixed composition; no generated TSX or other renderers' },
+      sceneRules: { count: '7-9', plannedDurationSecondsEach: '2.5-5', totalSeconds: '25-40 unless the request specifies 20-40 seconds', transitionFrames: '8-15 between scenes; none after final scene', objectsPerScene: `2-${MAX_BLUEPRINT_OBJECTS_PER_SCENE}`, narrationWordsPerPlannedSecondMax: 1.7, narrationTailSeconds: 8 / 30, measuredTiming: 'Backend may redistribute scene frames after TTS measurement while preserving approved narration and exact total runtime; rendered scenes are capped at 6.5 seconds.', headlineWordsMax: 6, headlineCharactersMax: 40 },
+      sceneSchema: ['scene_number', 'role', 'template', 'duration_sec', 'on_screen_text', 'subtitle', 'key_takeaways', 'concept_nodes', 'metric_data', 'image_search_query', 'narration', 'visual_direction', 'motion_cue', 'continuity_to_next', 'transition_out_frames', 'theme_color', 'visual_type="blueprint"', 'visual_blueprint={purpose,layout,camera_motion,asset_queries,objects}'],
+      objectSchema: { required: ['id', 'x', 'y', 'motion', 'render_spec'], optional: ['label', 'detail', 'to_x', 'to_y', 'scale', 'rotation', 'color', 'motion_plan'], renderSpecFields: ['type', 'primitive', 'model_id', 'asset_download_url', 'model_download_url', 'asset_source_url', 'asset_license', 'asset_attribution', 'viewBox', 'paths', 'circles', 'rects', 'lines', 'polygons', 'text', 'asset_query'], motionPlan: { enter_frame: 'optional integer frame', exit_frame: 'optional integer frame', idle: ['float', 'pulse', 'orbit', 'shimmer', 'drift'], focal: 'optional boolean' }, vectorShapeListMax: 24 },
+      supported: { roles: ['hook', 'body', 'cta'], templates: SUPPORTED_TEMPLATES, renderTypes: SUPPORTED_RENDER_TYPES, procedural3D: SUPPORTED_3D_PRIMITIVES, imageFormats: ['PNG', 'JPEG', 'WebP', 'GIF'], external3DFormat: 'self-contained GLB 2.0', externalModelMaxMB: 30, externalImageMaxMB: 20 },
+      installedModelLibrary: { file: models.library_file || null, validModelIds: Object.keys(models.models || {}) },
+      assetHandoff: 'Return exact HTTPS direct-download URLs, source page URLs, license labels, and attribution. The read-only Codex CLI selects assets; after Gate 1 the backend downloads, validates, stores, and stages them in the project preview-version folder, then injects project-local Remotion public URLs into props. Never claim an asset was downloaded. No asset provider account, Poly Pizza integration, or asset-catalog API key is required.',
+      motionAndAudio: { animation: 'Every image, vector, text, and 3D object is frame-animated by Remotion; custom per-job TSX is not supported.', sfxRoles: ['pop', 'click', 'tick', 'whoosh', 'slide', 'riser', 'impact', 'sparkle', 'chime', 'draw', 'count', 'ding'], soundChoice: 'Object labels, type, and motion choose a matching procedural sound role; transition events use whoosh.', synchronization: 'The backend measures each cue transient and schedules it against the matching visual frame; narration, object cues, and the audio bed are mixed in Remotion. ffprobe checks media streams and verify_sync.py blocks output on failed cue alignment.' },
+      delivery: { finalContainer: 'MP4', completedVideoUrl: '/media/videos/{projectId}_final.mp4', internalInputs: ['scene props JSON', 'per-scene narration', 'per-preview SFX', 'audio bed', 'downloaded image/GLB assets'], reviewStage: 'Gate 2 plays a review MP4; only the approved final MP4 is delivered as the completed video.' },
+    };
   }
 
   /**
@@ -981,20 +1010,16 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
     // 5. Total duration normalization
     const requestedDuration = input ? this.requestedDurationSec(input) : undefined;
     const targetTotal = requestedDuration || 30;
-    const currentTotal = parsed.scenePlan.reduce((sum: number, s: any) => sum + (Number(s.duration_sec) || 3.5), 0);
-    if (requestedDuration || currentTotal < 25 || currentTotal > 40) {
-      const count = parsed.scenePlan.length;
-      const baseSec = Math.round((targetTotal / count) * 10) / 10;
-      let runningSum = 0;
-      for (let i = 0; i < count - 1; i += 1) {
-        parsed.scenePlan[i].duration_sec = Math.max(2.5, Math.min(5, baseSec));
-        runningSum += parsed.scenePlan[i].duration_sec;
-      }
-      parsed.scenePlan[count - 1].duration_sec = Math.round((targetTotal - runningSum) * 10) / 10;
-      if (parsed.scenePlan[count - 1].duration_sec < 2.5 || parsed.scenePlan[count - 1].duration_sec > 5) {
-        parsed.scenePlan[count - 1].duration_sec = 3.5;
-      }
+    const timelineSceneTotal = targetTotal + this.sceneTransitionOverlapSec(parsed.scenePlan);
+    const count = parsed.scenePlan.length;
+    const baseSec = Math.round((timelineSceneTotal / count) * 100) / 100;
+    if (baseSec < 2.5 || baseSec > 5) throw new Error(`Cannot fit ${count} scenes and their transitions into a ${targetTotal}s composition. Choose 7-9 scenes whose scene durations total ${timelineSceneTotal.toFixed(2)}s.`);
+    let runningSum = 0;
+    for (let i = 0; i < count - 1; i += 1) {
+      parsed.scenePlan[i].duration_sec = baseSec;
+      runningSum += baseSec;
     }
+    parsed.scenePlan[count - 1].duration_sec = Math.round((timelineSceneTotal - runningSum) * 100) / 100;
 
     // 6. Ensure distinct scene signatures
     const seenSceneSigs = new Set<string>();
@@ -1075,9 +1100,9 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
       add(`CODEX returned ${scenes.length} scenes; every video must contain 7-9 scenes.`);
     }
     const requestedDuration = this.requestedDurationSec(input);
-    const plannedDuration = scenes.reduce((sum: number, scene: any) => sum + Number(scene?.duration_sec || 0), 0);
+    const plannedDuration = this.actualTimelineDurationSec(scenes);
     if (requestedDuration && Math.abs(plannedDuration - requestedDuration) > 0.001) {
-      add(`CODEX planned ${plannedDuration}s, but the request requires exactly ${requestedDuration}s.`);
+      add(`CODEX planned a ${plannedDuration.toFixed(2)}s rendered timeline after transition overlaps, but the request requires exactly ${requestedDuration}s.`);
     }
     const minimumDuration = requestedDuration || 25;
     const maximumDuration = requestedDuration || 40;
@@ -1085,8 +1110,8 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
       add(`CODEX planned ${plannedDuration}s; the requested video duration must be between ${minimumDuration} and ${maximumDuration} seconds.`);
     }
 
-    const renderTypes = new Set(['vector', 'image', 'text', '3d']);
-    const templates = new Set(['hero-object', 'split-compare', 'stat-callout', 'list-reveal', 'quote-focus', 'timeline', 'steps-numbered', 'map-pin', 'chart-bar', 'before-after', 'question-hook', 'cta-outro', 'product-showcase', 'fact-card', 'icon-grid']);
+    const renderTypes = new Set<string>(SUPPORTED_RENDER_TYPES);
+    const templates = new Set<string>(SUPPORTED_TEMPLATES);
     const paletteColors = new Set<string>();
     if (parsed.styleProfile?.primary) paletteColors.add(String(parsed.styleProfile.primary).toLowerCase());
     if (parsed.styleProfile?.secondary) paletteColors.add(String(parsed.styleProfile.secondary).toLowerCase());
@@ -1139,8 +1164,8 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
       if (typeof blueprint.layout !== 'string' || !blueprint.layout.trim()) add(`CODEX returned an incomplete visual blueprint for ${label}; missing/invalid: layout.`);
       if (typeof blueprint.camera_motion !== 'string' || !blueprint.camera_motion.trim()) add(`CODEX returned an incomplete visual blueprint for ${label}; missing/invalid: camera_motion.`);
       if (!Array.isArray(blueprint.asset_queries)) add(`CODEX returned an incomplete visual blueprint for ${label}; missing/invalid: asset_queries array.`);
-      if (!Array.isArray(blueprint.objects) || blueprint.objects.length < 2) {
-        add(`CODEX returned an incomplete visual blueprint for ${label}; missing/invalid: at least two objects.`);
+      if (!Array.isArray(blueprint.objects) || blueprint.objects.length < 2 || blueprint.objects.length > MAX_BLUEPRINT_OBJECTS_PER_SCENE) {
+        add(`CODEX returned an incomplete visual blueprint for ${label}; it must contain 2-${MAX_BLUEPRINT_OBJECTS_PER_SCENE} objects.`);
         return;
       }
 
@@ -1159,17 +1184,30 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
           add(`CODEX returned an invalid position for visual blueprint object ${object.id} in ${label}; x and y must be numbers from 0 to 1.`);
         }
         const spec = object.render_spec;
+        if (typeof object.motion !== 'string' || !object.motion.trim()) add(`Visual object ${object.id} in ${label} has no purposeful motion description.`);
         if (spec.type === '3d' && spec.model_id !== undefined && (typeof spec.model_id !== 'string' || !spec.model_id.trim())) {
           add(`CODEX returned an empty 3D model_id for visual blueprint object ${object.id} in ${label}.`);
         }
-        if (spec.type === '3d' && !spec.model_id && !new Set(['sphere', 'cube', 'torus', 'cylinder', 'molecule', 'keyboard']).has(spec.primitive)) {
+        if (spec.type === '3d' && spec.model_id && !Object.hasOwn(INSTALLED_MODEL_MANIFEST.models || {}, spec.model_id)) {
+          add(`CODEX selected unknown shared 3D model_id "${spec.model_id}" for ${object.id}; use only a model ID listed in the supplied project capability contract.`);
+        }
+        if (spec.model_download_url !== undefined && (spec.type !== '3d' || typeof spec.model_download_url !== 'string' || !/^https:\/\//i.test(spec.model_download_url))) {
+          add(`CODEX returned an invalid model_download_url for visual blueprint object ${object.id} in ${label}.`);
+        }
+        if (spec.type === '3d' && !spec.model_id && !new Set<string>(SUPPORTED_3D_PRIMITIVES).has(spec.primitive)) {
           add(`CODEX returned an invalid 3D primitive or model_id for visual blueprint object ${object.id} in ${label}.`);
         }
         if (spec.type === 'vector' && ![spec.paths, spec.circles, spec.rects, spec.lines, spec.polygons].some((shapes: any) => Array.isArray(shapes) && shapes.length > 0)) {
           add(`CODEX returned an empty vector render spec for visual blueprint object ${object.id} in ${label}.`);
         }
-        if (spec.type === 'image' && typeof spec.asset_query !== 'string' && !blueprint.asset_queries.length) {
-          add(`CODEX returned an image object without an asset query for visual blueprint object ${object.id} in ${label}.`);
+        if (spec.type === 'vector' && [spec.paths, spec.circles, spec.rects, spec.lines, spec.polygons].some((shapes: any) => Array.isArray(shapes) && shapes.length > 24)) {
+          add(`Vector object ${object.id} in ${label} exceeds the 24-shape per-layer render limit; simplify its geometry.`);
+        }
+        if (spec.type === 'image' && (!/^https:\/\//i.test(spec.asset_download_url || '') || !/^https:\/\//i.test(spec.asset_source_url || '') || !spec.asset_license)) {
+          add(`CODEX returned an image without its direct download URL, source page, and license for visual blueprint object ${object.id} in ${label}.`);
+        }
+        if ((spec.type === 'image' || spec.model_download_url) && (!/^https:\/\//i.test(spec.asset_source_url || '') || !spec.asset_license)) {
+          add(`CODEX returned an external asset without a verified source page and license for visual blueprint object ${object.id} in ${label}.`);
         }
         if (spec.type === 'text' && typeof spec.text !== 'string' && typeof object.label !== 'string') {
           add(`CODEX returned a text object without text for visual blueprint object ${object.id} in ${label}.`);
@@ -1238,9 +1276,9 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
     }
 
     const requestedDuration = this.requestedDurationSec(input);
-    const plannedDuration = parsed.scenePlan.reduce((sum: number, scene: any) => sum + Number(scene.duration_sec || 0), 0);
+    const plannedDuration = this.actualTimelineDurationSec(parsed.scenePlan);
     if (requestedDuration && Math.abs(plannedDuration - requestedDuration) > 0.001) {
-      throw new Error(`CODEX planned ${plannedDuration}s, but the request requires exactly ${requestedDuration}s.`);
+      throw new Error(`CODEX planned a ${plannedDuration.toFixed(2)}s rendered timeline after transition overlaps, but the request requires exactly ${requestedDuration}s.`);
     }
     if (parsed.scenePlan.length < 7 || parsed.scenePlan.length > 9) {
       throw new Error(`CODEX returned ${parsed.scenePlan.length} scenes; every video must contain 7-9 scenes.`);
@@ -1282,8 +1320,8 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
       });
     }
 
-    const renderTypes = new Set(['vector', 'image', 'text', '3d']);
-    const templates = new Set(['hero-object', 'split-compare', 'stat-callout', 'list-reveal', 'quote-focus', 'timeline', 'steps-numbered', 'map-pin', 'chart-bar', 'before-after', 'question-hook', 'cta-outro', 'product-showcase', 'fact-card', 'icon-grid']);
+    const renderTypes = new Set<string>(SUPPORTED_RENDER_TYPES);
+    const templates = new Set<string>(SUPPORTED_TEMPLATES);
     parsed.scenePlan.forEach((scene: any, index: number) => {
       const label = `scene ${index + 1}`;
       if (scene.scene_number !== index + 1) throw new Error(`CODEX scene numbering is invalid at ${label}.`);
@@ -1324,7 +1362,7 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
         typeof blueprint.purpose === 'string' && blueprint.purpose.trim() ? null : 'purpose',
         typeof blueprint.layout === 'string' && blueprint.layout.trim() ? null : 'layout',
         typeof blueprint.camera_motion === 'string' && blueprint.camera_motion.trim() ? null : 'camera_motion',
-        Array.isArray(blueprint.objects) && blueprint.objects.length >= 2 ? null : 'at least two objects',
+        Array.isArray(blueprint.objects) && blueprint.objects.length >= 2 && blueprint.objects.length <= MAX_BLUEPRINT_OBJECTS_PER_SCENE ? null : `2-${MAX_BLUEPRINT_OBJECTS_PER_SCENE} objects`,
         Array.isArray(blueprint.asset_queries) ? null : 'asset_queries array',
       ].filter(Boolean);
       if (missingBlueprintFields.length) {
@@ -1340,17 +1378,32 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
           throw new Error(`CODEX returned an invalid position for visual blueprint object ${object.id} in ${label}; x and y must be numbers from 0 to 1.`);
         }
         const spec = object.render_spec;
+        if (typeof object.motion !== 'string' || !object.motion.trim()) {
+          throw new Error(`Visual object ${object.id} in ${label} has no purposeful motion description.`);
+        }
         if (spec.type === '3d' && spec.model_id !== undefined && (typeof spec.model_id !== 'string' || !spec.model_id.trim())) {
           throw new Error(`CODEX returned an empty 3D model_id for visual blueprint object ${object.id} in ${label}.`);
         }
-        if (spec.type === '3d' && !spec.model_id && !new Set(['sphere', 'cube', 'torus', 'cylinder', 'molecule', 'keyboard']).has(spec.primitive)) {
+        if (spec.type === '3d' && spec.model_id && !Object.hasOwn(INSTALLED_MODEL_MANIFEST.models || {}, spec.model_id)) {
+          throw new Error(`CODEX selected unknown shared 3D model_id "${spec.model_id}" for ${object.id}; use only a model ID listed in the supplied project capability contract.`);
+        }
+        if (spec.model_download_url !== undefined && (spec.type !== '3d' || typeof spec.model_download_url !== 'string' || !/^https:\/\//i.test(spec.model_download_url))) {
+          throw new Error(`CODEX returned an invalid model_download_url for visual blueprint object ${object.id} in ${label}.`);
+        }
+        if (spec.type === '3d' && !spec.model_id && !new Set<string>(SUPPORTED_3D_PRIMITIVES).has(spec.primitive)) {
           throw new Error(`CODEX returned an invalid 3D primitive or model_id for visual blueprint object ${object.id} in ${label}.`);
         }
         if (spec.type === 'vector' && ![spec.paths, spec.circles, spec.rects, spec.lines, spec.polygons].some((shapes: any) => Array.isArray(shapes) && shapes.length > 0)) {
           throw new Error(`CODEX returned an empty vector render spec for visual blueprint object ${object.id} in ${label}.`);
         }
-        if (spec.type === 'image' && typeof spec.asset_query !== 'string' && !blueprint.asset_queries.length) {
-          throw new Error(`CODEX returned an image object without an asset query for visual blueprint object ${object.id} in ${label}.`);
+        if (spec.type === 'vector' && [spec.paths, spec.circles, spec.rects, spec.lines, spec.polygons].some((shapes: any) => Array.isArray(shapes) && shapes.length > 24)) {
+          throw new Error(`Vector object ${object.id} in ${label} exceeds the 24-shape per-layer render limit; simplify its geometry.`);
+        }
+        if (spec.type === 'image' && (!/^https:\/\//i.test(spec.asset_download_url || '') || !/^https:\/\//i.test(spec.asset_source_url || '') || !spec.asset_license)) {
+          throw new Error(`CODEX returned an image without its direct download URL, source page, and license for visual blueprint object ${object.id} in ${label}.`);
+        }
+        if ((spec.type === 'image' || spec.model_download_url) && (!/^https:\/\//i.test(spec.asset_source_url || '') || !spec.asset_license)) {
+          throw new Error(`CODEX returned an external asset without a verified source page and license for visual blueprint object ${object.id} in ${label}.`);
         }
         if (spec.type === 'text' && typeof spec.text !== 'string' && typeof object.label !== 'string') {
           throw new Error(`CODEX returned a text object without text for visual blueprint object ${object.id} in ${label}.`);
@@ -1403,23 +1456,35 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
     const researchRequired = this.requiresResearch(req);
     const fastCreative = !researchRequired;
     const videoComplexity = this.videoComplexity(req);
-    const sharedModelLibraryInstruction = await this.sharedModelLibraryInstruction();
+    // Load the repository video skill and the current renderer contract before
+    // constructing a prompt that permits any research or scene planning.
+    const productionSkill = await readFile(path.join(projectPaths.root, '.agents/skills/video-production-director/SKILL.md'), 'utf8');
+    const rendererContract = this.projectRenderContract();
     const taskDirective = researchRequired
-      ? 'You are a Senior Video Production Director and Remotion Expert acting in accordance with the repository production rules. Perform the requested focused research before planning.'
+      ? 'You are a Senior Video Production Director and Remotion Expert acting in accordance with the repository production rules. Use web search for a focused research pass on the topic and the best needed visual assets before planning.'
       : 'You are a Senior Video Production Director creating a fast offline creative animation plan. Use only the submitted content and common visual semantics; do not browse the web, call tools, read files, expand skills, or perform research.';
     const researchDirective = researchRequired
-      ? 'LIVE WEB RESEARCH DIRECTIVE: Use one focused web-research pass to verify the submitted topic, current facts, and authoritative sources. For a website request, inspect the submitted site and its directly relevant page content; do not repeatedly browse or wait indefinitely. Include the live verified URLs in the sources list.'
+      ? 'LIVE WEB RESEARCH DIRECTIVE: Use web search to verify the submitted topic, current facts, and authoritative sources. Also search for the best relevant real images and downloadable GLB models needed by the scene plan. For every chosen media asset, return its exact direct download URL, source page URL, license shown by that source, and attribution when required. Prefer primary repositories and openly licensed assets. Never invent an asset, URL, or license; use authored vectors or procedural geometry if no suitable downloadable asset can be verified. For a website request, inspect the submitted site and its directly relevant page content; do not repeatedly browse or wait indefinitely. Include verified content URLs in the sources list.'
       : 'CREATIVE-ONLY DIRECTIVE: This is a small visual animation request, not a research task. Do not use web search, browser tools, shell commands, or skill expansion. Return the complete JSON plan directly. Set sources to an empty array and write researchNotes/factCheckNotes as brief statements that no external research was requested.';
     const complexityDirective = videoComplexity === 'simple-motion'
       ? 'VIDEO COMPLEXITY: simple-motion. The user wants a focused object-action story. Keep the causal action clear—introduce the subject, show the action step by step, show the destination/result, then close with a relevant CTA. Use the full renderable scene schema and motion/audio requirements; simple means focused, not low quality.'
       : 'VIDEO COMPLEXITY: production-explainer. Build a richer narrative arc with evidence, mechanisms, comparisons, or researched context as supported by the submitted content. Use the full renderable scene schema and content-specific motion/audio requirements.';
-    const prompt = `${taskDirective}
+    const prompt = `REQUIRED ORDER: First read and follow the repository video-production skill and the project renderer contract below. The actual project renderer contract is authoritative where the skill lists generic defaults. Second, use web search to research the submitted content and select suitable asset candidates. Third, create the scene plan using only supported project capabilities. Do not plan first and research afterward.
+
+REPOSITORY VIDEO-PRODUCTION SKILL (.agents/skills/video-production-director/SKILL.md):
+${productionSkill}
+
+ACTUAL PROJECT RENDERER CONTRACT (generated from the installed Remotion project and backend validators):
+${JSON.stringify(rendererContract, null, 2)}
+
+${taskDirective}
 
 ${complexityDirective}
 
 TASK: Create one original, content-specific script and screen motion plan based only on the submitted content. Do not reuse a previous topic, example, stock phrase, stock metric, stock concept node, or generic fallback. Every scene must explain a real idea from this content.
 
 ${researchDirective}
+Research workflow: verify content facts first using authoritative web sources, then search for the most relevant open-license images or self-contained GLB models only when they improve the explanation. Return direct asset URLs and provenance in the plan. Never download files in the read-only CLI; after Gate 1 the backend owns downloading into the project folder and returns project-local URLs to the Remotion props. Do not emit TSX, stand-alone audio files, or extra video deliverables.
 
 BEGIN SUBMITTED CONTENT
 ${req.topicOrContent}
@@ -1427,25 +1492,25 @@ END SUBMITTED CONTENT
 INPUT TYPE: ${req.inputType}
 BACKEND-CONTROLLED PRODUCTION RULES:
 ${BACKEND_CODEX_RULES}
-${requestedDuration ? `TARGET DURATION: exactly ${requestedDuration} seconds total. Choose scene durations between 2.5 and 5 seconds whose sum is exactly ${requestedDuration}; do not add or remove time in the renderer.` : ''}
-${this.requiresImportedImage(req) ? 'IMPORTED IMAGE REQUIREMENT: Include at least one real image object with render_spec.type "image" and a specific asset_query that the renderer can download. Keep it in the visual safe area; never place it under the text safe area.' : ''}
-${this.requiresProduct3D(req) ? 'PRODUCT 3D REQUIREMENT: Include at least one content-specific 3D object. For a keyboard, use render_spec.type "3d" with primitive "keyboard" for the hero product, and animate its keybed/body with rotation, dolly, or parallax. Do not replace the required 3D product with a generic vector or text object.' : ''}
-${sharedModelLibraryInstruction}
+${requestedDuration ? `TARGET DURATION: the final rendered composition must be exactly ${requestedDuration} seconds. Transition overlaps shorten the timeline, so choose scene durations that sum to the target PLUS all transition overlap frames divided by 30 fps. Plan each scene between 2.5 and 5 seconds; keep narration at or below 1.7 words per planned second and leave at least 0.27 seconds of tail room.` : ''}
+${this.requiresImportedImage(req) ? 'IMPORTED IMAGE REQUIREMENT: Include at least one real image object with render_spec.type "image". Codex must web-search and select the best relevant open-license image, then return its direct downloadable file URL as asset_download_url, its source page as asset_source_url, exact asset_license, and any required asset_attribution. Keep it in the visual safe area; never place it under the text safe area.' : ''}
+${this.requiresProduct3D(req) ? 'PRODUCT 3D REQUIREMENT: Include at least one content-specific 3D object. Codex must web-search for a relevant, openly licensed downloadable GLB and return model_download_url, asset_source_url, asset_license, and asset_attribution. For a keyboard, the model must be an actual keyboard, not a generic vector or text object. If no suitable licensed downloadable model can be verified, state that in the object detail and use a content-specific procedural 3D object.' : ''}
 ${websiteTour ? 'WEBSITE TOUR REQUIREMENT: This is a real website-visit video, not an abstract explainer. Every scene must show a different animated browser viewport state. Add visual_blueprint.website_view with url, route, section, layout_variant (hero|about-grid|product-split|contact), nav_items, hero_label, hero_heading, hero_body, panels (at least two objects with title/body/accent hex), and cta. Use page-specific content verified from the submitted website. Do not reuse the same card layout across scenes.' : ''}
 ${isRevision ? `REVISION FEEDBACK: "${req.changeRequestFeedback}". Update the scene plan accordingly while maintaining narrative continuity.` : ''}
 ${shouldKeepNarration ? `RULE #7: Preserve the approved voice narration: "${req.existingNarration}". Dynamically update only the visual direction, typography, and motion cues.` : ''}
 
 NON-NEGOTIABLE SKILL RULES:
-0. You are not merely an explainer; you are a senior short-form video director. Build a visual story with a hook, escalating visual evidence, a clear payoff, and a final CTA. Treat every scene as a designed shot with a subject, camera behavior, readable typography, and a purposeful transition.
+0. You are not merely an explainer; you are a senior short-form video director. Build a visual story with a hook, escalating visual evidence, a clear payoff, and a final CTA. Treat every scene as a designed shot with a subject, camera behavior, readable typography, and a purposeful transition. Work within the renderer contract; do not invent scene fields, object types, library model IDs, packages, TSX components, canvas sizes, or timing limits.
 1. Never produce a video that is only static images. Every scene needs real, purposeful motion.
 2. Provide a complete, captivating voice-over narration (word-for-word).
+2a. For each scene, decide whether an actual image or 3D file improves understanding. When selecting one, put its exact direct file URL, source page, license, and attribution in that object's render_spec. asset_queries are planning notes only; the backend downloads only the exact returned URLs after Gate 1 and does not choose replacement media. If a real asset is unavailable or unsuitable, author accurate vectors/procedural geometry instead. A shared model_id must exactly match one of the IDs in the supplied capability contract.
 3. Design a unique color scheme, visual motif, and kinetic animation tailored specifically to this topic.
 3a. Return a top-level styleProfile with one selected family (cinematic-neon, editorial-paper, playful-pop, technical-terminal, or documentary-grid), a topic-specific motif, five hex colors, a motion_language, and a transition_language. Do not default every project to dark neon or the same browser treatment.
-4. Produce 7-9 scenes totaling ${requestedDuration ? `exactly ${requestedDuration} seconds` : '25-40 seconds'}. The first scene MUST be role "hook", template "question-hook", and its on_screen_text MUST be a real question ending in "?" or "؟". The final scene MUST be role "cta", template "cta-outro", and its on_screen_text or subtitle MUST contain an explicit viewer action such as follow, save, share, like, subscribe, learn, try, comment, visit, watch, or join. Middle scenes MUST use role "body". For each scene, specify the complete required field set below. Do not omit fields, replace them with generic filler, or rely on the renderer to invent content:
+4. Produce 7-9 scenes whose final rendered timeline after transition overlaps is ${requestedDuration ? `exactly ${requestedDuration} seconds` : '25-40 seconds'}. The first scene MUST be role "hook", template "question-hook", and its on_screen_text MUST be a real question ending in "?" or "؟". The final scene MUST be role "cta", template "cta-outro", and its on_screen_text or subtitle MUST contain an explicit viewer action such as follow, save, share, like, subscribe, learn, try, comment, visit, watch, or join. Middle scenes MUST use role "body". For each scene, specify the complete required field set below. Do not omit fields, replace them with generic filler, or rely on the renderer to invent content:
    - scene_number (integer)
    - role (exactly one "hook" first, "body" for middle scenes, and "cta" last)
    - template (one of hero-object, split-compare, stat-callout, list-reveal, quote-focus, timeline, steps-numbered, map-pin, chart-bar, before-after, question-hook, cta-outro, product-showcase, fact-card, icon-grid; vary templates so no template repeats 3 times in a row)
-   - duration_sec (number between 2.5 and 5; when TARGET DURATION is present, all scene durations must sum exactly to that target)
+   - duration_sec (number between 2.5 and 5; include transition overlaps when calculating the total scene duration)
    - on_screen_text (bold, kinetic title strictly 3-6 words, under 40 characters; scene 1 must end with ?)
    - subtitle (punchy 1-sentence concept explanation)
    - key_takeaways (array of 2 to 4 short bullet points explaining the mechanism, max 6 words each; for split-compare or before-after, provide exactly 2 takeaways or 2 concept_nodes representing the two sides; for list-reveal, steps-numbered, timeline, or icon-grid, provide at least 3 items)
@@ -1454,16 +1519,16 @@ NON-NEGOTIABLE SKILL RULES:
    - image_search_query (specific search phrase for an open educational diagram or illustration, or null when a procedural visual is more accurate)
    - visual_direction (layout, camera push/pan, visual structure)
    - visual_type (always "blueprint" for new plans; the reusable template is provided separately)
-   - visual_blueprint (required, content-specific and different for every scene):
+   - visual_blueprint (required, content-specific and different for every scene; include 2-${MAX_BLUEPRINT_OBJECTS_PER_SCENE} objects):
      { "purpose": "what this scene explains visually", "layout": "free-form composition with normalized object positions", "camera_motion": "specific camera movement", "asset_queries": ["relevant Wikimedia/Openverse search phrases"], "objects": [
-     { "id": "unique object id", "label": "content-specific label", "detail": "short explanation", "x": 0.5, "y": 0.5, "to_x": 0.6, "to_y": 0.45, "scale": 1, "rotation": 0, "color": "#RRGGBB", "motion": "exact frame-driven motion", "motion_plan": { "enter_frame": 12, "exit_frame": 132, "idle": "float|pulse|orbit|shimmer|drift", "focal": true }, "render_spec": { "type": "vector|image|text|3d", "primitive": "sphere|cube|torus|cylinder|molecule|keyboard when type is procedural 3d", "model_id": "optional exact ID from the shared 3D model library", "viewBox": [0, 0, 1000, 700], "paths": [{ "d": "content-specific SVG path", "fill": "#RRGGBB", "stroke": "#RRGGBB", "strokeWidth": 4 }], "circles": [], "rects": [], "lines": [], "polygons": [], "text": "optional text", "asset_query": null } }
+     { "id": "unique object id", "label": "content-specific label", "detail": "short explanation", "x": 0.5, "y": 0.5, "to_x": 0.6, "to_y": 0.45, "scale": 1, "rotation": 0, "color": "#RRGGBB", "motion": "exact frame-driven motion", "motion_plan": { "enter_frame": 12, "exit_frame": 132, "idle": "float|pulse|orbit|shimmer|drift", "focal": true }, "render_spec": { "type": "vector|image|text|3d", "primitive": "sphere|cube|torus|cylinder|molecule|keyboard when type is procedural 3d", "model_id": "optional exact ID from installed shared GLB", "asset_download_url": "direct downloadable image URL when type is image", "model_download_url": "direct downloadable GLB URL when type is 3d and an external model is selected", "asset_source_url": "source page URL", "asset_license": "verified license name", "asset_attribution": "required attribution text or empty for CC0/public domain", "viewBox": [0, 0, 1000, 700], "paths": [{ "d": "content-specific SVG path", "fill": "#RRGGBB", "stroke": "#RRGGBB", "strokeWidth": 4 }], "circles": [], "rects": [], "lines": [], "polygons": [], "text": "optional text", "asset_query": null } }
      ] }${websiteTour ? ', "website_view": { "url": "https://example.com", "route": "/", "section": "Hero", "layout_variant": "hero", "nav_items": ["Home", "About"], "hero_label": "site label", "hero_heading": "page-specific heading", "hero_body": "page-specific body", "panels": [{ "title": "content-specific panel", "body": "what the visitor sees", "accent": "#2EC4B6" }, { "title": "another panel", "body": "why it matters", "accent": "#F59E0B" }], "cta": "page-specific call to action" }' : ''}
-     CODEX must author the actual vector paths/shapes, select a relevant downloaded image, choose a named shared-library 3D model when one is installed, or choose a procedural 3D primitive when depth explains the submitted content (molecules, organs, planets, machines, devices, or spatial mechanisms). Do not choose from a fixed object-kind list. Every object must be visually distinct through its geometry, placement, styling, label, or motion and must explain a real part of the submitted content. Reusing a primitive is allowed when the objects have different visual placement or purpose. Never return a generic diagram, network, metric, or headline template. A scene may contain multiple 3D objects; do not limit the plan to one hard-coded object.
+     CODEX must author the actual vector paths/shapes, select a relevant downloaded image, choose a named shared-library 3D model when one is installed, or choose a procedural 3D primitive when depth explains the submitted content (molecules, organs, planets, machines, devices, or spatial mechanisms). Every object must have a purposeful motion description. Any image or 3D model object must appear visibly animated in the shot; a static placement alone does not satisfy the motion requirement. Design object entrance, travel/rotation/reveal, and exit so the visuals and their generated sound cues share the same event timing. Do not choose from a fixed object-kind list. Every object must be visually distinct through its geometry, placement, styling, label, or motion and explain a real part of the submitted content. Reusing a primitive is allowed when the objects have different visual placement or purpose. Never return a generic diagram, network, metric, or headline template. A scene may contain multiple 3D objects; do not limit the plan to one hard-coded object. Keep each vector shape list at or below 24 entries.
    - theme_color (hex color matching the topic's mood)
    - motion_cue (explicit description of what moves: spring entrance, scale zoom, path draw-on, staggered reveal)
    - continuity_to_next (what visual element or camera motion carries over into the next scene; for the final scene specify "None (final scene)")
    - transition_out_frames (integer 8-15 for every scene except the last; use a directional overlap transition, never a fade to black)
-   - narration (complete voice-over for this scene; keep it concise enough to fit about 4-4.5 seconds at natural speech, usually no more than 10-12 spoken words)
+   - narration (complete voice-over for this scene; keep it to at most 1.7 words per planned second so natural speech fits without stretching the video)
 
 CRITICAL OUTPUT FORMAT REQUIREMENTS:
 1. Return ONLY the raw, complete JSON object.
@@ -1598,7 +1663,7 @@ Before responding, validate the first and final scene against these rules. Do no
    */
   async generateAnimationCode(req: AnimationCodeRequest): Promise<AnimationCodeResult> {
     if (!req.scenePlan.length) throw new Error('Cannot create animation instructions without an approved CODEX scene plan.');
-    const totalDurationSec = req.scenePlan.reduce((acc, scene) => acc + scene.duration_sec, 0);
+    const totalDurationSec = this.actualTimelineDurationSec(req.scenePlan);
     const fps = 30;
     const durationInFrames = totalDurationSec * fps;
 

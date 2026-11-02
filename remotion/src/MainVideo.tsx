@@ -99,7 +99,7 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
     <AbsoluteFill style={{ backgroundColor: styleProfile?.background || '#05070f' }}>
       {audioUrl && <Audio src={assetSource(audioUrl)} volume={narrationVolume} />}
       {/* Background audio loop: ducks 6-8 dB (-7 dB, multiplier 0.45) under spoken narration */}
-      {backgroundAudioUrl && <Audio src={assetSource(backgroundAudioUrl)} volume={(frame) => 0.18 * (voiceActive(frame) ? 0.45 : 1) * narrationVolume(frame)} />}
+      {backgroundAudioUrl && <Audio src={assetSource(backgroundAudioUrl)} volume={(frame) => 0.8 * (voiceActive(frame) ? 0.5 : 1) * narrationVolume(frame)} />}
       {narrationTracks.map((track, index) => (
         <Sequence key={`narration-${index}`} from={track.frame} durationInFrames={track.durationFrames}>
           <Audio src={assetSource(track.src)} volume={(localFrame) => 0.92 * narrationVolume(track.frame + localFrame)} />

@@ -28,7 +28,6 @@ export const TemplateScene: React.FC<{
     ? [scene.subtitle]
     : undefined;
 
-  const caption = scene.subtitle || scene.detail || '';
   const screenshotUrl = imageAssets && Object.values(imageAssets).length > 0
     ? Object.values(imageAssets)[0]
     : undefined;
@@ -45,7 +44,6 @@ export const TemplateScene: React.FC<{
       title={title}
       bullets={bullets}
       screenshotUrl={screenshotUrl}
-      caption={caption}
       bulletTimings={bulletTimings}
       accentColor={color}
     >

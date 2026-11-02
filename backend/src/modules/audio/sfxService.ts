@@ -54,21 +54,21 @@ export interface ResolvedSfxCue {
   volume: number;
 }
 
+export interface SfxScope { projectId: string; previewVersion: number }
+
 /** Procedural sound library synthesizer and role manager for motion graphics. */
 export class SfxService {
-  private cachedManifest: SfxManifest | null = null;
-  private currentSeed = '';
 
   /**
    * Ensure procedural SFX library is generated and loaded into memory.
    */
-  async ensureLibrary(seed = 'starter-library'): Promise<SfxManifest> {
-    if (this.cachedManifest && this.currentSeed === seed) {
-      return this.cachedManifest;
-    }
-
-    const sfxDir = path.join(projectPaths.remotionPublic, 'sfx');
+  async ensureLibrary(seed = 'starter-library', scope?: SfxScope): Promise<SfxManifest> {
+    const scopePath = scope
+      ? path.join('projects', scope.projectId.replace(/[^a-zA-Z0-9_-]/g, '_'), 'previews', `v${scope.previewVersion}`, 'audio', 'sfx')
+      : 'sfx';
+    const sfxDir = path.join(projectPaths.remotionPublic, ...scopePath.split('/'));
     const manifestPath = path.join(sfxDir, 'sfx.manifest.json');
+    const staticPrefix = scopePath.replace(/\\/g, '/');
     await fs.mkdir(sfxDir, { recursive: true });
 
     let needGenerate = false;
@@ -78,9 +78,6 @@ export class SfxService {
       const parsed: SfxManifest = JSON.parse(content);
       if (parsed.seed !== seed && seed !== 'starter-library') {
         needGenerate = true;
-      } else {
-        this.cachedManifest = parsed;
-        this.currentSeed = parsed.seed;
       }
     } catch {
       needGenerate = true;
@@ -97,15 +94,14 @@ export class SfxService {
       let lastError: any = null;
       for (const pythonBin of candidates) {
         try {
-          await execFileAsync(pythonBin, [script, '--out', sfxDir, '--seed', seed, '--variants', '4'], {
+          await execFileAsync(pythonBin, [script, '--out', sfxDir, '--seed', seed, '--variants', '4', '--prefix', staticPrefix], {
             cwd: projectPaths.root,
             timeout: 30000,
           });
           const content = await fs.readFile(manifestPath, 'utf-8');
-          this.cachedManifest = JSON.parse(content);
-          this.currentSeed = seed;
+          const manifest: SfxManifest = JSON.parse(content);
           generated = true;
-          break;
+          return manifest;
         } catch (err: any) {
           lastError = err;
         }
@@ -115,27 +111,27 @@ export class SfxService {
         console.warn('[SfxService] make_sfx generation failed, falling back to existing manifest:', lastError?.message || 'unknown error');
         try {
           const content = await fs.readFile(manifestPath, 'utf-8');
-          this.cachedManifest = JSON.parse(content);
-          this.currentSeed = this.cachedManifest?.seed || 'fallback';
+          const fallback: SfxManifest = JSON.parse(content);
+          return fallback;
         } catch {
           throw new Error(`Failed to load or generate SFX library: ${lastError?.message || 'unknown error'}`);
         }
       }
     }
 
-    // Sync files to backend media audio/sfx as well
-    const backendSfxDir = path.join(projectPaths.backendMedia, 'audio', 'sfx');
-    await fs.mkdir(backendSfxDir, { recursive: true });
-    try {
-      const files = await fs.readdir(sfxDir);
-      for (const file of files) {
+    // Sync files for legacy uses; scoped preview assets stay in their immutable
+    // Remotion public directory and are addressed through the manifest URL.
+    if (!scope) {
+      const backendSfxDir = path.join(projectPaths.backendMedia, 'audio', 'sfx');
+      await fs.mkdir(backendSfxDir, { recursive: true });
+      for (const file of await fs.readdir(sfxDir)) {
         if (file.endsWith('.wav') || file.endsWith('.json')) {
           await fs.copyFile(path.join(sfxDir, file), path.join(backendSfxDir, file)).catch(() => {});
         }
       }
-    } catch {}
+    }
 
-    return this.cachedManifest!;
+    return JSON.parse(await fs.readFile(manifestPath, 'utf-8')) as SfxManifest;
   }
 
   /**
@@ -174,8 +170,8 @@ export class SfxService {
   /**
    * Resolve an audio cue for a given role and seeded key.
    */
-  async getCueForRole(role: SfxRole, seedKey: string, fps = 30, librarySeed = 'starter-library'): Promise<ResolvedSfxCue> {
-    const manifest = await this.ensureLibrary(librarySeed);
+  async getCueForRole(role: SfxRole, seedKey: string, fps = 30, librarySeed = 'starter-library', scope?: SfxScope): Promise<ResolvedSfxCue> {
+    const manifest = await this.ensureLibrary(librarySeed, scope);
     const pool = manifest.items.filter((item) => item.role === role);
     const fallbackPool = pool.length > 0 ? pool : manifest.items.filter((item) => item.role === 'pop');
     const selected = fallbackPool[hashText(seedKey) % fallbackPool.length];

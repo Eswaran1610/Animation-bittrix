@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ProjectDetail as IProjectDetail } from '../types';
 import { api } from '../services/api';
-import { LiveRemotionPreview } from './LiveRemotionPreview';
 import { 
   ArrowLeft, CheckCircle2, ShieldCheck, AlertCircle, Play, 
   FileText, Sparkles, RefreshCw, Eye, Download, History, ExternalLink 
@@ -45,35 +44,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
   const isCurrentPreviewApproved = currentPreviewVer > 0 && !!previewApproval;
 
   const latestPreviewJob = renderJobs.find((j) => j.render_type === 'preview');
-  const [livePreviewProps, setLivePreviewProps] = useState<unknown | null>(null);
-  const [livePreviewLoading, setLivePreviewLoading] = useState(false);
-  const [livePreviewError, setLivePreviewError] = useState('');
   const finalVideo = videos[0];
-
-  useEffect(() => {
-    if (!latestPreviewJob || latestPreviewJob.status !== 'completed' || currentPreviewVer < 1) {
-      setLivePreviewProps(null);
-      setLivePreviewError('');
-      return;
-    }
-    let active = true;
-    setLivePreviewLoading(true);
-    setLivePreviewError('');
-    api.getPreviewProps(project.id, currentPreviewVer)
-      .then((props) => {
-        if (active) setLivePreviewProps(props);
-      })
-      .catch((err: any) => {
-        if (active) {
-          setLivePreviewProps(null);
-          setLivePreviewError(err.message || 'Live Remotion preview data could not be loaded.');
-        }
-      })
-      .finally(() => {
-        if (active) setLivePreviewLoading(false);
-      });
-    return () => { active = false; };
-  }, [project.id, currentPreviewVer, latestPreviewJob?.id, latestPreviewJob?.status]);
 
   useEffect(() => {
     if (!latestPreviewJob || latestPreviewJob.status === 'completed' || latestPreviewJob.status === 'failed') {
@@ -421,7 +392,20 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                         <td style={{ padding: '10px', color: 'var(--text-muted)' }}>{scene.duration_sec}s</td>
                         <td style={{ padding: '10px', fontWeight: 600 }}>{scene.on_screen_text}</td>
                         <td style={{ padding: '10px', color: 'var(--text-secondary)' }}>{scene.visual_direction}</td>
-                        <td style={{ padding: '10px', color: 'var(--text-muted)', fontSize: '12px' }}>{scene.asset_suggestions || 'Remotion vector graphics'}</td>
+                        <td style={{ padding: '10px', color: 'var(--text-muted)', fontSize: '12px' }}>
+                          {scene.visual_blueprint?.objects?.some((object: any) => object.render_spec?.asset_download_url || object.render_spec?.model_download_url) ? (
+                            <div style={{ display: 'grid', gap: '8px' }}>
+                              {scene.visual_blueprint.objects.filter((object: any) => object.render_spec?.asset_download_url || object.render_spec?.model_download_url).map((object: any, objectIndex: number) => {
+                                const spec = object.render_spec;
+                                return <div key={object.id || objectIndex}>
+                                  <strong>{object.label || object.id}</strong> · {spec.asset_license || 'License not supplied'}
+                                  {spec.asset_source_url && <> · <a href={spec.asset_source_url} target="_blank" rel="noreferrer" style={{ color: '#38bdf8' }}>source</a></>}
+                                  {spec.asset_attribution && <div>{spec.asset_attribution}</div>}
+                                </div>;
+                              })}
+                            </div>
+                          ) : (scene.asset_suggestions || 'Remotion vector graphics')}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -610,17 +594,16 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
               </div>
             ) : (
               <div>
-                {livePreviewLoading ? (
-                  <div style={{ height: '360px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                    Loading live Remotion composition…
-                  </div>
-                ) : livePreviewProps ? (
-                  <LiveRemotionPreview props={livePreviewProps} />
-                ) : (
-                  <div style={{ height: '360px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fca5a5', textAlign: 'center', padding: '24px' }}>
-                    {livePreviewError || 'Live Remotion preview data is unavailable.'}
-                  </div>
-                )}
+                <video
+                  key={latestPreviewJob?.output_location || `preview-v${currentPreviewVer}`}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  style={{ display: 'block', width: '100%', maxHeight: '70vh', aspectRatio: '9 / 16', background: '#090d16', borderRadius: '12px' }}
+                >
+                  <source src={latestPreviewJob?.output_location} type="video/mp4" />
+                  Your browser cannot play this preview video.
+                </video>
 
                 {/* Preview Meta */}
                 <div style={{
@@ -630,7 +613,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                   fontSize: '13px',
                   color: 'var(--text-muted)'
                 }}>
-                  <span>Live TSX Preview: <strong>v{currentPreviewVer}</strong> (Script v{project.current_script_version})</span>
+                  <span>Rendered preview: <strong>v{currentPreviewVer}</strong> (Script v{project.current_script_version})</span>
                   <span style={{ color: '#38bdf8', fontSize: '12px' }}>Natural voice + word captions + motion</span>
                 </div>
               </div>

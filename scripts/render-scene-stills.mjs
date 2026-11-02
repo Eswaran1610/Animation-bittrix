@@ -59,11 +59,13 @@ const browserOptions = {
   chromiumOptions: { headless: true },
   ...(browserExecutable ? { browserExecutable } : {}),
 };
+const timeoutInMilliseconds = Number(process.env.REMOTION_FRAME_TIMEOUT_MS || 120000);
 const composition = await selectComposition({
   serveUrl,
   id: 'MainComposition',
   inputProps: props,
   ...browserOptions,
+  timeoutInMilliseconds,
 });
 
 const stillFiles = [];
@@ -80,6 +82,7 @@ for (let index = 0; index < props.scenes.length; index += 1) {
     imageFormat: 'png',
     scale: 0.6,
     concurrency: 1,
+    timeoutInMilliseconds,
     ...browserOptions,
   });
   const generated = (await fs.readdir(temporaryDir)).filter((file) => file.endsWith('.png')).sort()[0];

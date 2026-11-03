@@ -452,6 +452,7 @@ export class RendersService {
     }
     const totalFrames = formattedScenes.reduce((acc: number, s: any, index: number) =>
       acc + s.durationInFrames - (index < formattedScenes.length - 1 ? s.transitionOutFrames || 0 : 0), 0);
+    console.log(`[RendersService] Narration generated (${(narrationDurationSec).toFixed(1)}s total). Generating audio bed & master track...`);
     const backgroundAudioUrl = await audioBedService.generate(projectId, renderType, renderVersion, totalFrames / fps);
 
     // Mix narration + sfx + background bed into ONE unified master audio track
@@ -465,6 +466,7 @@ export class RendersService {
       backgroundAudioUrl,
     });
 
+    console.log('[RendersService] Synchronizing word-level captions...');
     let captionOffset = 0;
     const sceneCaptions = await Promise.all(formattedScenes.map(async (scene: any) => this.buildMeasuredCaptions(
       scene.narration,
@@ -479,6 +481,7 @@ export class RendersService {
       captionOffset += scene.durationInFrames - (index < formattedScenes.length - 1 ? scene.transitionOutFrames || 0 : 0);
       return sceneCaptionsWithOffset;
     });
+    console.log(`[RendersService] Prepared ${captions.length} captions and Remotion scene data.`);
 
     const payload = {
       video: {

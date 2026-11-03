@@ -92,8 +92,29 @@ export class VideoRenderer {
     const propsContent = await fs.readFile(opts.propsPath, 'utf-8');
     const inputProps = JSON.parse(propsContent);
 
+    // Package any scene audio or master track for the remote worker
+    const audioFiles: Record<string, string> = {};
+    const audioPathsToBundle: string[] = [];
+
+    if (inputProps.video?.audioUrl) {
+      audioPathsToBundle.push(inputProps.video.audioUrl);
+    }
+    for (const scene of inputProps.scenes || []) {
+      if (scene.narrationAudio) audioPathsToBundle.push(scene.narrationAudio);
+    }
+
+    for (const relAudio of audioPathsToBundle) {
+      const absAudio = path.join(projectPaths.remotionPublic, relAudio);
+      try {
+        const audioBuffer = await fs.readFile(absAudio);
+        audioFiles[relAudio] = audioBuffer.toString('base64');
+      } catch {
+        // File may be missing or already remote
+      }
+    }
+
     const endpoint = `${renderUrl.replace(/\/+$/, '')}/render`;
-    console.log(`[VideoRenderer] Offloading Remotion render to remote worker: ${endpoint} (scale: ${scale})...`);
+    console.log(`[VideoRenderer] Offloading Remotion render to remote worker: ${endpoint} (scale: ${scale}, bundled audio: ${Object.keys(audioFiles).length} files)...`);
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -101,6 +122,7 @@ export class VideoRenderer {
       body: JSON.stringify({
         inputProps,
         scale,
+        audioFiles,
       }),
     });
 

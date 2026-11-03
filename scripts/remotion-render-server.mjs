@@ -70,6 +70,15 @@ const server = http.createServer(async (req, res) => {
       const scale = payload.scale || 1.0;
       const concurrency = payload.concurrency || String(Math.min(4, Math.max(1, (os.cpus()?.length || 2) - 1)));
 
+      // Unpack bundled audio files if provided
+      if (payload.audioFiles && typeof payload.audioFiles === 'object') {
+        for (const [relPath, base64Content] of Object.entries(payload.audioFiles)) {
+          const dest = path.join(remotionDir, 'public', relPath);
+          await fs.mkdir(path.dirname(dest), { recursive: true });
+          await fs.writeFile(dest, Buffer.from(base64Content, 'base64'));
+        }
+      }
+
       await fs.writeFile(tempPropsPath, JSON.stringify(payload.inputProps || payload.props || {}));
 
       console.log(`[RenderWorker] [${renderId}] Rendering Remotion composition (scale: ${scale}, concurrency: ${concurrency})...`);
@@ -115,9 +124,14 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: err.message || 'Remotion render failed' }));
     } finally {
-      // Clean up temp files
+      // Clean up temp files and audio files
       await fs.unlink(tempPropsPath).catch(() => undefined);
       await fs.unlink(tempOutputPath).catch(() => undefined);
+      if (payload?.audioFiles && typeof payload.audioFiles === 'object') {
+        for (const relPath of Object.keys(payload.audioFiles)) {
+          await fs.unlink(path.join(remotionDir, 'public', relPath)).catch(() => undefined);
+        }
+      }
     }
     return;
   }

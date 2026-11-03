@@ -95,6 +95,14 @@ export const preflightRenderProps = async (propsPath: string): Promise<void> => 
     }
   }
 
+  if (Array.isArray(props.video?.captions)) {
+    for (const [cIdx, cap] of props.video.captions.entries()) {
+      if (typeof cap.word !== 'string' || !Number.isInteger(cap.startFrame) || !Number.isInteger(cap.endFrame) || cap.startFrame > cap.endFrame || cap.startFrame < 0) {
+        fail(`Props preflight failed: caption ${cIdx + 1} ("${cap.word}") has invalid frame bounds [${cap.startFrame}, ${cap.endFrame}].`, 'audio-sync');
+      }
+    }
+  }
+
   const mediaPaths = collectMediaPaths(props);
   for (const relative of mediaPaths) {
     const filePath = path.join(projectPaths.remotionPublic, relative);
@@ -119,5 +127,5 @@ export const preflightRenderProps = async (propsPath: string): Promise<void> => 
       }
     }
   }
-  console.log(`[RenderPreflight] PASS: props and ${mediaPaths.size} referenced media files validated.`);
+  console.log(`[RenderPreflight] PASS: Props, ${mediaPaths.size} media files, and ${props.video?.captions?.length || 0} captions verified. Remotion render is now authorized as the FINAL step.`);
 };

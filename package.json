@@ -12,6 +12,7 @@
     "backend:build": "npm --prefix backend run build",
     "frontend:dev": "npm --prefix frontend run dev",
     "frontend:build": "npm --prefix frontend run build",
+    "dev": "npm run db:start && (npm run backend:dev & npm run frontend:dev)",
     "remotion:typecheck": "npm --prefix remotion run typecheck",
     "remotion:compositions": "npm --prefix remotion run compositions:host",
     "remotion:render": "npm --prefix remotion run render:host",

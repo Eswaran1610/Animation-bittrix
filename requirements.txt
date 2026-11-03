@@ -17,6 +17,7 @@ torchaudio>=2.0.0
 # Used by: scripts/make_sfx.py, scripts/verify_sync.py, motion-checks
 numpy>=1.24.0
 scipy>=1.10.0
+edge-tts>=7.3.0
 
 # --- Supporting Libraries (automatically resolved, pinned for reference) ---
 tiktoken>=0.5.0

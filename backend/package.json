@@ -12,7 +12,6 @@
     "start": "node dist/server.js"
   },
   "dependencies": {
-    "@remotion/lambda": "^4.0.540",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",

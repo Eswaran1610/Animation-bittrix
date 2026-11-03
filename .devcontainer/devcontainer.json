@@ -7,8 +7,12 @@
       "version": "3.12"
     }
   },
-  "forwardPorts": [5173, 5000, 5434],
+  "forwardPorts": [5173, 5000, 5434, 5050],
   "portsAttributes": {
+    "5050": {
+      "label": "Remotion Cloud Render Worker",
+      "onAutoForward": "silent"
+    },
     "5173": {
       "label": "Frontend UI (Video Studio)",
       "onAutoForward": "openBrowser"

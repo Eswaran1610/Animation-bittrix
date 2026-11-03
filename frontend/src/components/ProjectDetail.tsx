@@ -587,6 +587,17 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                     {latestPreviewJob.errors}
                   </p>
                 )}
+                {latestPreviewJob?.status === 'failed' && (
+                  <button
+                    onClick={handleRenderPreview}
+                    disabled={isSubmittingPreviewAction}
+                    className="btn btn-primary"
+                    style={{ marginTop: '16px', padding: '10px 20px', fontSize: '13px' }}
+                  >
+                    <RefreshCw size={15} />
+                    {isSubmittingPreviewAction ? 'Restarting Preview Render...' : 'Retry Preview Render'}
+                  </button>
+                )}
               </div>
             ) : (
               <div>

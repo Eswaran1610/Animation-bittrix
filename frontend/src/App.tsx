@@ -21,6 +21,7 @@ export function App() {
   const [liveCodexUsage, setLiveCodexUsage] = useState<any>(null);
  const [liveProgress, setLiveProgress] = useState({ progress: 0, label: 'Waiting for a pipeline run' });
   const [liveConnected, setLiveConnected] = useState(false);
+  const selectedProjectIdRef = useRef<string | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
   const reconnectAttemptsRef = useRef(0);
 
@@ -40,8 +41,8 @@ export function App() {
       setCodexUsage(usage);
 
       // If a project is selected, refresh its details too
-      if (selectedProjectId) {
-        const detail = await api.getProjectDetails(selectedProjectId).catch(() => null);
+      if (selectedProjectIdRef.current) {
+        const detail = await api.getProjectDetails(selectedProjectIdRef.current).catch(() => null);
         setProjectDetail(detail);
       }
     } catch (err) {
@@ -66,6 +67,7 @@ export function App() {
     };
 
     const applyProgress = (event: any) => {
+      if (selectedProjectIdRef.current && event.projectId && event.projectId !== selectedProjectIdRef.current) return;
       setLiveProgress({ progress: Number(event.progress || 0), label: String(event.status || event.stage || 'Pipeline update') });
       if (Number(event.progress) === 100) void loadData();
     };
@@ -108,7 +110,10 @@ export function App() {
           applyProgress(event);
         }
         if (event.type === 'progress_snapshot' && Array.isArray(event.events)) {
-          const latest = [...event.events].sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || ''))).at(-1);
+          const scopedEvents = selectedProjectIdRef.current
+            ? event.events.filter((item: any) => item.projectId === selectedProjectIdRef.current)
+            : event.events;
+          const latest = [...scopedEvents].sort((a, b) => Number(a.sequence || 0) - Number(b.sequence || 0)).at(-1);
           if (latest) applyProgress(latest);
         }
       } catch {
@@ -135,6 +140,7 @@ export function App() {
 
   // Handle selecting a project to inspect
   const handleSelectProject = async (id: string) => {
+    selectedProjectIdRef.current = id;
     setSelectedProjectId(id);
     try {
       const detail = await api.getProjectDetails(id);
@@ -145,8 +151,8 @@ export function App() {
   };
 
   // Handle creating a project
-  const handleCreateProject = async (content: string, type: 'text' | 'topic' | 'url', title?: string) => {
-    const newProj = await api.createProject(content, type, title);
+  const handleCreateProject = async (content: string, type: 'text' | 'topic' | 'url', title?: string, durationSec?: number) => {
+    const newProj = await api.createProject(content, type, title, durationSec);
     await loadData();
     await handleSelectProject(newProj.id);
   };
@@ -156,6 +162,7 @@ export function App() {
     if (!window.confirm('Are you sure you want to delete this project?')) return;
     await api.deleteProject(id);
     if (selectedProjectId === id) {
+      selectedProjectIdRef.current = null;
       setSelectedProjectId(null);
       setProjectDetail(null);
     }
@@ -168,12 +175,20 @@ export function App() {
         currentTab={currentTab}
         setCurrentTab={(tab) => {
           setCurrentTab(tab);
+          selectedProjectIdRef.current = null;
           setSelectedProjectId(null);
         }}
         onRefresh={loadData}
         healthInfo={healthInfo}
       />
-      <LiveStatusBar usage={codexUsage} liveUsage={liveCodexUsage} progress={liveProgress.progress} label={liveProgress.label} connected={liveConnected} />
+      <LiveStatusBar
+        activeProvider={healthInfo?.aiProvider}
+        usage={codexUsage}
+        liveUsage={liveCodexUsage}
+        progress={liveProgress.progress}
+        label={liveProgress.label}
+        connected={liveConnected}
+      />
 
       <main style={{ flex: 1 }}>
         {selectedProjectId && projectDetail ? (
@@ -195,11 +210,12 @@ export function App() {
         ) : (
           <>
             {currentTab === 'dashboard' && (
-             <Dashboard
-               projects={projects}
-               loading={loading}
+              <Dashboard
+                activeProvider={healthInfo?.aiProvider}
+                projects={projects}
+                loading={loading}
                 liveUsage={liveCodexUsage}
-               onSelectProject={handleSelectProject}
+                onSelectProject={handleSelectProject}
                 onCreateProject={handleCreateProject}
                 onDeleteProject={handleDeleteProject}
               />

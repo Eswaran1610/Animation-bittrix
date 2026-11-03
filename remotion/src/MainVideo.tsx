@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Sequence, interpolate } from 'remotion';
+import { AbsoluteFill, Audio, Sequence, interpolate, useCurrentFrame } from 'remotion';
 import { TransitionSeries, linearTiming } from '@remotion/transitions';
 import { slide } from '@remotion/transitions/slide';
 import { fade } from '@remotion/transitions/fade';
@@ -7,13 +7,18 @@ import { wipe } from '@remotion/transitions/wipe';
 import { flip } from '@remotion/transitions/flip';
 import { SceneRenderer } from './components/SceneRenderer';
 import { WordCaptions } from './components/WordCaptions';
-import { SceneDataPayload } from './data/sceneTypes';
+import { SceneDataPayload, StyleBrief } from './data/sceneTypes';
 import { assetSource } from './assetSource';
 import { sceneTimelineDuration } from './short-video/sceneAdapter';
 
 const defaultTransitionFrames = 12;
 
-const getTransitionPresentation = (scene: any, index: number, styleProfile?: any) => {
+const getTransitionPresentation = (scene: any, index: number, styleProfile?: any, styleBrief?: StyleBrief) => {
+  const preferred = styleBrief?.transitionSet?.[index % Math.max(1, styleBrief.transitionSet.length)];
+  if (preferred === 'fade') return fade();
+  if (preferred === 'wipe') return wipe({ direction: index % 2 ? 'from-left' : 'from-right' });
+  if (preferred === 'flip') return flip({ direction: index % 2 ? 'from-left' : 'from-right' });
+  if (preferred === 'push' || preferred === 'whip' || preferred === 'slide') return slide({ direction: index % 2 === 0 ? 'from-right' : 'from-left' });
   const cue = `${scene.continuity_to_next || ''} ${scene.motion_cue || ''} ${styleProfile?.transition_language || ''}`.toLowerCase();
   if (/fade|dissolve|crossfade|soft/i.test(cue)) {
     return fade();
@@ -41,8 +46,9 @@ type TimedCue = {
 };
 
 export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData }) => {
+  const frame = useCurrentFrame();
   const { scenes } = sceneData;
-  const { audioUrl, backgroundAudioUrl, captions, styleProfile } = sceneData.video;
+  const { audioUrl, backgroundAudioUrl, captions, styleProfile, styleBrief } = sceneData.video;
   const timedCues: TimedCue[] = [];
   const narrationTracks: Array<{ frame: number; src: string; durationFrames: number }> = [];
   let sceneOffset = 0;
@@ -81,7 +87,7 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
   scenes.forEach((scene, index) => {
     transitionNodes.push(
       <TransitionSeries.Sequence key={`scene-${scene.id || index}`} durationInFrames={scene.durationInFrames}>
-        <SceneRenderer scene={scene} index={index} totalScenes={scenes.length} styleProfile={styleProfile} />
+        <SceneRenderer scene={scene} index={index} totalScenes={scenes.length} styleProfile={styleProfile} styleBrief={styleBrief} />
       </TransitionSeries.Sequence>,
     );
     if (index < scenes.length - 1) {
@@ -89,14 +95,30 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
         <TransitionSeries.Transition
           key={`transition-${scene.id || index}`}
           timing={linearTiming({ durationInFrames: scene.transitionOutFrames || defaultTransitionFrames })}
-          presentation={getTransitionPresentation(scene, index, styleProfile) as any}
+          presentation={getTransitionPresentation(scene, index, styleProfile, styleBrief) as any}
         />,
       );
     }
   });
 
   return (
-    <AbsoluteFill style={{ backgroundColor: styleProfile?.background || '#05070f' }}>
+    <AbsoluteFill style={{ backgroundColor: styleBrief?.palette.bg || styleProfile?.background || '#05070f' }}>
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          zIndex: 2,
+          left: `${interpolate(frame, [0, Math.max(1, sceneOffset)], [8, 82], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })}%`,
+          top: '48%',
+          width: 34,
+          height: 34,
+          border: `2px solid ${styleBrief?.palette.accent || styleProfile?.secondary || '#38bdf8'}`,
+          borderRadius: styleBrief?.archetype === 'neo-brutalist' ? 0 : '50%',
+          opacity: 0.26,
+          transform: `translate(-50%, -50%) rotate(${frame * 1.6}deg)`,
+          pointerEvents: 'none',
+        }}
+      />
       {audioUrl && <Audio src={assetSource(audioUrl)} volume={narrationVolume} />}
       {/* Background audio loop: ducks 6-8 dB (-7 dB, multiplier 0.45) under spoken narration */}
       {backgroundAudioUrl && <Audio src={assetSource(backgroundAudioUrl)} volume={(frame) => 0.8 * (voiceActive(frame) ? 0.5 : 1) * narrationVolume(frame)} />}

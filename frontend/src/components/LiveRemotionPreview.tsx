@@ -60,6 +60,21 @@ const preparePlayerProps = (rawProps: unknown): SceneDataPayload => {
       image_assets: scene.image_assets
         ? Object.fromEntries(Object.entries(scene.image_assets).map(([query, path]) => [query, mediaUrl(path)])) as Record<string, string>
         : scene.image_assets,
+      visualBlueprint: scene.visualBlueprint
+        ? {
+            ...scene.visualBlueprint,
+            objects: scene.visualBlueprint.objects.map((object) => ({
+              ...object,
+              render_spec: {
+                ...object.render_spec,
+                asset_url: mediaUrl(object.render_spec.asset_url),
+                asset_backend_url: mediaUrl(object.render_spec.asset_backend_url),
+                model_url: mediaUrl(object.render_spec.model_url),
+                model_backend_url: mediaUrl(object.render_spec.model_backend_url),
+              },
+            })),
+          }
+        : scene.visualBlueprint,
       audioCues: scene.audioCues?.map((cue) => ({ ...cue, src: mediaUrl(cue.src) || cue.src })),
     })),
   };

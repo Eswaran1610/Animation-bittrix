@@ -2,14 +2,15 @@ import React from 'react';
 import { SceneTemplate } from './SceneTemplate';
 import { BlueprintVisual } from './BlueprintVisual';
 import { WebsiteVisitVisual } from './WebsiteVisitVisual';
-import { SceneData, StyleProfile } from '../data/sceneTypes';
+import { SceneData, StyleBrief, StyleProfile } from '../data/sceneTypes';
 
 export const DynamicScene: React.FC<{
   scene: SceneData;
   index: number;
   totalScenes: number;
   styleProfile?: StyleProfile;
-}> = ({ scene, styleProfile }) => {
+  styleBrief?: StyleBrief;
+}> = ({ scene, styleProfile, styleBrief }) => {
   const color = scene.themeColor || styleProfile?.primary || '#22d3ee';
   const title = scene.on_screen_text || scene.title || 'Dynamic Overview';
   const bullets = scene.key_takeaways?.length ? scene.key_takeaways.slice(0, 3) : undefined;
@@ -32,6 +33,7 @@ export const DynamicScene: React.FC<{
           blueprint={scene.visualBlueprint}
           imageAssets={scene.image_assets}
           durationInFrames={scene.durationInFrames}
+          styleBrief={styleBrief}
         />
       );
     }
@@ -44,6 +46,7 @@ export const DynamicScene: React.FC<{
       bullets={bullets}
       screenshotUrl={firstImageAsset}
       accentColor={color}
+      styleBrief={styleBrief}
     >
       {visualContent}
     </SceneTemplate>

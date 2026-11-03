@@ -55,7 +55,6 @@ export const WordCaptions: React.FC<{
                 fontWeight: isActive ? 800 : 600,
                 lineHeight: 1.25,
                 textShadow: isActive ? `0 0 16px ${color}88` : 'none',
-                transition: 'color 0.12s ease',
               }}
             >
               {caption.word}

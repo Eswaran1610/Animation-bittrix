@@ -1,0 +1,17 @@
+{
+  "archetypes": [
+    "kinetic-type",
+    "isometric-diagram",
+    "data-story",
+    "paper-cutout",
+    "neo-brutalist",
+    "glass-ui",
+    "blueprint-technical",
+    "retro-terminal"
+  ],
+  "motionPersonalities": ["snappy", "fluid", "bouncy", "precise"],
+  "backgrounds": ["grid", "particles", "gradient-flow", "halftone", "lines"],
+  "sfxPacks": ["digital", "organic", "cinematic", "playful"],
+  "transitions": ["slide", "wipe", "flip", "fade", "push", "whip"],
+  "fonts": ["Arial", "Georgia", "Trebuchet MS", "Courier New", "Impact"]
+}

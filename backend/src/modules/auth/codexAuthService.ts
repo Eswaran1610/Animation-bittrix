@@ -1,34 +1,64 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { projectPaths } from '../../config/paths.js';
+import { activeProviderService } from '../providers/activeProviderService.js';
 
 const execFileAsync = promisify(execFile);
-type ConnectionState = 'unknown' | 'connected' | 'failed';
+export type ConnectionState = 'unknown' | 'connected' | 'standby' | 'failed';
 
-/** Checks the existing local Codex CLI login; credentials never cross the API boundary. */
 class CodexAuthService {
-  private lastState: ConnectionState = 'unknown';
-  private lastMessage = 'Codex has not been verified in this backend session.';
-
   async status() {
     const cliAvailable = await this.isCliAvailable();
     if (!cliAvailable) {
-      return { cliAvailable: false, state: 'failed' as const, message: 'Codex CLI is not installed or is unavailable on PATH.' };
+      return {
+        cliAvailable: false,
+        state: 'failed' as const,
+        isActive: false,
+        message: 'Codex CLI is not installed or unavailable on PATH.',
+      };
     }
 
     try {
       await execFileAsync('codex', ['login', 'status'], { timeout: 5_000, cwd: projectPaths.root });
-      this.lastState = 'connected';
-      this.lastMessage = 'Codex is connected on this machine.';
+      const isActive = activeProviderService.get() === 'codex';
+      return {
+        cliAvailable: true,
+        state: (isActive ? 'connected' : 'standby') as ConnectionState,
+        isActive,
+        message: isActive
+          ? 'Codex is connected as the ACTIVE CLI provider.'
+          : 'Codex is verified and ready on this machine (Standby).',
+      };
     } catch {
-      this.lastState = 'failed';
-      this.lastMessage = 'Codex is installed but not logged in. Run `codex login` in this terminal.';
+      return {
+        cliAvailable: true,
+        state: 'failed' as const,
+        isActive: false,
+        message: 'Codex is installed but not logged in. Run `codex login` in terminal.',
+      };
     }
-    return { cliAvailable: true, state: this.lastState, message: this.lastMessage };
   }
 
-  async start() {
+  async connect() {
+    const stat = await this.status();
+    if (stat.state === 'failed' || !stat.cliAvailable) {
+      return stat;
+    }
+    // Activate Codex as the ONLY connected provider
+    activeProviderService.set('codex');
     return this.status();
+  }
+
+  async disconnect() {
+    if (activeProviderService.get() === 'codex') {
+      activeProviderService.disconnect();
+    }
+    return this.status();
+  }
+
+  // Backward compatibility alias for start()
+  async start() {
+    return this.connect();
   }
 
   private async isCliAvailable(): Promise<boolean> {

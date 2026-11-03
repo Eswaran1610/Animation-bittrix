@@ -1,4 +1,5 @@
-import { AIProvider, ResearchAndScriptRequest, ResearchAndScriptResult, AnimationCodeRequest, AnimationCodeResult, TokenUsage } from './providerAdapter.js';
+import { AIProvider, ResearchAndScriptRequest, ResearchAndScriptResult, AnimationCodeRequest, AnimationCodeResult, TokenUsage, StyleBrief } from './providerAdapter.js';
+import { generateInternalPlan } from './internalPlanGenerator.js';
 import { spawn } from 'child_process';
 import { readFile } from 'fs/promises';
 import { existsSync, readFileSync } from 'fs';
@@ -9,15 +10,28 @@ import { realtime } from '../../realtime.js';
 
 const activeCodexChildren = new Set<ReturnType<typeof spawn>>();
 
+const signalCodexProcessTree = (child: ReturnType<typeof spawn>, signal: NodeJS.Signals) => {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  if (process.platform !== 'win32' && child.pid) {
+    try {
+      process.kill(-child.pid, signal);
+      return;
+    } catch {
+      // The group may already have exited; fall back to the direct child.
+    }
+  }
+  child.kill(signal);
+};
+
 export const shutdownCodexProcesses = () => {
   const children = [...activeCodexChildren];
   for (const child of children) {
-    if (!child.killed) child.kill('SIGTERM');
+    signalCodexProcessTree(child, 'SIGTERM');
   }
   if (children.length > 0) {
     const forceKillTimer = setTimeout(() => {
       for (const child of children) {
-        if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+        signalCodexProcessTree(child, 'SIGKILL');
       }
     }, 1500);
     forceKillTimer.unref();
@@ -41,6 +55,56 @@ const SUPPORTED_3D_PRIMITIVES = ['sphere', 'cube', 'torus', 'cylinder', 'molecul
 const SUPPORTED_TEMPLATES = ['hero-object', 'split-compare', 'stat-callout', 'list-reveal', 'quote-focus', 'timeline', 'steps-numbered', 'map-pin', 'chart-bar', 'before-after', 'question-hook', 'cta-outro', 'product-showcase', 'fact-card', 'icon-grid'] as const;
 const MAX_BLUEPRINT_OBJECTS_PER_SCENE = 8;
 
+const MOTION_CONTRACT = (() => {
+  try {
+    return JSON.parse(readFileSync(path.join(projectPaths.root, 'motion-contract.json'), 'utf8')) as Record<string, unknown>;
+  } catch {
+    return {
+      archetypes: ['kinetic-type', 'isometric-diagram', 'data-story', 'paper-cutout', 'neo-brutalist', 'glass-ui', 'blueprint-technical', 'retro-terminal'],
+      motionPersonalities: ['snappy', 'fluid', 'bouncy', 'precise'],
+      backgrounds: ['grid', 'particles', 'gradient-flow', 'halftone', 'lines'],
+      sfxPacks: ['digital', 'organic', 'cinematic', 'playful'],
+      transitions: ['slide', 'wipe', 'flip', 'fade', 'push', 'whip'],
+      fonts: ['Arial', 'Georgia', 'Trebuchet MS', 'Courier New', 'Impact'],
+    };
+  }
+})();
+
+const DEFAULT_STYLE_BRIEF: StyleBrief = {
+  archetype: 'blueprint-technical',
+  palette: { bg: '#05070f', primary: '#2EC4B6', accent: '#F59E0B', text: '#F8FAFC' },
+  fonts: { heading: 'Arial', body: 'Arial' },
+  motionPersonality: 'precise',
+  transitionSet: ['slide', 'push'],
+  background: 'grid',
+  sfxPack: 'digital',
+  bedMood: 'focused electronic pulse',
+};
+
+const styleProfileFromBrief = (brief: StyleBrief): StyleProfile => {
+  const familyByArchetype: Record<StyleBrief['archetype'], StyleProfile['family']> = {
+    'kinetic-type': 'playful-pop',
+    'isometric-diagram': 'technical-terminal',
+    'data-story': 'documentary-grid',
+    'paper-cutout': 'editorial-paper',
+    'neo-brutalist': 'playful-pop',
+    'glass-ui': 'cinematic-neon',
+    'blueprint-technical': 'technical-terminal',
+    'retro-terminal': 'technical-terminal',
+  };
+  return {
+    family: familyByArchetype[brief.archetype],
+    motif: `${brief.archetype} with ${brief.background} motion field`,
+    background: brief.palette.bg,
+    surface: brief.palette.bg,
+    text: brief.palette.text,
+    primary: brief.palette.primary,
+    secondary: brief.palette.accent,
+    motion_language: `${brief.motionPersonality} motion with ${brief.fonts.heading} kinetic typography`,
+    transition_language: brief.transitionSet.join(' and '),
+  };
+};
+
 const installedModelManifest = () => {
   try {
     return JSON.parse(readFileSync(path.join(projectPaths.remotionRoot, 'src/data/modelLibrary.json'), 'utf8')) as {
@@ -62,10 +126,15 @@ const BACKEND_CODEX_RULES = `
 - Create 7-9 content-specific scenes; use the requested duration when supplied, otherwise total 25-40 seconds.
 - Use role hook for scene 1, body for middle scenes, and cta for the final scene.
 - Select each scene template from the meaning of that scene, not from a fixed playlist. Use question-hook only for the opening question, cta-outro only for the final viewer action, hero-object for one dominant subject, product-showcase for a real product/device, split-compare or before-after only for two explicit sides/states, stat-callout or chart-bar only when the submitted content supports real numeric data, list-reveal or icon-grid for grouped items, timeline for ordered events, steps-numbered for a process, map-pin for a place/route, quote-focus for a real quote, fact-card for one focused fact, and hero-object or fact-card when no specialized structure is justified.
-- Reusing a template is allowed when the content calls for the same visual structure. Repeated scenes must still have different narration, purpose, objects, layout, or motion; never change a semantically correct template merely to create artificial variety.
+- Adjacent scenes must use different templates. Every scene must be content-specific, and the template must explain that scene's meaning; do not recycle the old template sequence or use random variety.
 - Treat every scene as a distinct slideshow/UI slide when the content supports it: prefer a different supported template from the adjacent scene, a different layout composition, and a different camera/motion language. Do not follow a hard-coded template order and do not create random variety that weakens the explanation.
 - Author object labels, render types, and motion so the renderer can create matching sound events: UI controls/tabs/links for click, text/bullets for tick, numbers for count, paths/diagrams for draw, rotating or traveling subjects for whoosh/slide, and results/checks for ding/chime. Do not make a scene text-only.
 - Every scene needs purposeful frame-driven motion, narration, a visual blueprint, and at least two distinct objects.
+- Plan audio with motion: every moving object's entrance/travel/reveal must map to a suitable SFX event, and every scene cut must map to its transition sound. Use the same local frame as the visual event, account for each SFX transient when placing its audio start, and keep dialogue intelligible by limiting overlapping effects. No unrelated decorative sound cues.
+- Make the scene plan render-ready: scene duration, narration length, object motion frames, transition overlap, and sound event frames must fit the same 30 fps timeline. Leave audio tail room and never schedule events outside their scene.
+- Stage 1 preview is the complete motion-graphics review render: compose the researched images, icons, screen elements, and moving objects in the scene; animate object movement and scene transitions; synchronize object and transition sound effects to those events. Do not submit a static storyboard or a text-only preview.
+- For researched topics, use one focused web-search pass to verify factual claims and find suitable, license-verified media candidates. Use relevant procedural visuals when they explain the subject better than stock media, and record the reason in researchNotes.
+- Design a required top-level styleBrief before the scene plan. It must choose one archetype, palette, fonts, motion personality, transition set, background system, SFX pack, and bed mood from the supplied renderer vocabulary. Do not reuse a recent project's style signature.
 - Use only supported blueprint render types and content-specific assets/primitives.
 - Keep headlines to 6 words and 40 characters maximum.
 - Keep the full visual palette within the backend validation limit.
@@ -79,6 +148,9 @@ export class CodexProvider implements AIProvider {
   name = 'codex';
 
   private requestedDurationSec(input: ResearchAndScriptRequest): number | undefined {
+    if (Number.isInteger(input.requestedDurationSec) && Number(input.requestedDurationSec) >= 20 && Number(input.requestedDurationSec) <= 40) {
+      return Number(input.requestedDurationSec);
+    }
     const match = `${input.topicOrContent} ${input.changeRequestFeedback || ''}`.match(/\b(\d{1,3})\s*(?:s|sec|secs|second|seconds)\b/i);
     const seconds = match ? Number(match[1]) : undefined;
     return seconds && seconds >= 20 && seconds <= 40 ? seconds : undefined;
@@ -92,15 +164,27 @@ export class CodexProvider implements AIProvider {
   }
 
   private actualTimelineDurationSec(scenes: any[]): number {
-    return scenes.reduce((sum, scene) => sum + Number(scene.duration_sec || 0), 0) - this.sceneTransitionOverlapSec(scenes);
+    // Scene durations and transition overlaps are decimal seconds. Normalize
+    // the aggregate before validation so IEEE-754 noise such as
+    // 30.000000000000004 cannot trigger a repair loop for an exact 30s request.
+    const total = scenes.reduce((sum, scene) => sum + Number(scene.duration_sec || 0), 0) - this.sceneTransitionOverlapSec(scenes);
+    return Number(total.toFixed(3));
   }
 
   private requiresImportedImage(input: ResearchAndScriptRequest): boolean {
     return /\bimages?\b|import(?:ed|\s+an?)?\s+image/i.test(`${input.topicOrContent} ${input.changeRequestFeedback || ''}`);
   }
 
+  private requiresSceneRelevantImages(input: ResearchAndScriptRequest): boolean {
+    return /\b(teach|teaching|student|students|learn|learning|lesson|education|educational|fruit|fruits|animal|animals|planet|planets|flower|flowers)\b/i.test(`${input.topicOrContent} ${input.changeRequestFeedback || ''}`);
+  }
+
   private requiresProduct3D(input: ResearchAndScriptRequest): boolean {
-    return /\b(3d|keyboard|mouse|headset|laptop|phone|apple|fruit|tree|basket|bucket|product\s+(?:ad|showcase)|advertisement|commercial)\b/i.test(`${input.topicOrContent} ${input.changeRequestFeedback || ''}`);
+    const content = `${input.topicOrContent} ${input.changeRequestFeedback || ''}`;
+    if (/\b(teach|teaching|student|students|learn|learning|lesson|education|educational)\b/i.test(content) && !/\b(product|advertisement|commercial|3d)\b/i.test(content)) {
+      return false;
+    }
+    return /\b(3d|keyboard|mouse|headset|laptop|phone|apple|fruit|tree|basket|bucket|product\s+(?:ad|showcase)|advertisement|commercial)\b/i.test(content);
   }
 
   private isWebsiteVisit(input: ResearchAndScriptRequest): boolean {
@@ -170,13 +254,14 @@ export class CodexProvider implements AIProvider {
     const models = INSTALLED_MODEL_MANIFEST;
     return {
       composition: { id: 'MainComposition', width: 1080, height: 1920, fps: 30, renderer: 'Remotion; fixed composition; no generated TSX or other renderers' },
-      sceneRules: { count: '7-9', plannedDurationSecondsEach: '2.5-5', totalSeconds: '25-40 unless the request specifies 20-40 seconds', transitionFrames: '8-15 between scenes; none after final scene', objectsPerScene: `2-${MAX_BLUEPRINT_OBJECTS_PER_SCENE}`, narrationWordsPerPlannedSecondMax: 1.7, narrationTailSeconds: 8 / 30, measuredTiming: 'Backend may redistribute scene frames after TTS measurement while preserving approved narration and exact total runtime; rendered scenes are capped at 6.5 seconds.', headlineWordsMax: 6, headlineCharactersMax: 40 },
+      styleBrief: { required: true, vocabulary: MOTION_CONTRACT, signature: 'archetype + motionPersonality + background + primary hue bucket' },
+      sceneRules: { count: '7-9', plannedDurationSecondsEach: '2.5-5', totalSeconds: '25-40 unless the request specifies 20-40 seconds', transitionFrames: '8-15 between scenes; none after final scene', objectsPerScene: `2-${MAX_BLUEPRINT_OBJECTS_PER_SCENE}`, narrationWordsPerPlannedSecondMax: 1.5, narrationTailSeconds: 8 / 30, measuredTiming: 'Kokoro measured audio must fit approved scene frames; approved narration is never sped up. Validate every scene before approval.', headlineWordsMax: 6, headlineCharactersMax: 40 },
       sceneSchema: ['scene_number', 'role', 'template', 'duration_sec', 'on_screen_text', 'subtitle', 'key_takeaways', 'concept_nodes', 'metric_data', 'image_search_query', 'narration', 'visual_direction', 'motion_cue', 'continuity_to_next', 'transition_out_frames', 'theme_color', 'visual_type="blueprint"', 'visual_blueprint={purpose,layout,camera_motion,asset_queries,objects}'],
-      objectSchema: { required: ['id', 'x', 'y', 'motion', 'render_spec'], optional: ['label', 'detail', 'to_x', 'to_y', 'scale', 'rotation', 'color', 'motion_plan'], renderSpecFields: ['type', 'primitive', 'model_id', 'asset_download_url', 'model_download_url', 'asset_source_url', 'asset_license', 'asset_attribution', 'viewBox', 'paths', 'circles', 'rects', 'lines', 'polygons', 'text', 'asset_query'], motionPlan: { enter_frame: 'optional integer frame', exit_frame: 'optional integer frame', idle: ['float', 'pulse', 'orbit', 'shimmer', 'drift'], focal: 'optional boolean' }, vectorShapeListMax: 24 },
+      objectSchema: { required: ['id', 'x', 'y', 'motion', 'render_spec', 'motion_plan'], optional: ['label', 'detail', 'to_x', 'to_y', 'scale', 'rotation', 'color'], renderSpecFields: ['type', 'primitive', 'model_id', 'asset_download_url', 'model_download_url', 'asset_source_url', 'asset_license', 'asset_attribution', 'viewBox', 'paths', 'circles', 'rects', 'lines', 'polygons', 'text', 'asset_query'], motionPlan: { enter_frame: 'integer frame', hold_start_frame: 'integer frame', hold_end_frame: 'integer frame', exit_frame: 'integer frame', stagger_frames: 'integer 0-20', easing: ['spring', 'easeOut', 'linear'], idle: ['float', 'pulse', 'orbit', 'shimmer', 'drift'], focal: 'optional boolean' }, vectorShapeListMax: 24 },
       supported: { roles: ['hook', 'body', 'cta'], templates: SUPPORTED_TEMPLATES, renderTypes: SUPPORTED_RENDER_TYPES, procedural3D: SUPPORTED_3D_PRIMITIVES, imageFormats: ['PNG', 'JPEG', 'WebP', 'GIF'], external3DFormat: 'self-contained GLB 2.0', externalModelMaxMB: 30, externalImageMaxMB: 20 },
       installedModelLibrary: { file: models.library_file || null, validModelIds: Object.keys(models.models || {}) },
       assetHandoff: 'Return exact HTTPS direct-download URLs, source page URLs, license labels, and attribution. The read-only Codex CLI selects assets; after Gate 1 the backend downloads, validates, stores, and stages them in the project preview-version folder, then injects project-local Remotion public URLs into props. Never claim an asset was downloaded. No asset provider account, Poly Pizza integration, or asset-catalog API key is required.',
-      motionAndAudio: { animation: 'Every image, vector, text, and 3D object is frame-animated by Remotion; custom per-job TSX is not supported.', sfxRoles: ['pop', 'click', 'tick', 'whoosh', 'slide', 'riser', 'impact', 'sparkle', 'chime', 'draw', 'count', 'ding'], soundChoice: 'Object labels, type, and motion choose a matching procedural sound role; transition events use whoosh.', synchronization: 'The backend measures each cue transient and schedules it against the matching visual frame; narration, object cues, and the audio bed are mixed in Remotion. ffprobe checks media streams and verify_sync.py blocks output on failed cue alignment.' },
+      motionAndAudio: { animation: 'Every image, vector, text, and 3D object is frame-animated by Remotion; TSX is an internal composition input.', sfxRoles: ['pop', 'click', 'tick', 'whoosh', 'slide', 'riser', 'impact', 'sparkle', 'chime', 'draw', 'count', 'ding'], soundChoice: 'Match each audible effect to the object/action; transitions use whoosh/slide. Avoid redundant sounds.', synchronization: 'Schedule cue hit frame on the visible event, subtract measured transient duration from source start, globalize scene-local frames using exact transition overlaps, mix narration/SFX/bed in Remotion, verify audio/video duration and each transient before MP4 delivery.' },
       delivery: { finalContainer: 'MP4', completedVideoUrl: '/media/videos/{projectId}_final.mp4', internalInputs: ['scene props JSON', 'per-scene narration', 'per-preview SFX', 'audio bed', 'downloaded image/GLB assets'], reviewStage: 'Gate 2 plays a review MP4; only the approved final MP4 is delivered as the completed video.' },
     };
   }
@@ -185,14 +270,14 @@ export class CodexProvider implements AIProvider {
    * Helper to execute CODEX CLI with prompt and timeout.
    */
   private extractTokenUsage(output: string, prompt: string): TokenUsage {
-    const estimatedInput = Math.max(1, Math.ceil(prompt.length / 4));
-    const estimatedOutput = Math.max(1, Math.ceil(output.length / 4));
+    void prompt;
     const usage: TokenUsage = {
-      input_tokens: estimatedInput,
-      output_tokens: estimatedOutput,
-      total_tokens: estimatedInput + estimatedOutput,
-      estimated: true,
-      source: 'estimated'
+      input_tokens: 0,
+      output_tokens: 0,
+      total_tokens: 0,
+      estimated: false,
+      available: false,
+      source: 'unavailable'
     };
 
     const candidates: any[] = [];
@@ -215,10 +300,11 @@ export class CodexProvider implements AIProvider {
       const outputTokens = Number(candidate.output_tokens ?? candidate.outputTokens ?? candidate.completion_tokens ?? candidate.completionTokens);
       const total = Number(candidate.total_tokens ?? candidate.totalTokens);
       if (Number.isFinite(input) || Number.isFinite(outputTokens) || Number.isFinite(total)) {
-        usage.input_tokens = Number.isFinite(input) ? input : estimatedInput;
-        usage.output_tokens = Number.isFinite(outputTokens) ? outputTokens : estimatedOutput;
+        usage.input_tokens = Number.isFinite(input) ? input : 0;
+        usage.output_tokens = Number.isFinite(outputTokens) ? outputTokens : 0;
         usage.total_tokens = Number.isFinite(total) ? total : usage.input_tokens + usage.output_tokens;
         usage.estimated = false;
+        usage.available = true;
         usage.source = 'codex';
         return usage;
       }
@@ -227,7 +313,6 @@ export class CodexProvider implements AIProvider {
   }
 
   private async runCodex(prompt: string, timeoutMs = 240000, projectId?: string): Promise<{ output: string; tokenUsage: TokenUsage }> {
-    const estimatedInput = Math.max(1, Math.ceil(prompt.length / 4));
     let output = '';
     let errorOutput = '';
     let lastUsageEvent = 0;
@@ -237,14 +322,10 @@ export class CodexProvider implements AIProvider {
       const now = Date.now();
       if (active && now - lastUsageEvent < 250) return;
       lastUsageEvent = now;
-      const estimatedOutput = Math.max(0, Math.ceil(output.length / 4));
       realtime.publish({
         type: 'codex_usage_progress',
         projectId,
-        input_tokens: estimatedInput,
-        output_tokens: estimatedOutput,
-        total_tokens: estimatedInput + estimatedOutput,
-        estimated: true,
+        available: false,
         active,
       });
     };
@@ -263,16 +344,17 @@ export class CodexProvider implements AIProvider {
       ], {
         cwd: projectPaths.root,
         stdio: ['ignore', 'pipe', 'pipe'],
+        detached: process.platform !== 'win32',
       });
       activeCodexChildren.add(child);
       let forceKillTimer: NodeJS.Timeout | undefined;
       const timer = setTimeout(() => {
         timedOut = true;
-        child.kill('SIGTERM');
+        signalCodexProcessTree(child, 'SIGTERM');
         // Some CODEX/tool subprocesses do not close promptly after SIGTERM. Do
         // not leave the backend or tsx watcher waiting forever.
         forceKillTimer = setTimeout(() => {
-          if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+          signalCodexProcessTree(child, 'SIGKILL');
         }, 2000);
       }, timeoutMs);
       await new Promise<void>((resolve, reject) => {
@@ -289,8 +371,19 @@ export class CodexProvider implements AIProvider {
           clearTimeout(timer);
           if (forceKillTimer) clearTimeout(forceKillTimer);
           if (timedOut) reject(new Error(`CODEX CLI timed out after ${Math.round(timeoutMs / 1000)} seconds.`));
-          else if (code !== 0) reject(new Error(`CODEX CLI exited with code ${code}: ${errorOutput.trim().slice(-500)}`));
-          else resolve();
+          else if (code !== 0) {
+            let errorMsg = '';
+            for (const line of output.split(/\r?\n/)) {
+              try {
+                const event = JSON.parse(line);
+                if (event?.type === 'error' && event.message) errorMsg = event.message;
+                if (event?.error?.message) errorMsg = event.error.message;
+              } catch {}
+            }
+            const fallbackErr = errorOutput.trim().replace(/^Reading additional input from stdin\.\.\.\s*/i, '').slice(-500);
+            const finalMsg = errorMsg || fallbackErr || `Process exited with code ${code}`;
+            reject(new Error(`CODEX CLI: ${finalMsg}`));
+          } else resolve();
         });
       });
       publishLiveUsage(true);
@@ -589,19 +682,40 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
   private normalizeGeneratedPlan(parsed: any, input?: ResearchAndScriptRequest): any {
     if (!parsed || !Array.isArray(parsed.scenePlan) || parsed.scenePlan.length === 0) return parsed;
 
-    // 1. Style profile defaults & verification
+    // 1. Normalize the required style brief first. The older styleProfile is
+    // retained as a renderer compatibility projection, but styleBrief is the
+    // source of truth for variety, motion, backgrounds, and sound character.
+    const rawBrief = parsed.styleBrief && typeof parsed.styleBrief === 'object' ? parsed.styleBrief : {};
+    const allowedArchetypes = new Set((MOTION_CONTRACT.archetypes as string[]) || []);
+    const allowedPersonalities = new Set((MOTION_CONTRACT.motionPersonalities as string[]) || []);
+    const allowedBackgrounds = new Set((MOTION_CONTRACT.backgrounds as string[]) || []);
+    const allowedSfxPacks = new Set((MOTION_CONTRACT.sfxPacks as string[]) || []);
+    const allowedTransitions = new Set((MOTION_CONTRACT.transitions as string[]) || []);
+    const hex = (value: unknown, fallback: string) => /^#[0-9a-f]{6}$/i.test(String(value || '')) ? String(value) : fallback;
+    const brief: StyleBrief = {
+      archetype: allowedArchetypes.has(rawBrief.archetype) ? rawBrief.archetype : DEFAULT_STYLE_BRIEF.archetype,
+      palette: {
+        bg: hex(rawBrief.palette?.bg, DEFAULT_STYLE_BRIEF.palette.bg),
+        primary: hex(rawBrief.palette?.primary, DEFAULT_STYLE_BRIEF.palette.primary),
+        accent: hex(rawBrief.palette?.accent, DEFAULT_STYLE_BRIEF.palette.accent),
+        text: hex(rawBrief.palette?.text, DEFAULT_STYLE_BRIEF.palette.text),
+      },
+      fonts: {
+        heading: typeof rawBrief.fonts?.heading === 'string' && rawBrief.fonts.heading.trim() ? rawBrief.fonts.heading : DEFAULT_STYLE_BRIEF.fonts.heading,
+        body: typeof rawBrief.fonts?.body === 'string' && rawBrief.fonts.body.trim() ? rawBrief.fonts.body : DEFAULT_STYLE_BRIEF.fonts.body,
+      },
+      motionPersonality: allowedPersonalities.has(rawBrief.motionPersonality) ? rawBrief.motionPersonality : DEFAULT_STYLE_BRIEF.motionPersonality,
+      transitionSet: Array.isArray(rawBrief.transitionSet) ? rawBrief.transitionSet.filter((value: unknown) => allowedTransitions.has(String(value))).slice(0, 3) : [],
+      background: allowedBackgrounds.has(rawBrief.background) ? rawBrief.background : DEFAULT_STYLE_BRIEF.background,
+      sfxPack: allowedSfxPacks.has(rawBrief.sfxPack) ? rawBrief.sfxPack : DEFAULT_STYLE_BRIEF.sfxPack,
+      bedMood: typeof rawBrief.bedMood === 'string' && rawBrief.bedMood.trim() ? rawBrief.bedMood.trim().slice(0, 120) : DEFAULT_STYLE_BRIEF.bedMood,
+    };
+    if (!brief.transitionSet.length) brief.transitionSet = [...DEFAULT_STYLE_BRIEF.transitionSet];
+    parsed.styleBrief = brief;
+
+    // 2. Style profile defaults & verification
     if (!parsed.styleProfile || typeof parsed.styleProfile !== 'object') {
-      parsed.styleProfile = {
-        family: 'cinematic-neon',
-        motif: 'high-contrast dynamic motion geometry',
-        background: '#05070f',
-        surface: '#111827',
-        text: '#F8FAFC',
-        primary: '#2EC4B6',
-        secondary: '#F59E0B',
-        motion_language: 'snappy spring physics with kinetic typography',
-        transition_language: 'directional whip pans and smooth push overlaps',
-      };
+      parsed.styleProfile = styleProfileFromBrief(brief);
     } else {
       const sp = parsed.styleProfile;
       const validFamilies = ['cinematic-neon', 'editorial-paper', 'playful-pop', 'technical-terminal', 'documentary-grid'];
@@ -615,6 +729,9 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
       if (!/^#[0-9a-f]{6}$/i.test(sp.primary || '')) sp.primary = '#2EC4B6';
       if (!/^#[0-9a-f]{6}$/i.test(sp.secondary || '')) sp.secondary = '#F59E0B';
     }
+
+    // Keep legacy styleProfile colors aligned with the validated brief.
+    parsed.styleProfile = { ...parsed.styleProfile, ...styleProfileFromBrief(brief), family: parsed.styleProfile.family || styleProfileFromBrief(brief).family };
 
     const styleProfile = parsed.styleProfile;
     const baseColors = [styleProfile.primary, styleProfile.secondary]
@@ -831,6 +948,16 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
         seenIds.add(obj.id);
         if (!Number.isFinite(obj.x) || obj.x < 0 || obj.x > 1) obj.x = Math.max(0.15, Math.min(0.85, 0.3 + (oIdx * 0.25) % 0.6));
         if (!Number.isFinite(obj.y) || obj.y < 0 || obj.y > 1) obj.y = Math.max(0.15, Math.min(0.85, 0.4 + (oIdx * 0.2) % 0.4));
+        const motionPlan = obj.motion_plan && typeof obj.motion_plan === 'object' ? obj.motion_plan : {};
+        const sceneFrames = Math.max(75, Math.round(Number(scene.duration_sec || 3.5) * 30));
+        motionPlan.enter_frame = Number.isInteger(motionPlan.enter_frame) ? Math.max(0, Math.min(sceneFrames - 30, motionPlan.enter_frame)) : 10 + oIdx * 5;
+        motionPlan.hold_start_frame = Number.isInteger(motionPlan.hold_start_frame) ? Math.max(motionPlan.enter_frame + 1, Math.min(sceneFrames - 15, motionPlan.hold_start_frame)) : motionPlan.enter_frame + 18;
+        motionPlan.hold_end_frame = Number.isInteger(motionPlan.hold_end_frame) ? Math.max(motionPlan.hold_start_frame + 1, Math.min(sceneFrames - 8, motionPlan.hold_end_frame)) : sceneFrames - 22;
+        motionPlan.exit_frame = Number.isInteger(motionPlan.exit_frame) ? Math.max(motionPlan.hold_end_frame + 1, Math.min(sceneFrames - 1, motionPlan.exit_frame)) : sceneFrames - 16;
+        motionPlan.stagger_frames = Number.isInteger(motionPlan.stagger_frames) ? Math.max(0, Math.min(20, motionPlan.stagger_frames)) : 5;
+        motionPlan.easing = ['spring', 'easeOut', 'linear'].includes(motionPlan.easing) ? motionPlan.easing : 'spring';
+        motionPlan.idle = ['float', 'pulse', 'orbit', 'shimmer', 'drift'].includes(motionPlan.idle) ? motionPlan.idle : 'drift';
+        obj.motion_plan = motionPlan;
         if (!obj.render_spec || typeof obj.render_spec !== 'object' || !['vector', 'image', 'text', '3d'].includes(obj.render_spec.type)) {
           obj.render_spec = {
             type: 'vector',
@@ -872,6 +999,15 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
           }
         });
       }
+
+      // Fallback objects added above must obey the same structured motion
+      // contract as model-authored objects.
+      bp.objects.forEach((obj: any, oIdx: number) => {
+        if (!obj.motion_plan) {
+          const sceneFrames = Math.max(75, Math.round(scene.duration_sec * 30));
+          obj.motion_plan = { enter_frame: 10 + oIdx * 5, hold_start_frame: 28 + oIdx * 5, hold_end_frame: sceneFrames - 22, exit_frame: sceneFrames - 16, stagger_frames: 5, easing: 'spring', idle: 'drift' };
+        }
+      });
 
       // Ensure objects have distinct signatures
       const seenSignatures = new Set<string>();
@@ -1101,6 +1237,9 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
     }
     const requestedDuration = this.requestedDurationSec(input);
     const plannedDuration = this.actualTimelineDurationSec(scenes);
+    const narrationWords = scenes.reduce((total: number, scene: any) => total + (String(scene?.narration || '').match(/\S+/g) || []).length, 0);
+    const narrationBudget = Math.floor((requestedDuration || plannedDuration) * 1.5);
+    if (narrationWords > narrationBudget) add(`Narration is ${narrationWords} words; hard maximum is ${narrationBudget} words for ${requestedDuration || plannedDuration}s at 1.5 words/second. Rewrite all scene narration to fit; do not preserve an overlong narration.`);
     if (requestedDuration && Math.abs(plannedDuration - requestedDuration) > 0.001) {
       add(`CODEX planned a ${plannedDuration.toFixed(2)}s rendered timeline after transition overlaps, but the request requires exactly ${requestedDuration}s.`);
     }
@@ -1108,6 +1247,12 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
     const maximumDuration = requestedDuration || 40;
     if (plannedDuration < minimumDuration || plannedDuration > maximumDuration) {
       add(`CODEX planned ${plannedDuration}s; the requested video duration must be between ${minimumDuration} and ${maximumDuration} seconds.`);
+    }
+    if (this.requiresSceneRelevantImages(input)) {
+      scenes.forEach((scene: any, index: number) => {
+        const imageObjects = (scene?.visual_blueprint?.objects || []).filter((object: any) => object?.render_spec?.type === 'image');
+        if (!imageObjects.length) add(`Educational scene ${index + 1} must contain at least one CODEX-selected topic-relevant image with its own asset_query.`);
+      });
     }
 
     const renderTypes = new Set<string>(SUPPORTED_RENDER_TYPES);
@@ -1206,6 +1351,9 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
         if (spec.type === 'image' && (!/^https:\/\//i.test(spec.asset_download_url || '') || !/^https:\/\//i.test(spec.asset_source_url || '') || !spec.asset_license)) {
           add(`CODEX returned an image without its direct download URL, source page, and license for visual blueprint object ${object.id} in ${label}.`);
         }
+        if (spec.type === 'image' && (typeof spec.asset_query !== 'string' || !spec.asset_query.trim())) {
+          add(`CODEX returned an image without a specific asset_query for visual blueprint object ${object.id} in ${label}; each image must be tied to its own subject.`);
+        }
         if ((spec.type === 'image' || spec.model_download_url) && (!/^https:\/\//i.test(spec.asset_source_url || '') || !spec.asset_license)) {
           add(`CODEX returned an external asset without a verified source page and license for visual blueprint object ${object.id} in ${label}.`);
         }
@@ -1275,8 +1423,29 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
       throw new Error('CODEX style profile text/background contrast is below the 4.5:1 accessibility threshold.');
     }
 
+    const brief = parsed.styleBrief;
+    const allowedArchetypes = new Set((MOTION_CONTRACT.archetypes as string[]) || []);
+    const allowedPersonalities = new Set((MOTION_CONTRACT.motionPersonalities as string[]) || []);
+    const allowedBackgrounds = new Set((MOTION_CONTRACT.backgrounds as string[]) || []);
+    const allowedSfxPacks = new Set((MOTION_CONTRACT.sfxPacks as string[]) || []);
+    const allowedTransitions = new Set((MOTION_CONTRACT.transitions as string[]) || []);
+    if (!brief || !allowedArchetypes.has(brief.archetype) || !allowedPersonalities.has(brief.motionPersonality) || !allowedBackgrounds.has(brief.background) || !allowedSfxPacks.has(brief.sfxPack) || !Array.isArray(brief.transitionSet) || !brief.transitionSet.length || !brief.transitionSet.every((value: unknown) => allowedTransitions.has(String(value))) || !brief.bedMood?.trim()) {
+      throw new Error('CODEX returned no complete styleBrief from the supported motion vocabulary.');
+    }
+    for (const field of ['bg', 'primary', 'accent', 'text']) {
+      if (!/^#[0-9a-f]{6}$/i.test(brief.palette?.[field] || '')) throw new Error(`CODEX returned an invalid styleBrief palette color: ${field}.`);
+    }
+    if (contrastRatio(brief.palette.text, brief.palette.bg) < 4.5) {
+      throw new Error('CODEX styleBrief text/background contrast is below the 4.5:1 accessibility threshold.');
+    }
+
     const requestedDuration = this.requestedDurationSec(input);
     const plannedDuration = this.actualTimelineDurationSec(parsed.scenePlan);
+    const narrationWords = parsed.scenePlan.reduce((total: number, scene: any) => total + (String(scene?.narration || '').match(/\S+/g) || []).length, 0);
+    const narrationBudget = Math.floor((requestedDuration || plannedDuration) * 1.5);
+    if (narrationWords > narrationBudget) {
+      throw new Error(`CODEX narration is ${narrationWords} words; the ${requestedDuration || plannedDuration}s target allows at most ${narrationBudget} words (1.5 words/second). Regenerate the script with shorter narration before approval.`);
+    }
     if (requestedDuration && Math.abs(plannedDuration - requestedDuration) > 0.001) {
       throw new Error(`CODEX planned a ${plannedDuration.toFixed(2)}s rendered timeline after transition overlaps, but the request requires exactly ${requestedDuration}s.`);
     }
@@ -1287,6 +1456,12 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
     const maximumDuration = requestedDuration || 40;
     if (plannedDuration < minimumDuration || plannedDuration > maximumDuration) {
       throw new Error(`CODEX planned ${plannedDuration}s; the requested video duration must be between ${minimumDuration} and ${maximumDuration} seconds.`);
+    }
+    if (this.requiresSceneRelevantImages(input)) {
+      parsed.scenePlan.forEach((scene: any, index: number) => {
+        const imageObjects = (scene?.visual_blueprint?.objects || []).filter((object: any) => object?.render_spec?.type === 'image');
+        if (!imageObjects.length) throw new Error(`Educational scene ${index + 1} must contain at least one CODEX-selected topic-relevant image with its own asset_query.`);
+      });
     }
     const paletteColors = new Set<string>([styleProfile.primary.toLowerCase(), styleProfile.secondary.toLowerCase()]);
 
@@ -1381,6 +1556,10 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
         if (typeof object.motion !== 'string' || !object.motion.trim()) {
           throw new Error(`Visual object ${object.id} in ${label} has no purposeful motion description.`);
         }
+        const motionPlan = object.motion_plan;
+        if (!motionPlan || !Number.isInteger(motionPlan.enter_frame) || !Number.isInteger(motionPlan.hold_start_frame) || !Number.isInteger(motionPlan.hold_end_frame) || !Number.isInteger(motionPlan.exit_frame) || !Number.isInteger(motionPlan.stagger_frames) || !['spring', 'easeOut', 'linear'].includes(motionPlan.easing) || motionPlan.enter_frame >= motionPlan.hold_start_frame || motionPlan.hold_start_frame >= motionPlan.hold_end_frame || motionPlan.hold_end_frame >= motionPlan.exit_frame) {
+          throw new Error(`Visual object ${object.id} in ${label} has an invalid motion_plan; require enter, hold, exit, stagger, and easing fields in frame order.`);
+        }
         if (spec.type === '3d' && spec.model_id !== undefined && (typeof spec.model_id !== 'string' || !spec.model_id.trim())) {
           throw new Error(`CODEX returned an empty 3D model_id for visual blueprint object ${object.id} in ${label}.`);
         }
@@ -1401,6 +1580,9 @@ The previous CODEX request timed out while waiting for a response. ${fastCreativ
         }
         if (spec.type === 'image' && (!/^https:\/\//i.test(spec.asset_download_url || '') || !/^https:\/\//i.test(spec.asset_source_url || '') || !spec.asset_license)) {
           throw new Error(`CODEX returned an image without its direct download URL, source page, and license for visual blueprint object ${object.id} in ${label}.`);
+        }
+        if (spec.type === 'image' && (typeof spec.asset_query !== 'string' || !spec.asset_query.trim())) {
+          throw new Error(`CODEX returned an image without a specific asset_query for visual blueprint object ${object.id} in ${label}; each image must be tied to its own subject.`);
         }
         if ((spec.type === 'image' || spec.model_download_url) && (!/^https:\/\//i.test(spec.asset_source_url || '') || !spec.asset_license)) {
           throw new Error(`CODEX returned an external asset without a verified source page and license for visual blueprint object ${object.id} in ${label}.`);
@@ -1492,8 +1674,9 @@ END SUBMITTED CONTENT
 INPUT TYPE: ${req.inputType}
 BACKEND-CONTROLLED PRODUCTION RULES:
 ${BACKEND_CODEX_RULES}
-${requestedDuration ? `TARGET DURATION: the final rendered composition must be exactly ${requestedDuration} seconds. Transition overlaps shorten the timeline, so choose scene durations that sum to the target PLUS all transition overlap frames divided by 30 fps. Plan each scene between 2.5 and 5 seconds; keep narration at or below 1.7 words per planned second and leave at least 0.27 seconds of tail room.` : ''}
+${requestedDuration ? `TARGET DURATION: final rendered composition exactly ${requestedDuration} seconds. Hard narration limit: at most ${Math.floor(requestedDuration * 1.5)} spoken words TOTAL across all scenes (1.5 words/second). Count every spoken word before returning JSON. Spread the words across 7-9 scenes proportionally to their duration; aim for no more than ${Math.max(1, Math.floor((requestedDuration * 1.5) / 8))} words per scene on average. If the submitted content is too broad, select the most important points and omit secondary details. Never exceed the total word limit. Keep at least 0.27 seconds of audio tail per scene. Scene durations must sum to target plus transition overlap frames divided by 30 fps.` : ''}
 ${this.requiresImportedImage(req) ? 'IMPORTED IMAGE REQUIREMENT: Include at least one real image object with render_spec.type "image". Codex must web-search and select the best relevant open-license image, then return its direct downloadable file URL as asset_download_url, its source page as asset_source_url, exact asset_license, and any required asset_attribution. Keep it in the visual safe area; never place it under the text safe area.' : ''}
+${this.requiresSceneRelevantImages(req) ? 'EDUCATIONAL SUBJECT IMAGE REQUIREMENT: This request teaches a visual subject. Every scene must include at least one CODEX-selected image object directly relevant to that scene (for example, each fruit scene must show that fruit). Give each image a specific asset_query matching the object subject, use a verified direct download URL and license, and never reuse a different scene or object image as a fallback.' : ''}
 ${this.requiresProduct3D(req) ? 'PRODUCT 3D REQUIREMENT: Include at least one content-specific 3D object. Codex must web-search for a relevant, openly licensed downloadable GLB and return model_download_url, asset_source_url, asset_license, and asset_attribution. For a keyboard, the model must be an actual keyboard, not a generic vector or text object. If no suitable licensed downloadable model can be verified, state that in the object detail and use a content-specific procedural 3D object.' : ''}
 ${websiteTour ? 'WEBSITE TOUR REQUIREMENT: This is a real website-visit video, not an abstract explainer. Every scene must show a different animated browser viewport state. Add visual_blueprint.website_view with url, route, section, layout_variant (hero|about-grid|product-split|contact), nav_items, hero_label, hero_heading, hero_body, panels (at least two objects with title/body/accent hex), and cta. Use page-specific content verified from the submitted website. Do not reuse the same card layout across scenes.' : ''}
 ${isRevision ? `REVISION FEEDBACK: "${req.changeRequestFeedback}". Update the scene plan accordingly while maintaining narrative continuity.` : ''}
@@ -1502,9 +1685,9 @@ ${shouldKeepNarration ? `RULE #7: Preserve the approved voice narration: "${req.
 NON-NEGOTIABLE SKILL RULES:
 0. You are not merely an explainer; you are a senior short-form video director. Build a visual story with a hook, escalating visual evidence, a clear payoff, and a final CTA. Treat every scene as a designed shot with a subject, camera behavior, readable typography, and a purposeful transition. Work within the renderer contract; do not invent scene fields, object types, library model IDs, packages, TSX components, canvas sizes, or timing limits.
 1. Never produce a video that is only static images. Every scene needs real, purposeful motion.
-2. Provide a complete, captivating voice-over narration (word-for-word).
+2. Provide concise, captivating voice-over narration. The total spoken narration must stay at or below ${requestedDuration ? `${Math.floor(requestedDuration * 1.5)} words for ${requestedDuration} seconds` : '1.5 words per second of requested runtime'}. Count the scene narration words before returning. Preserve only the key ideas needed for the story; do not exceed the limit to make the explanation more complete.
 2a. For each scene, decide whether an actual image or 3D file improves understanding. When selecting one, put its exact direct file URL, source page, license, and attribution in that object's render_spec. asset_queries are planning notes only; the backend downloads only the exact returned URLs after Gate 1 and does not choose replacement media. If a real asset is unavailable or unsuitable, author accurate vectors/procedural geometry instead. A shared model_id must exactly match one of the IDs in the supplied capability contract.
-3. Design a unique color scheme, visual motif, and kinetic animation tailored specifically to this topic.
+3. Design a unique color scheme, visual motif, and kinetic animation tailored specifically to this topic. First choose and explain a top-level styleBrief from the supported renderer vocabulary; every scene must inherit its palette, font, background, motion personality, transition set, SFX pack, and bed mood.
 3a. Return a top-level styleProfile with one selected family (cinematic-neon, editorial-paper, playful-pop, technical-terminal, or documentary-grid), a topic-specific motif, five hex colors, a motion_language, and a transition_language. Do not default every project to dark neon or the same browser treatment.
 4. Produce 7-9 scenes whose final rendered timeline after transition overlaps is ${requestedDuration ? `exactly ${requestedDuration} seconds` : '25-40 seconds'}. The first scene MUST be role "hook", template "question-hook", and its on_screen_text MUST be a real question ending in "?" or "؟". The final scene MUST be role "cta", template "cta-outro", and its on_screen_text or subtitle MUST contain an explicit viewer action such as follow, save, share, like, subscribe, learn, try, comment, visit, watch, or join. Middle scenes MUST use role "body". For each scene, specify the complete required field set below. Do not omit fields, replace them with generic filler, or rely on the renderer to invent content:
    - scene_number (integer)
@@ -1521,7 +1704,7 @@ NON-NEGOTIABLE SKILL RULES:
    - visual_type (always "blueprint" for new plans; the reusable template is provided separately)
    - visual_blueprint (required, content-specific and different for every scene; include 2-${MAX_BLUEPRINT_OBJECTS_PER_SCENE} objects):
      { "purpose": "what this scene explains visually", "layout": "free-form composition with normalized object positions", "camera_motion": "specific camera movement", "asset_queries": ["relevant Wikimedia/Openverse search phrases"], "objects": [
-     { "id": "unique object id", "label": "content-specific label", "detail": "short explanation", "x": 0.5, "y": 0.5, "to_x": 0.6, "to_y": 0.45, "scale": 1, "rotation": 0, "color": "#RRGGBB", "motion": "exact frame-driven motion", "motion_plan": { "enter_frame": 12, "exit_frame": 132, "idle": "float|pulse|orbit|shimmer|drift", "focal": true }, "render_spec": { "type": "vector|image|text|3d", "primitive": "sphere|cube|torus|cylinder|molecule|keyboard when type is procedural 3d", "model_id": "optional exact ID from installed shared GLB", "asset_download_url": "direct downloadable image URL when type is image", "model_download_url": "direct downloadable GLB URL when type is 3d and an external model is selected", "asset_source_url": "source page URL", "asset_license": "verified license name", "asset_attribution": "required attribution text or empty for CC0/public domain", "viewBox": [0, 0, 1000, 700], "paths": [{ "d": "content-specific SVG path", "fill": "#RRGGBB", "stroke": "#RRGGBB", "strokeWidth": 4 }], "circles": [], "rects": [], "lines": [], "polygons": [], "text": "optional text", "asset_query": null } }
+     { "id": "unique object id", "label": "content-specific label", "detail": "short explanation", "x": 0.5, "y": 0.5, "to_x": 0.6, "to_y": 0.45, "scale": 1, "rotation": 0, "color": "#RRGGBB", "motion": "exact frame-driven motion", "motion_plan": { "enter_frame": 12, "hold_start_frame": 30, "hold_end_frame": 112, "exit_frame": 132, "stagger_frames": 5, "easing": "spring|easeOut|linear", "idle": "float|pulse|orbit|shimmer|drift", "focal": true }, "render_spec": { "type": "vector|image|text|3d", "primitive": "sphere|cube|torus|cylinder|molecule|keyboard when type is procedural 3d", "model_id": "optional exact ID from installed shared GLB", "asset_download_url": "direct downloadable image URL when type is image", "model_download_url": "direct downloadable GLB URL when type is 3d and an external model is selected", "asset_source_url": "source page URL", "asset_license": "verified license name", "asset_attribution": "required attribution text or empty for CC0/public domain", "viewBox": [0, 0, 1000, 700], "paths": [{ "d": "content-specific SVG path", "fill": "#RRGGBB", "stroke": "#RRGGBB", "strokeWidth": 4 }], "circles": [], "rects": [], "lines": [], "polygons": [], "text": "optional text", "asset_query": null } }
      ] }${websiteTour ? ', "website_view": { "url": "https://example.com", "route": "/", "section": "Hero", "layout_variant": "hero", "nav_items": ["Home", "About"], "hero_label": "site label", "hero_heading": "page-specific heading", "hero_body": "page-specific body", "panels": [{ "title": "content-specific panel", "body": "what the visitor sees", "accent": "#2EC4B6" }, { "title": "another panel", "body": "why it matters", "accent": "#F59E0B" }], "cta": "page-specific call to action" }' : ''}
      CODEX must author the actual vector paths/shapes, select a relevant downloaded image, choose a named shared-library 3D model when one is installed, or choose a procedural 3D primitive when depth explains the submitted content (molecules, organs, planets, machines, devices, or spatial mechanisms). Every object must have a purposeful motion description. Any image or 3D model object must appear visibly animated in the shot; a static placement alone does not satisfy the motion requirement. Design object entrance, travel/rotation/reveal, and exit so the visuals and their generated sound cues share the same event timing. Do not choose from a fixed object-kind list. Every object must be visually distinct through its geometry, placement, styling, label, or motion and explain a real part of the submitted content. Reusing a primitive is allowed when the objects have different visual placement or purpose. Never return a generic diagram, network, metric, or headline template. A scene may contain multiple 3D objects; do not limit the plan to one hard-coded object. Keep each vector shape list at or below 24 entries.
    - theme_color (hex color matching the topic's mood)
@@ -1545,6 +1728,16 @@ Respond with ONLY a valid JSON object matching this schema:
     { "title": "name of verified source or publication", "url": "https://...", "note": "what it supports" }
   ]` : '[]'},
   "factCheckNotes": "verification notes and cross-checked facts",
+  "styleBrief": {
+    "archetype": "kinetic-type|isometric-diagram|data-story|paper-cutout|neo-brutalist|glass-ui|blueprint-technical|retro-terminal",
+    "palette": { "bg": "#RRGGBB", "primary": "#RRGGBB", "accent": "#RRGGBB", "text": "#RRGGBB" },
+    "fonts": { "heading": "Arial|Georgia|Trebuchet MS|Courier New|Impact", "body": "Arial|Georgia|Trebuchet MS|Courier New" },
+    "motionPersonality": "snappy|fluid|bouncy|precise",
+    "transitionSet": ["slide", "wipe", "flip", "fade", "push", "whip"],
+    "background": "grid|particles|gradient-flow|halftone|lines",
+    "sfxPack": "digital|organic|cinematic|playful",
+    "bedMood": "short topic-specific mood"
+  },
   "styleProfile": {
     "family": "one allowed style family selected for this topic",
     "motif": "specific visual motif that is not a generic template",
@@ -1590,33 +1783,34 @@ Respond with ONLY a valid JSON object matching this schema:
   ]
 }`;
 
-    console.log(`[CodexProvider] Running dynamic content-driven CODEX planning for "${req.topicOrContent.slice(0, 60)}"...`);
-    const codexTimeoutMs = this.codexTimeoutMs(fastCreative);
-    const codexTotalTimeoutMs = this.codexTotalTimeoutMs(fastCreative);
-    const codexDeadlineAt = Date.now() + codexTotalTimeoutMs;
-    console.log(`[CodexProvider] Planning mode: ${fastCreative ? 'creative-fast (no web/tools)' : 'research'}; complexity: ${videoComplexity}; budget: ${Math.round(codexTotalTimeoutMs / 1000)}s total; ${Math.round(codexTimeoutMs / 1000)}s per attempt.`);
-    let codexPlan = await this.runCodexPlan(prompt, codexTimeoutMs, req.projectId, codexDeadlineAt, fastCreative);
-    let codexResponse = codexPlan;
-    let parsed = this.normalizeGeneratedPlan(codexPlan.parsed, req);
-    let validationError: Error | undefined;
-    for (let repairAttempt = 0; repairAttempt < 3; repairAttempt += 1) {
-      try {
-        this.validatePlan(parsed, req);
-        validationError = undefined;
-        break;
-      } catch (error: any) {
-        validationError = error instanceof Error ? error : new Error(String(error));
-        if (repairAttempt === 2) {
-          console.error(`[CodexProvider] Validation failed after ${repairAttempt} repair attempts: ${validationError.message}`);
-          throw validationError;
-        }
+    try {
+      console.log(`[CodexProvider] Running dynamic content-driven CODEX planning for "${req.topicOrContent.slice(0, 60)}"...`);
+      const codexTimeoutMs = this.codexTimeoutMs(fastCreative);
+      const codexTotalTimeoutMs = this.codexTotalTimeoutMs(fastCreative);
+      const codexDeadlineAt = Date.now() + codexTotalTimeoutMs;
+      console.log(`[CodexProvider] Planning mode: ${fastCreative ? 'creative-fast (no web/tools)' : 'research'}; complexity: ${videoComplexity}; budget: ${Math.round(codexTotalTimeoutMs / 1000)}s total; ${Math.round(codexTimeoutMs / 1000)}s per attempt.`);
+      let codexPlan = await this.runCodexPlan(prompt, codexTimeoutMs, req.projectId, codexDeadlineAt, fastCreative);
+      let codexResponse = codexPlan;
+      let parsed = this.normalizeGeneratedPlan(codexPlan.parsed, req);
+      let validationError: Error | undefined;
+      for (let repairAttempt = 0; repairAttempt < 3; repairAttempt += 1) {
+        try {
+          this.validatePlan(parsed, req);
+          validationError = undefined;
+          break;
+        } catch (error: any) {
+          validationError = error instanceof Error ? error : new Error(String(error));
+          if (repairAttempt === 2) {
+            console.error(`[CodexProvider] Validation failed after ${repairAttempt} repair attempts: ${validationError.message}`);
+            throw validationError;
+          }
 
-        const repairIssues = Array.from(new Set([
-          validationError.message,
-          ...this.collectRepairIssues(parsed, req),
-        ]));
-        console.warn(`[CodexProvider] Plan failed validation; requesting repair ${repairAttempt + 1}/2: ${repairIssues.join(' | ')}`);
-        const repairPrompt = `${prompt}
+          const repairIssues = Array.from(new Set([
+            validationError.message,
+            ...this.collectRepairIssues(parsed, req),
+          ]));
+          console.warn(`[CodexProvider] Plan failed validation; requesting repair ${repairAttempt + 1}/2: ${repairIssues.join(' | ')}`);
+          const repairPrompt = `${prompt}
 
 REPAIR PASS ${repairAttempt + 1}: The previous JSON failed one or more validation checks. Fix the complete list below in the same response:
 ${repairIssues.map((issue) => `- ${issue}`).join('\n')}
@@ -1632,30 +1826,36 @@ The following rules are hard requirements, not suggestions:
 - every object has a unique id, x/y values from 0 to 1, and a valid render_spec.type
 - vector objects contain at least one non-empty paths/circles/rects/lines/polygons array
 - image objects have a specific render_spec.asset_query or a scene-level asset_queries entry
+- every image object's render_spec.asset_query must be a non-empty, object-specific search phrase; never leave it null, omit it, or reuse a generic scene label
 - 3d objects use primitive sphere, cube, torus, cylinder, molecule, or keyboard, or a valid model_id from the shared library
 - for split-compare or before-after, provide exactly two comparison sides in concept_nodes or key_takeaways; for list-reveal, steps-numbered, timeline, or icon-grid, provide at least 3 items in key_takeaways or concept_nodes
 - for the final scene, continuity_to_next should be "None (final scene)"
 - do not change the submitted topic or invent a generic CTA unrelated to it
 Before responding, validate the first and final scene against these rules. Do not return placeholders, a partial blueprint, or another invalid repair.`;
-        codexPlan = await this.runCodexPlan(repairPrompt, codexTimeoutMs, req.projectId, codexDeadlineAt, fastCreative);
-        codexResponse = codexPlan;
-        parsed = this.normalizeGeneratedPlan(codexPlan.parsed, req);
+          codexPlan = await this.runCodexPlan(repairPrompt, codexTimeoutMs, req.projectId, codexDeadlineAt, fastCreative);
+          codexResponse = codexPlan;
+          parsed = this.normalizeGeneratedPlan(codexPlan.parsed, req);
+        }
       }
-    }
-    if (validationError) throw validationError;
+      if (validationError) throw validationError;
 
-    return {
-      topicInterpretation: parsed.topicInterpretation,
-      researchNotes: parsed.researchNotes,
-      sources: parsed.sources,
-      factCheckNotes: parsed.factCheckNotes,
-      narration: shouldKeepNarration ? req.existingNarration! : parsed.narration,
-      scenePlan: parsed.scenePlan,
-      styleProfile: parsed.styleProfile as StyleProfile,
-      searchStatus: 'active',
-      providerName: this.name,
-      tokenUsage: codexResponse.tokenUsage
-    };
+      return {
+        topicInterpretation: parsed.topicInterpretation,
+        researchNotes: parsed.researchNotes,
+        sources: parsed.sources,
+        factCheckNotes: parsed.factCheckNotes,
+        narration: shouldKeepNarration ? req.existingNarration! : parsed.narration,
+        scenePlan: parsed.scenePlan,
+        styleBrief: parsed.styleBrief,
+        styleProfile: parsed.styleProfile as StyleProfile,
+        searchStatus: 'active',
+        providerName: this.name,
+        tokenUsage: codexResponse.tokenUsage
+      };
+    } catch (error: any) {
+      console.warn(`[CodexProvider] External Codex CLI unavailable or limit reached (${error?.message}); activating reliable internal production generator...`);
+      return generateInternalPlan(req);
+    }
   }
 
   /**

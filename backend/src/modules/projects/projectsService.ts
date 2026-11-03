@@ -4,26 +4,42 @@ import { scriptsService } from '../scripts/scriptsService.js';
 import fs from 'fs/promises';
 import path from 'path';
 import { projectPaths } from '../../config/paths.js';
+import { productionPackageService } from '../production/productionPackageService.js';
 
 export class ProjectsService {
+  private styleColumnReady?: Promise<void>;
+
+  private async ensureMotionUpgrade(): Promise<void> {
+    if (!this.styleColumnReady) {
+      this.styleColumnReady = query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS style_signature TEXT`)
+        .then(() => query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS requested_duration_sec INT`).then(() => undefined))
+        .catch((error) => {
+          this.styleColumnReady = undefined;
+          throw error;
+        });
+    }
+    await this.styleColumnReady;
+  }
+
   /**
    * Create a new project and trigger initial research & script generation.
    */
-  async createProject(inputContent: string, inputType: 'text' | 'topic' | 'url', title?: string): Promise<Project> {
+  async createProject(inputContent: string, inputType: 'text' | 'topic' | 'url', title?: string, requestedDurationSec?: number): Promise<Project> {
+    await this.ensureMotionUpgrade();
     const derivedTitle = title || inputContent.slice(0, 40).replace(/[\r\n]+/g, ' ') || 'Untitled Animation';
 
     const res = await query(
-      `INSERT INTO projects (title, input_content, input_type, stage, status)
-       VALUES ($1, $2, $3, 'research', 'Researching')
+      `INSERT INTO projects (title, input_content, input_type, requested_duration_sec, stage, status)
+       VALUES ($1, $2, $3, $4, 'research', 'Researching')
        RETURNING *`,
-      [derivedTitle, inputContent, inputType]
+      [derivedTitle, inputContent, inputType, requestedDurationSec || null]
     );
 
     const project = res.rows[0];
 
     // Automatically generate initial script v1
     try {
-      await scriptsService.generateInitialScript(project.id, inputContent, inputType);
+      await scriptsService.generateInitialScript(project.id, inputContent, inputType, requestedDurationSec);
     } catch (err) {
       console.error('Error generating initial script:', err);
       await query(
@@ -44,20 +60,21 @@ export class ProjectsService {
    * List all projects.
    */
   async listProjects(): Promise<Project[]> {
+    await this.ensureMotionUpgrade();
     const res = await query(`
       SELECT p.*,
         COALESCE((SELECT SUM(CASE WHEN ar.execution_metadata->>'total_tokens' ~ '^[0-9]+$'
           THEN (ar.execution_metadata->>'total_tokens')::bigint ELSE 0 END)
-          FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'codex'), 0)::bigint AS codex_total_tokens,
+          FROM agent_runs ar WHERE ar.project_id = p.id), 0)::bigint AS codex_total_tokens,
         COALESCE((SELECT SUM(CASE WHEN ar.execution_metadata->>'input_tokens' ~ '^[0-9]+$'
           THEN (ar.execution_metadata->>'input_tokens')::bigint ELSE 0 END)
-          FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'codex'), 0)::bigint AS codex_input_tokens,
+          FROM agent_runs ar WHERE ar.project_id = p.id), 0)::bigint AS codex_input_tokens,
         COALESCE((SELECT SUM(CASE WHEN ar.execution_metadata->>'output_tokens' ~ '^[0-9]+$'
           THEN (ar.execution_metadata->>'output_tokens')::bigint ELSE 0 END)
-          FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'codex'), 0)::bigint AS codex_output_tokens,
-        (SELECT COUNT(*)::int FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'codex') AS codex_run_count,
-        COALESCE((SELECT BOOL_OR(COALESCE((ar.execution_metadata->>'estimated')::boolean, true))
-          FROM agent_runs ar WHERE ar.project_id = p.id AND ar.provider = 'codex'), false) AS codex_usage_estimated
+          FROM agent_runs ar WHERE ar.project_id = p.id), 0)::bigint AS codex_output_tokens,
+        (SELECT COUNT(*)::int FROM agent_runs ar WHERE ar.project_id = p.id) AS codex_run_count,
+        COALESCE((SELECT BOOL_OR(COALESCE((ar.execution_metadata->>'estimated')::boolean, false))
+          FROM agent_runs ar WHERE ar.project_id = p.id), false) AS codex_usage_estimated
       FROM projects p ORDER BY p.updated_at DESC
     `);
     return res.rows;
@@ -67,6 +84,7 @@ export class ProjectsService {
    * Get full project details including history.
    */
   async getProjectDetails(id: string) {
+    await this.ensureMotionUpgrade();
     const projectRes = await query(`SELECT * FROM projects WHERE id = $1`, [id]);
     if (projectRes.rows.length === 0) {
       return null;
@@ -77,6 +95,8 @@ export class ProjectsService {
     const renderJobsRes = await query(`SELECT * FROM render_jobs WHERE project_id = $1 ORDER BY created_at DESC`, [id]);
     const videosRes = await query(`SELECT * FROM videos WHERE project_id = $1 ORDER BY created_at DESC`, [id]);
     const agentRunsRes = await query(`SELECT * FROM agent_runs WHERE project_id = $1 ORDER BY created_at DESC`, [id]);
+    await productionPackageService.ensureTable();
+    const productionPackagesRes = await query(`SELECT * FROM production_packages WHERE project_id = $1 ORDER BY package_version DESC`, [id]);
 
     return {
       project: projectRes.rows[0],
@@ -85,6 +105,10 @@ export class ProjectsService {
       renderJobs: renderJobsRes.rows,
       videos: videosRes.rows,
       agentRuns: agentRunsRes.rows,
+      productionPackages: productionPackagesRes.rows.map((pkg) => ({
+        ...pkg,
+        tsx_url: `/media/${path.relative(projectPaths.backendMedia, path.join(path.dirname(pkg.package_path || ''), `v${pkg.package_version}.tsx`)).replace(/\\/g, '/')}`,
+      })),
     };
   }
 
@@ -92,6 +116,7 @@ export class ProjectsService {
    * Delete project.
    */
   async deleteProject(id: string): Promise<boolean> {
+    await this.ensureMotionUpgrade();
     const res = await query(`DELETE FROM projects WHERE id = $1 RETURNING id`, [id]);
     if (!res.rows.length) return false;
     const safeId = id.replace(/[^a-zA-Z0-9_-]/g, '_');

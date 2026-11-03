@@ -35,6 +35,8 @@ export interface Project {
   status: ProjectStatus;
   current_script_version: number;
   current_preview_version: number;
+  requested_duration_sec?: number;
+  style_signature?: string;
   created_at: string;
   updated_at: string;
   codex_total_tokens?: number | string;
@@ -42,6 +44,7 @@ export interface Project {
   codex_output_tokens?: number | string;
   codex_run_count?: number | string;
   codex_usage_estimated?: boolean;
+  codex_usage_available?: boolean;
 }
 
 export interface ScriptSource {
@@ -138,4 +141,18 @@ export interface ProjectDetail {
   renderJobs: RenderJob[];
   videos: VideoRecord[];
   agentRuns: AgentRun[];
+  productionPackages?: ProductionPackage[];
+}
+
+export interface ProductionPackage {
+  id: string;
+  project_id: string;
+  script_version: number;
+  package_version: number;
+  status: 'queued' | 'building' | 'ready' | 'failed';
+  package_path?: string;
+  error_message?: string;
+  tsx_url?: string;
+  created_at: string;
+  updated_at: string;
 }

@@ -41,6 +41,7 @@ export interface SfxManifestItem {
 
 export interface SfxManifest {
   seed: string;
+  pack?: 'digital' | 'organic' | 'cinematic' | 'playful';
   sampleRate: number;
   items: SfxManifestItem[];
 }
@@ -52,6 +53,7 @@ export interface ResolvedSfxCue {
   transientFrames: number;
   durationFrames: number;
   volume: number;
+  pan: number;
 }
 
 export interface SfxScope { projectId: string; previewVersion: number }
@@ -59,10 +61,29 @@ export interface SfxScope { projectId: string; previewVersion: number }
 /** Procedural sound library synthesizer and role manager for motion graphics. */
 export class SfxService {
 
+  private async resolvePanVariant(sourceFile: string, pan: number, seedKey: string): Promise<string> {
+    const boundedPan = Math.max(-1, Math.min(1, pan));
+    if (Math.abs(boundedPan) < 0.05 || !sourceFile.endsWith('.wav')) return sourceFile;
+    const sourcePath = path.join(projectPaths.remotionPublic, ...sourceFile.replace(/^\//, '').split('/'));
+    const left = Math.cos(((boundedPan + 1) * Math.PI) / 4).toFixed(4);
+    const right = Math.sin(((boundedPan + 1) * Math.PI) / 4).toFixed(4);
+    const variantPath = sourcePath.replace(/\.wav$/i, `.pan-${hashText(`${seedKey}:${boundedPan.toFixed(2)}`)}.wav`);
+    try {
+      await fs.access(variantPath);
+    } catch {
+      await execFileAsync('ffmpeg', [
+        '-v', 'error', '-y', '-i', sourcePath,
+        '-af', `pan=stereo|c0=${left}*c0|c1=${right}*c0`,
+        '-ac', '2', '-ar', '48000', variantPath,
+      ], { timeout: 30000, maxBuffer: 2 * 1024 * 1024 });
+    }
+    return path.relative(projectPaths.remotionPublic, variantPath).replace(/\\/g, '/');
+  }
+
   /**
    * Ensure procedural SFX library is generated and loaded into memory.
    */
-  async ensureLibrary(seed = 'starter-library', scope?: SfxScope): Promise<SfxManifest> {
+  async ensureLibrary(seed = 'starter-library', scope?: SfxScope, pack: SfxManifest['pack'] = 'digital'): Promise<SfxManifest> {
     const scopePath = scope
       ? path.join('projects', scope.projectId.replace(/[^a-zA-Z0-9_-]/g, '_'), 'previews', `v${scope.previewVersion}`, 'audio', 'sfx')
       : 'sfx';
@@ -76,7 +97,7 @@ export class SfxService {
       await fs.access(manifestPath);
       const content = await fs.readFile(manifestPath, 'utf-8');
       const parsed: SfxManifest = JSON.parse(content);
-      if (parsed.seed !== seed && seed !== 'starter-library') {
+      if ((parsed.seed !== seed && seed !== 'starter-library') || parsed.pack !== pack) {
         needGenerate = true;
       }
     } catch {
@@ -94,7 +115,7 @@ export class SfxService {
       let lastError: any = null;
       for (const pythonBin of candidates) {
         try {
-          await execFileAsync(pythonBin, [script, '--out', sfxDir, '--seed', seed, '--variants', '4', '--prefix', staticPrefix], {
+          await execFileAsync(pythonBin, [script, '--out', sfxDir, '--seed', seed, '--pack', pack || 'digital', '--variants', '4', '--prefix', staticPrefix], {
             cwd: projectPaths.root,
             timeout: 30000,
           });
@@ -170,8 +191,8 @@ export class SfxService {
   /**
    * Resolve an audio cue for a given role and seeded key.
    */
-  async getCueForRole(role: SfxRole, seedKey: string, fps = 30, librarySeed = 'starter-library', scope?: SfxScope): Promise<ResolvedSfxCue> {
-    const manifest = await this.ensureLibrary(librarySeed, scope);
+  async getCueForRole(role: SfxRole, seedKey: string, fps = 30, librarySeed = 'starter-library', scope?: SfxScope, pack: SfxManifest['pack'] = 'digital', pan = 0): Promise<ResolvedSfxCue> {
+    const manifest = await this.ensureLibrary(librarySeed, scope, pack);
     const pool = manifest.items.filter((item) => item.role === role);
     const fallbackPool = pool.length > 0 ? pool : manifest.items.filter((item) => item.role === 'pop');
     const selected = fallbackPool[hashText(seedKey) % fallbackPool.length];
@@ -180,12 +201,13 @@ export class SfxService {
     const durationFrames = Math.ceil((selected.durationMs * fps) / 1000);
 
     return {
-      src: selected.file,
+      src: await this.resolvePanVariant(selected.file, pan, seedKey),
       role: selected.role as SfxRole,
       transientMs: selected.transientMs,
       transientFrames,
       durationFrames,
       volume: selected.gain,
+      pan: Math.max(-1, Math.min(1, pan)),
     };
   }
 

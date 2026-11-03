@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useRef, useState } from 'react';
-import { interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
+import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import {
   CANVAS_WIDTH,
   CANVAS_HEIGHT,
@@ -12,6 +12,7 @@ import {
   ZONE_GAP,
   ACCENT_CYAN,
 } from '../constants';
+import { StyleBrief } from '../data/sceneTypes';
 
 const clamp = (v: number) => Math.min(1, Math.max(0, v));
 const prog = (f: number, s: number, l: number) => clamp((f - s) / Math.max(1, l));
@@ -26,6 +27,7 @@ export interface SceneTemplateProps {
   activeWordIndex?: number;
   bulletTimings?: number[];
   accentColor?: string;
+  styleBrief?: StyleBrief;
   children?: React.ReactNode;
 }
 
@@ -38,10 +40,22 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
   activeWordIndex = -1,
   bulletTimings,
   accentColor = ACCENT_CYAN,
+  styleBrief,
   children,
 }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  const palette = styleBrief?.palette;
+  const headingFont = styleBrief?.fonts.heading || "'Manrope', 'Inter', system-ui, sans-serif";
+  const bodyFont = styleBrief?.fonts.body || headingFont;
+  const archetype = styleBrief?.archetype || 'blueprint-technical';
+  const stageBackground = styleBrief?.background === 'halftone'
+    ? `radial-gradient(${accentColor}33 1px, transparent 1px), ${palette?.bg || '#071018'}`
+    : styleBrief?.background === 'gradient-flow'
+      ? `radial-gradient(circle at ${35 + Math.sin(frame * 0.012) * 18}% 12%, ${accentColor}55, transparent 48%), ${palette?.bg || '#071018'}`
+      : styleBrief?.background === 'lines'
+        ? `repeating-linear-gradient(115deg, ${accentColor}15 0 2px, transparent 2px 30px), ${palette?.bg || '#071018'}`
+        : `radial-gradient(900px 700px at 20% 0, ${accentColor}55 0, ${palette?.bg || '#071018'} 70%)`;
 
   const stageRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -76,7 +90,13 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
     const sv = stage ? stage.getBoundingClientRect() : { left: 0, top: 0, right: CANVAS_WIDTH, bottom: CANVAS_HEIGHT };
     const tol = 4;
 
-    const zones = Array.from(document.querySelectorAll('[data-zone]')) as HTMLElement[];
+    // TransitionSeries mounts adjacent scenes at the same time. Scope the
+    // measurement to this SceneTemplate; querying document-wide compares the
+    // current scene against its transition partner and creates false overlap
+    // and out-of-canvas failures.
+    const zones = stage
+      ? Array.from(stage.querySelectorAll('[data-zone]')) as HTMLElement[]
+      : [];
     const issues: string[] = [];
     const boxes = zones.map((z) => z.getBoundingClientRect());
 
@@ -121,6 +141,7 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
   const titleP = easeOut(prog(frame, 0, 18));
   const titleOpacity = titleP * exitProgress;
   const titleY = (1 - titleP) * 28;
+  const titleWords = title.trim().split(/\s+/).filter(Boolean);
 
   // Media entrance: 20 frames ease-out with 40px slide + 1.0 -> 1.08 slow push
   const mediaP = easeOut(prog(frame, 16, 20));
@@ -147,14 +168,15 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
         top: 0,
         width: CANVAS_WIDTH,
         height: CANVAS_HEIGHT,
-        background: `radial-gradient(900px 700px at 20% 0, #0e3b4a 0, #071018 70%)`,
-        color: '#ffffff',
+        background: stageBackground,
+        backgroundSize: styleBrief?.background === 'halftone' ? '22px 22px' : undefined,
+        color: palette?.text || '#ffffff',
         display: 'grid',
         gridTemplateRows: `${ZONE_TITLE_HEIGHT}px ${ZONE_BULLETS_HEIGHT}px ${ZONE_MEDIA_HEIGHT}px ${ZONE_CAPTIONS_HEIGHT}px`,
         gap: `${ZONE_GAP}px`,
         padding: `${SAFE_MARGIN_Y}px ${SAFE_MARGIN_X}px`,
         boxSizing: 'border-box',
-        fontFamily: "'Manrope', 'Inter', system-ui, sans-serif",
+        fontFamily: bodyFont,
         overflow: 'hidden',
       }}
     >
@@ -175,7 +197,8 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
           style={{
             margin: 0,
             fontSize: `${titleFontSize}px`,
-            fontWeight: 800,
+            fontWeight: archetype === 'neo-brutalist' ? 950 : 800,
+            fontFamily: headingFont,
             lineHeight: 1.08,
             letterSpacing: '-0.02em',
             overflow: 'hidden',
@@ -186,7 +209,16 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
             transform: `translateY(${titleY}px)`,
           }}
         >
-          {title}
+          {titleWords.map((word, index) => {
+            const wordFrame = frame - index * 4;
+            const wordP = spring({ frame: Math.max(0, wordFrame), fps, config: { damping: 18, stiffness: 160, mass: 0.7 } });
+            const wordY = interpolate(wordP, [0, 1], [titleFontSize * 0.82, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+            return (
+              <span key={`${word}-${index}`} style={{ display: 'inline-block', overflow: 'hidden', marginRight: '0.24em', verticalAlign: 'bottom' }}>
+                <span style={{ display: 'inline-block', opacity: wordP, transform: `translateY(${wordY}px)` }}>{word}</span>
+              </span>
+            );
+          })}
         </h1>
       </div>
 
@@ -240,14 +272,14 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
                     width: 18,
                     height: 18,
                     marginTop: 20,
-                    borderRadius: '50%',
+                    borderRadius: archetype === 'neo-brutalist' ? 0 : '50%',
                     background: accentColor,
-                    boxShadow: `0 0 16px ${accentColor}88`,
+                    boxShadow: archetype === 'paper-cutout' ? `5px 5px 0 ${accentColor}88` : `0 0 16px ${accentColor}88`,
                   }}
                 />
                 <span
                   style={{
-                    color: '#e8edf3',
+                    color: palette?.text || '#e8edf3',
                     overflow: 'hidden',
                     display: '-webkit-box',
                     WebkitLineClamp: 2,
@@ -281,11 +313,11 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
           style={{
             width: '100%',
             height: '100%',
-            borderRadius: 28,
+            borderRadius: archetype === 'neo-brutalist' ? 0 : archetype === 'paper-cutout' ? 10 : 28,
             overflow: 'hidden',
-            background: '#0d131c',
-            border: '1px solid rgba(255,255,255,0.1)',
-            boxShadow: '0 30px 80px rgba(0,0,0,0.65)',
+            background: palette?.bg || '#0d131c',
+            border: `1px solid ${palette?.primary || 'rgba(255,255,255,0.1)'}`,
+            boxShadow: archetype === 'neo-brutalist' ? `14px 14px 0 ${accentColor}` : archetype === 'paper-cutout' ? `12px 12px 0 ${accentColor}88` : '0 30px 80px rgba(0,0,0,0.65)',
             display: 'flex',
             flexDirection: 'column',
             opacity: mediaOpacity,
@@ -296,7 +328,7 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
           <div
             style={{
               height: 54,
-              background: '#151d28',
+              background: archetype === 'retro-terminal' ? '#071a12' : `${palette?.primary || '#151d28'}33`,
               borderBottom: '1px solid rgba(255,255,255,0.08)',
               display: 'flex',
               alignItems: 'center',
@@ -396,8 +428,8 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
       >
         <div
           style={{
-            background: parsedCaptionWords.length ? 'rgba(0,0,0,0.68)' : 'transparent',
-            borderRadius: 26,
+            background: parsedCaptionWords.length ? `${palette?.bg || '#000000'}cc` : 'transparent',
+            borderRadius: archetype === 'neo-brutalist' ? 0 : 26,
             padding: parsedCaptionWords.length ? '24px 38px' : 0,
             fontSize: 48,
             fontWeight: 600,
@@ -415,9 +447,8 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
               <span
                 key={`${word}-${j}`}
                 style={{
-                  color: isSpoken ? accentColor : '#9fb3c4',
+                  color: isSpoken ? accentColor : (palette?.text || '#9fb3c4'),
                   fontWeight: isSpoken ? 700 : 600,
-                  transition: 'color 0.15s ease',
                   marginRight: '0.28em',
                   display: 'inline-block',
                 }}

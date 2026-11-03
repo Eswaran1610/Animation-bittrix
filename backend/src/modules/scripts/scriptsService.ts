@@ -1,27 +1,70 @@
 import { query } from '../../config/db.js';
 import { Script, ScriptSource, ScenePlanItem } from '../../types/index.js';
-import { CodexProvider } from '../providers/codexProvider.js';
+import { getActiveAIProvider } from '../providers/providerFactory.js';
+import { activeProviderService } from '../providers/activeProviderService.js';
 import { realtime } from '../../realtime.js';
 
-const codexProvider = new CodexProvider();
+const persistStyleProfile = (scenePlan: ScenePlanItem[], styleProfile: any, styleBrief: any): ScenePlanItem[] =>
+  scenePlan.map((scene, index) => index === 0 ? { ...scene, style_profile: styleProfile, style_brief: styleBrief } : scene);
 
-const persistStyleProfile = (scenePlan: ScenePlanItem[], styleProfile: any): ScenePlanItem[] =>
-  scenePlan.map((scene, index) => index === 0 ? { ...scene, style_profile: styleProfile } : scene);
+const hueBucket = (hex: string) => {
+  const value = hex.replace('#', '').slice(0, 6);
+  if (!/^[0-9a-f]{6}$/i.test(value)) return 'unknown';
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  const max = Math.max(r, g, b);
+  if (max === r && r > g * 1.2 && r > b * 1.2) return 'red';
+  if (max === g && g > r * 1.2 && g > b * 1.2) return 'green';
+  if (max === b && b > r * 1.2 && b > g * 1.2) return 'blue';
+  if (r > 170 && g > 120 && b < 120) return 'warm';
+  if (r > 150 && b > 150) return 'violet';
+  return 'neutral';
+};
+
+const styleSignature = (styleBrief: any): string => [
+  styleBrief?.archetype || 'unknown',
+  styleBrief?.motionPersonality || 'unknown',
+  styleBrief?.background || 'unknown',
+  hueBucket(styleBrief?.palette?.primary || ''),
+].join('|');
+
+const styleParts = (signature: string) => signature.split('|');
+const styleOverlap = (left: string, right: string) => styleParts(left).reduce((count, value, index) => count + (value && value === styleParts(right)[index] ? 1 : 0), 0);
 
 export class ScriptsService {
+  private async generateDistinctInitialScript(projectId: string, inputContent: string, inputType: 'text' | 'topic' | 'url', requestedDurationSec?: number) {
+    const recent = await query(`SELECT style_signature FROM projects WHERE style_signature IS NOT NULL ORDER BY updated_at DESC LIMIT 5`);
+    const recentSignatures = recent.rows.map((row) => String(row.style_signature));
+    const provider = getActiveAIProvider();
+    let lastResult: any;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      lastResult = await provider.generateScript({
+        projectId,
+        topicOrContent: inputContent,
+        inputType,
+        requestedDurationSec,
+        changeRequestFeedback: attempt === 0 ? undefined : 'Choose a materially different styleBrief from recent projects. Keep the content and narration requirements unchanged.',
+      });
+      const signature = styleSignature(lastResult.styleBrief);
+      const conflict = recentSignatures.find((candidate) => styleOverlap(signature, candidate) >= 2);
+      if (!conflict) return { result: lastResult, signature };
+      if (attempt === 1) throw new Error(`Style variety validation failed after one regeneration: style signature ${signature} overlaps a recent project in at least two key fields.`);
+    }
+    throw new Error('Style variety validation failed without a usable plan.');
+  }
+
   /**
-   * Generate initial script (v1) using Codex provider.
+   * Generate initial script (v1) using the currently active AI provider (Codex or AGY).
    */
-  async generateInitialScript(projectId: string, inputContent: string, inputType: 'text' | 'topic' | 'url'): Promise<Script> {
-    realtime.publish({ type: 'pipeline_progress', projectId, stage: 'research', progress: 5, status: 'Codex researching submitted content' });
-    const researchResult = await codexProvider.generateScript({
-      projectId,
-      topicOrContent: inputContent,
-      inputType,
-    });
+  async generateInitialScript(projectId: string, inputContent: string, inputType: 'text' | 'topic' | 'url', requestedDurationSec?: number): Promise<Script> {
+    const activeProvider = activeProviderService.get();
+    const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'codex' ? 'Codex' : 'AI';
+    realtime.publish({ type: 'pipeline_progress', projectId, stage: 'research', progress: 5, status: `${providerLabel} researching submitted content` });
+    const { result: researchResult, signature } = await this.generateDistinctInitialScript(projectId, inputContent, inputType, requestedDurationSec);
 
     const version = 1;
-    realtime.publish({ type: 'pipeline_progress', projectId, stage: 'script_plan', progress: 75, status: 'Codex script and scene plan ready' });
+    realtime.publish({ type: 'pipeline_progress', projectId, stage: 'script_plan', progress: 75, status: `${providerLabel} script and scene plan ready` });
 
     const res = await query(
       `INSERT INTO scripts (
@@ -36,16 +79,19 @@ export class ScriptsService {
         JSON.stringify(researchResult.sources),
         researchResult.factCheckNotes,
         researchResult.narration,
-        JSON.stringify(persistStyleProfile(researchResult.scenePlan, researchResult.styleProfile))
+        JSON.stringify(persistStyleProfile(researchResult.scenePlan, researchResult.styleProfile, researchResult.styleBrief))
       ]
     );
 
+    await query(`UPDATE projects SET style_signature = $2 WHERE id = $1`, [projectId, signature]);
+
     await query(
       `INSERT INTO agent_runs (provider, task, project_id, input_references, output_references, execution_metadata)
-       VALUES ('codex', 'research_script', $1, $2, $3, $4)`,
+       VALUES ($1, 'research_script', $2, $3, $4, $5)`,
       [
+        activeProvider,
         projectId,
-        JSON.stringify({ inputType, contentLength: inputContent.length }),
+        JSON.stringify({ inputType, contentLength: inputContent.length, requestedDurationSec }),
         JSON.stringify({ scriptVersion: version, sceneCount: researchResult.scenePlan.length }),
         JSON.stringify(researchResult.tokenUsage)
       ]
@@ -53,7 +99,7 @@ export class ScriptsService {
 
     // Publish only after the durable record exists. Clients re-fetch the
     // aggregate from the API, so a reconnect cannot lose or double-count it.
-    realtime.publish({ type: 'token_usage', projectId, ...researchResult.tokenUsage });
+    realtime.publish({ type: 'token_usage', projectId, provider: activeProvider, ...researchResult.tokenUsage });
 
     realtime.publish({ type: 'pipeline_progress', projectId, stage: 'script_ready', progress: 100, status: 'Human approval required: script ready' });
 
@@ -88,15 +134,20 @@ export class ScriptsService {
     const projectRes = await query(`SELECT input_content, input_type FROM projects WHERE id = $1`, [projectId]);
     if (projectRes.rows.length === 0) throw new Error('Project not found while revising script.');
 
-    const researchResult = await codexProvider.generateScript({
+    const activeProvider = activeProviderService.get();
+    const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'codex' ? 'Codex' : 'AI';
+    const provider = getActiveAIProvider();
+
+    const researchResult = await provider.generateScript({
       projectId,
       topicOrContent: projectRes.rows[0].input_content,
       inputType: projectRes.rows[0].input_type,
+      requestedDurationSec: projectRes.rows[0].requested_duration_sec || undefined,
       previousScriptVersion: previousScript.version,
       changeRequestFeedback: feedbackNotes,
       existingNarration: changeNarration ? undefined : previousScript.narration // Rule: preserve narration unless explicitly asked
     });
-    realtime.publish({ type: 'pipeline_progress', projectId, stage: 'script_revision', progress: 75, status: `Codex revised script v${newVersion} ready` });
+    realtime.publish({ type: 'pipeline_progress', projectId, stage: 'script_revision', progress: 75, status: `${providerLabel} revised script v${newVersion} ready` });
 
     const res = await query(
       `INSERT INTO scripts (
@@ -111,15 +162,16 @@ export class ScriptsService {
         JSON.stringify(researchResult.sources),
         researchResult.factCheckNotes,
         researchResult.narration,
-        JSON.stringify(persistStyleProfile(researchResult.scenePlan, researchResult.styleProfile)),
+        JSON.stringify(persistStyleProfile(researchResult.scenePlan, researchResult.styleProfile, researchResult.styleBrief)),
         feedbackNotes
       ]
     );
 
     await query(
       `INSERT INTO agent_runs (provider, task, project_id, input_references, output_references, execution_metadata)
-       VALUES ('codex', 'research_script_revision', $1, $2, $3, $4)`,
+       VALUES ($1, 'research_script_revision', $2, $3, $4, $5)`,
       [
+        activeProvider,
         projectId,
         JSON.stringify({ inputType: projectRes.rows[0].input_type, contentLength: projectRes.rows[0].input_content.length, previousScriptVersion: previousScript.version }),
         JSON.stringify({ scriptVersion: newVersion, sceneCount: researchResult.scenePlan.length }),
@@ -127,7 +179,7 @@ export class ScriptsService {
       ]
     );
 
-    realtime.publish({ type: 'token_usage', projectId, ...researchResult.tokenUsage });
+    realtime.publish({ type: 'token_usage', projectId, provider: activeProvider, ...researchResult.tokenUsage });
 
     // A revised script invalidates every prior preview approval. Keep the
     // preview counter monotonic so every new render gets a unique media URL.

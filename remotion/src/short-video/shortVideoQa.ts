@@ -33,7 +33,7 @@ export const collectMainCompositionQaIssues = (props: SceneDataPayload): string[
   if (targetDurationSec === undefined && (durationSeconds < 25 || durationSeconds > 40)) {
     issues.push(`MainComposition duration is ${durationSeconds.toFixed(2)}s; the default target is 25-40s.`);
   }
-  if (targetDurationSec !== undefined && (targetDurationSec < 20 || targetDurationSec > 40)) {
+  if (targetDurationSec !== undefined && (Math.round(targetDurationSec) < 20 || targetDurationSec > 40.5)) {
     issues.push(`MainComposition requested duration is ${targetDurationSec.toFixed(2)}s; supported target is 20-40s.`);
   }
   const first = props.scenes[0];

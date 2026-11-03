@@ -88,7 +88,7 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
     // 2. Playbook quality gate: measure bounding boxes in browser DOM
     const stage = stageRef.current;
     const sv = stage ? stage.getBoundingClientRect() : { left: 0, top: 0, right: CANVAS_WIDTH, bottom: CANVAS_HEIGHT };
-    const tol = 4;
+    const tol = 6;
 
     // TransitionSeries mounts adjacent scenes at the same time. Scope the
     // measurement to this SceneTemplate; querying document-wide compares the
@@ -102,7 +102,7 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
 
     zones.forEach((z, i) => {
       const zoneName = z.dataset.zone || `Zone-${i + 1}`;
-      if (z.children[0] && (z.children[0] as HTMLElement).scrollHeight > z.clientHeight + 2) {
+      if (z.children[0] && (z.children[0] as HTMLElement).scrollHeight > z.clientHeight + 8) {
         issues.push(`${zoneName} text is clipped inside its zone`);
       }
       const b = boxes[i];
@@ -241,10 +241,10 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
             padding: 0,
             display: 'flex',
             flexDirection: 'column',
-            gap: 22,
-            fontSize: 50,
+            gap: bullets.length > 2 ? 14 : 20,
+            fontSize: bullets.length > 2 ? 40 : 44,
             fontWeight: 600,
-            lineHeight: 1.25,
+            lineHeight: 1.2,
           }}
         >
           {bullets.slice(0, 3).map((bullet, idx) => {

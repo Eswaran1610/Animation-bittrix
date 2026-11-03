@@ -400,7 +400,7 @@ export class RendersService {
       }
       scenesPrepared += 1;
       if (progressCallback) {
-        await progressCallback(25 + Math.round((scenesPrepared / scenePlan.length) * 65), `Prepared visual assets and motion for scene ${scenesPrepared}/${scenePlan.length}`);
+        await progressCallback(22 + Math.round((scenesPrepared / scenePlan.length) * 16), `Prepared visual assets and motion for scene ${scenesPrepared}/${scenePlan.length}`);
       }
 
       return {
@@ -452,9 +452,12 @@ export class RendersService {
     }
     const totalFrames = formattedScenes.reduce((acc: number, s: any, index: number) =>
       acc + s.durationInFrames - (index < formattedScenes.length - 1 ? s.transitionOutFrames || 0 : 0), 0);
+    
+    if (progressCallback) await progressCallback(40, 'Generating ambient soundscape & background audio bed...');
     console.log(`[RendersService] Narration generated (${(narrationDurationSec).toFixed(1)}s total). Generating audio bed & master track...`);
     const backgroundAudioUrl = await audioBedService.generate(projectId, renderType, renderVersion, totalFrames / fps);
 
+    if (progressCallback) await progressCallback(43, 'Mixing 1-track master audio (narration + sfx + background bed)...');
     // Mix narration + sfx + background bed into ONE unified master audio track
     const masterAudioUrl = await audioMixerService.mixMasterAudio({
       projectId,
@@ -466,6 +469,7 @@ export class RendersService {
       backgroundAudioUrl,
     });
 
+    if (progressCallback) await progressCallback(46, 'Synchronizing word-level captions to exact audio frames...');
     console.log('[RendersService] Synchronizing word-level captions...');
     let captionOffset = 0;
     const sceneCaptions = await Promise.all(formattedScenes.map(async (scene: any) => this.buildMeasuredCaptions(
@@ -482,6 +486,7 @@ export class RendersService {
       return sceneCaptionsWithOffset;
     });
     console.log(`[RendersService] Prepared ${captions.length} captions and Remotion scene data.`);
+    if (progressCallback) await progressCallback(49, 'Remotion scene properties & caption timings locked.');
 
     const payload = {
       video: {
@@ -681,7 +686,7 @@ export default function GeneratedCodexVideo(props: any) {
     };
     await publishPackageProgress(10, 'Preparing animation: Synthesizing voiceover & procedural audio...');
     const propsPath = await this.writeRemotionSceneData(projectId, projectResult.rows[0].title, scriptResult.rows[0], previewVersion, 'preview', publishPackageProgress);
-    await publishPackageProgress(85, 'Staging 1-track master audio & Remotion TSX...');
+    await publishPackageProgress(50, 'Staging 1-track master audio & Remotion composition...');
     const remotionProps = JSON.parse(await fs.readFile(propsPath, 'utf8'));
     const manifestPath = path.join(projectPaths.backendMedia, 'projects', projectId, 'previews', `v${previewVersion}`, 'asset-manifest.json');
     let manifest: any = {};
@@ -694,7 +699,7 @@ export default function GeneratedCodexVideo(props: any) {
       audio: this.buildCueManifestFromProps(remotionProps),
       captions: remotionProps.video.captions || [],
     });
-    await publishPackageProgress(100, 'Animation package prepared; launching preview render...');
+    await publishPackageProgress(52, 'Animation package prepared; launching preview render...');
     await this.createPreviewRender(projectId, scriptVersion);
   }
 
@@ -719,6 +724,7 @@ export default function GeneratedCodexVideo(props: any) {
           [renderJobId, progress]
         );
         realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress, status });
+        realtime.publish({ type: 'pipeline_progress', projectId, stage: 'preview_render', progress, status });
       };
       const propsPath = (await productionPackageService.latestReady(projectId, script.version))
         ? await this.useCodexProductionPackage(projectId, script.version, previewVersion)
@@ -726,7 +732,7 @@ export default function GeneratedCodexVideo(props: any) {
       const previewProps = JSON.parse(await fs.readFile(propsPath, 'utf8'));
       const previewDiskPath = path.join(projectPaths.backendMedia, 'previews', `${projectId}_preview_v${previewVersion}.mp4`);
       await preflightRenderProps(propsPath);
-      await publishPreviewProgress(92, 'Rendering Remotion preview video');
+      await publishPreviewProgress(50, 'Preflight verified. Initializing Remotion motion renderer...');
       await videoRenderer.renderVideo({
         outputPath: previewDiskPath,
         title: projectTitle,
@@ -735,6 +741,9 @@ export default function GeneratedCodexVideo(props: any) {
         scale: 1,
         propsPath,
         scenes: previewProps.scenes,
+        onProgress: async (progress, status) => {
+          await publishPreviewProgress(progress, status);
+        },
       });
       await publishPreviewProgress(98, 'Headless preview and quality checks complete');
 
@@ -827,15 +836,52 @@ export default function GeneratedCodexVideo(props: any) {
 
     // Render final high-res 1080p MP4 file via Remotion (scale 1.0)
     try {
+      const publishFinalProgress = async (progress: number, status: string) => {
+        await query(
+          `UPDATE render_jobs SET progress = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+          [renderJobRes.rows[0].id, progress]
+        );
+        realtime.publish({
+          type: 'render_progress',
+          projectId,
+          renderJobId: renderJobRes.rows[0].id,
+          renderType: 'final',
+          previewVersion,
+          progress,
+          status,
+        });
+        realtime.publish({
+          type: 'pipeline_progress',
+          projectId,
+          stage: 'final_render',
+          progress,
+          status,
+        });
+      };
+
+      await publishFinalProgress(10, 'Initializing 1080p final production render...');
       await videoRenderer.renderVideo({
         outputPath: diskPath,
         title: project.title,
         subheading: script.scene_plan[0].subtitle,
         versionLabel: `FINAL VIDEO • APPROVED v${previewVersion}`,
         scale: 1.0,
-        propsPath: renderPropsPath
+        propsPath: renderPropsPath,
+        onProgress: async (progress, status) => {
+          await publishFinalProgress(progress, status);
+        },
       });
+      await publishFinalProgress(98, 'Finalizing audio normalization & quality verification...');
       await query(`UPDATE render_jobs SET status = 'completed', progress = 100, updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [renderJobRes.rows[0].id]);
+      realtime.publish({
+        type: 'render_progress',
+        projectId,
+        renderJobId: renderJobRes.rows[0].id,
+        renderType: 'final',
+        previewVersion,
+        progress: 100,
+        status: 'Final video ready',
+      });
     } catch (error) {
       const errorMessage = formatRenderFailure(error);
       await query(`UPDATE render_jobs SET status = 'failed', progress = 100, errors = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [renderJobRes.rows[0].id, errorMessage]);

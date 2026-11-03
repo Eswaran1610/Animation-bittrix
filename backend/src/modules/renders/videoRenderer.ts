@@ -18,6 +18,7 @@ export interface RenderVideoOptions {
   scale?: number;
   propsPath: string;
   scenes?: Array<{ scene_number: number; duration_sec: number; on_screen_text: string }>;
+  onProgress?: (progress: number, status: string) => Promise<void> | void;
 }
 
 export class VideoRenderer {
@@ -51,31 +52,46 @@ export class VideoRenderer {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
         const concurrency = attempt === 0 ? (process.env.REMOTION_CONCURRENCY || defaultConcurrency) : '1';
-        const { stdout, stderr } = await execFileAsync(
-          process.execPath,
-          [
-            remotionHost,
-            'render',
-            'src/index.ts',
-            'MainComposition',
-            opts.outputPath,
-            `--props=${opts.propsPath}`,
-            `--scale=${scale}`,
-            `--concurrency=${concurrency}`,
-            `--timeout=${process.env.REMOTION_FRAME_TIMEOUT_MS || 120000}`,
-            '--gl=angle',
-            '--overwrite'
-          ],
-          {
-            cwd: remotionDir,
-            timeout: Number(process.env.REMOTION_RENDER_TIMEOUT_MS || 600000),
-            maxBuffer: 16 * 1024 * 1024,
+        
+        // Dynamic progress heartbeat while local Remotion process is executing
+        let localPct = 52;
+        const progressTimer = setInterval(() => {
+          if (localPct < 90) {
+            localPct += Math.min(2, Math.max(1, Math.round((90 - localPct) * 0.1)));
+            opts.onProgress?.(localPct, `Rendering video frames locally (${localPct}%)...`);
           }
-        );
-        console.log(`[VideoRenderer] Remotion motion graphics render complete: ${stdout.slice(-150).trim()}`);
-        if (stderr?.trim()) console.warn(`[VideoRenderer] Remotion stderr: ${stderr.slice(-4000)}`);
-        renderError = undefined;
-        break;
+        }, 1200);
+
+        try {
+          const { stdout, stderr } = await execFileAsync(
+            process.execPath,
+            [
+              remotionHost,
+              'render',
+              'src/index.ts',
+              'MainComposition',
+              opts.outputPath,
+              `--props=${opts.propsPath}`,
+              `--scale=${scale}`,
+              `--concurrency=${concurrency}`,
+              `--timeout=${process.env.REMOTION_FRAME_TIMEOUT_MS || 120000}`,
+              '--gl=angle',
+              '--overwrite'
+            ],
+            {
+              cwd: remotionDir,
+              timeout: Number(process.env.REMOTION_RENDER_TIMEOUT_MS || 600000),
+              maxBuffer: 16 * 1024 * 1024,
+            }
+          );
+          console.log(`[VideoRenderer] Remotion motion graphics render complete: ${stdout.slice(-150).trim()}`);
+          if (stderr?.trim()) console.warn(`[VideoRenderer] Remotion stderr: ${stderr.slice(-4000)}`);
+          opts.onProgress?.(92, 'Remotion frame encoding complete; finalizing audio & quality gates...');
+          renderError = undefined;
+          break;
+        } finally {
+          clearInterval(progressTimer);
+        }
       } catch (err: any) {
         renderError = diagnosticError(err, undefined, attempt);
         console.error(`[VideoRenderer] Remotion render attempt ${attempt + 1} failed:\n${formatRenderFailure(renderError)}`);
@@ -88,6 +104,7 @@ export class VideoRenderer {
     }
     if (renderError) throw renderError;
   }
+
   private async renderViaRemoteWorker(opts: RenderVideoOptions, scale: number, renderUrl: string): Promise<void> {
     const propsContent = await fs.readFile(opts.propsPath, 'utf-8');
     const inputProps = JSON.parse(propsContent);
@@ -115,22 +132,38 @@ export class VideoRenderer {
 
     const endpoint = `${renderUrl.replace(/\/+$/, '')}/render`;
     console.log(`[VideoRenderer] Offloading Remotion render to remote worker: ${endpoint} (scale: ${scale}, bundled audio: ${Object.keys(audioFiles).length} files)...`);
+    
+    // Dynamic progress heartbeat while remote Codespace worker is rendering
+    let currentPct = 52;
+    const progressTimer = setInterval(() => {
+      if (currentPct < 90) {
+        // Smoothly advance 1-2% every 1.5 seconds
+        currentPct += Math.min(2, Math.max(1, Math.round((90 - currentPct) * 0.08)));
+        opts.onProgress?.(currentPct, `Offloading render to remote worker: frame generation in progress (${currentPct}%)...`);
+      }
+    }, 1500);
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        inputProps,
-        scale,
-        audioFiles,
-      }),
-    });
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          inputProps,
+          scale,
+          audioFiles,
+        }),
+      });
+    } finally {
+      clearInterval(progressTimer);
+    }
 
     if (!response.ok) {
       const errText = await response.text();
       throw new Error(`Remote render worker responded with HTTP ${response.status}: ${errText}`);
     }
 
+    opts.onProgress?.(91, 'Remote video received; writing to disk and inspecting quality...');
     const arrayBuffer = await response.arrayBuffer();
     await fs.writeFile(opts.outputPath, Buffer.from(arrayBuffer));
     console.log(`[VideoRenderer] Remote render complete! Saved MP4 to ${opts.outputPath}`);

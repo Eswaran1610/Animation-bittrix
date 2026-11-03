@@ -1,34 +1,21 @@
 {
-  "name": "Animation Bittrix (AI Video Studio)",
+  "name": "Remotion Cloud Render Worker",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:1-22-bookworm",
-  "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
-    "ghcr.io/devcontainers/features/python:1": {
-      "version": "3.12"
-    }
-  },
-  "forwardPorts": [5173, 5000, 5434],
+  "forwardPorts": [5050],
   "portsAttributes": {
-    "5173": {
-      "label": "Frontend UI (Video Studio)",
-      "onAutoForward": "openBrowser"
-    },
-    "5000": {
-      "label": "Backend API",
-      "onAutoForward": "silent"
-    },
-    "5434": {
-      "label": "PostgreSQL Database",
-      "onAutoForward": "silent"
+    "5050": {
+      "label": "Remotion Cloud Render Worker",
+      "onAutoForward": "notify",
+      "visibility": "public"
     }
   },
   "postCreateCommand": "bash .devcontainer/setup.sh",
+  "postAttachCommand": "npm run render:server",
   "customizations": {
     "vscode": {
       "extensions": [
         "dbaeumer.vscode-eslint",
-        "esbenp.prettier-vscode",
-        "ms-python.python"
+        "esbenp.prettier-vscode"
       ]
     }
   }

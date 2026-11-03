@@ -4,7 +4,6 @@ import path from 'path';
 import fs from 'fs/promises';
 import { existsSync } from 'fs';
 import os from 'os';
-import { renderMediaOnLambda, getRenderProgress, type AwsRegion } from '@remotion/lambda/client';
 import { projectPaths } from '../../config/paths.js';
 import { diagnosticError, formatRenderFailure, isRetryableRenderFailure, RenderDiagnosticError } from './renderDiagnostics.js';
 
@@ -89,96 +88,54 @@ export class VideoRenderer {
     }
     if (renderError) throw renderError;
   }
-
-  private async renderOnLambda(opts: RenderVideoOptions, scale: number): Promise<void> {
-    // Map custom REMOTION_AWS keys to standard AWS keys if present
-    if (process.env.REMOTION_AWS_ACCESS_KEY_ID && !process.env.AWS_ACCESS_KEY_ID) {
-      process.env.AWS_ACCESS_KEY_ID = process.env.REMOTION_AWS_ACCESS_KEY_ID;
-    }
-    if (process.env.REMOTION_AWS_SECRET_ACCESS_KEY && !process.env.AWS_SECRET_ACCESS_KEY) {
-      process.env.AWS_SECRET_ACCESS_KEY = process.env.REMOTION_AWS_SECRET_ACCESS_KEY;
-    }
-
-    const region = (process.env.REMOTION_AWS_REGION || process.env.AWS_REGION || 'us-east-1') as AwsRegion;
-    const functionName = process.env.REMOTION_LAMBDA_FUNCTION_NAME!;
-    const serveUrl = process.env.REMOTION_LAMBDA_SERVE_URL!;
-
+  private async renderViaRemoteWorker(opts: RenderVideoOptions, scale: number, renderUrl: string): Promise<void> {
     const propsContent = await fs.readFile(opts.propsPath, 'utf-8');
     const inputProps = JSON.parse(propsContent);
 
-    console.log(`[VideoRenderer] Dispatching distributed render to AWS Lambda (region: ${region}, function: ${functionName})...`);
+    const endpoint = `${renderUrl.replace(/\/+$/, '')}/render`;
+    console.log(`[VideoRenderer] Offloading Remotion render to remote worker: ${endpoint} (scale: ${scale})...`);
 
-    const { renderId, bucketName } = await renderMediaOnLambda({
-      region,
-      functionName,
-      serveUrl,
-      composition: 'MainComposition',
-      inputProps,
-      codec: 'h264',
-      scale,
-      downloadBehavior: {
-        type: 'download',
-        fileName: path.basename(opts.outputPath),
-      },
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        inputProps,
+        scale,
+      }),
     });
 
-    console.log(`[VideoRenderer] Lambda render started: renderId=${renderId}, bucket=${bucketName}`);
-
-    while (true) {
-      await new Promise((resolve) => setTimeout(resolve, 2500));
-      const progress = await getRenderProgress({
-        renderId,
-        bucketName,
-        functionName,
-        region,
-      });
-
-      if (progress.fatalErrorEncountered) {
-        const errorMsg = progress.errors?.[0]?.message || 'Unknown error during AWS Lambda render';
-        throw new Error(`AWS Lambda render failed: ${errorMsg}`);
-      }
-
-      const percent = Math.round((progress.overallProgress || 0) * 100);
-      console.log(`[VideoRenderer] AWS Lambda progress: ${percent}%`);
-
-      if (progress.done && progress.outputFile) {
-        console.log(`[VideoRenderer] AWS Lambda render complete! Downloading from ${progress.outputFile}...`);
-        const res = await fetch(progress.outputFile);
-        if (!res.ok) {
-          throw new Error(`Failed to download MP4 from S3: HTTP ${res.status}`);
-        }
-        const buffer = await res.arrayBuffer();
-        await fs.writeFile(opts.outputPath, Buffer.from(buffer));
-        console.log(`[VideoRenderer] Video downloaded and saved to ${opts.outputPath}`);
-        break;
-      }
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Remote render worker responded with HTTP ${response.status}: ${errText}`);
     }
+
+    const arrayBuffer = await response.arrayBuffer();
+    await fs.writeFile(opts.outputPath, Buffer.from(arrayBuffer));
+    console.log(`[VideoRenderer] Remote render complete! Saved MP4 to ${opts.outputPath}`);
   }
 
   /**
-   * Render genuine motion graphics MP4 video using Remotion Lambda or the local React engine.
+   * Render genuine motion graphics MP4 video using a Remote Worker or the local React engine.
    */
   async renderVideo(opts: RenderVideoOptions): Promise<string> {
     const dir = path.dirname(opts.outputPath);
     await fs.mkdir(dir, { recursive: true });
 
     const scale = opts.scale || 1.0;
-    const isLambdaConfigured = Boolean(
-      (process.env.REMOTION_RENDER_MODE === 'lambda' || process.env.REMOTION_LAMBDA_FUNCTION_NAME) &&
-      process.env.REMOTION_LAMBDA_SERVE_URL
-    );
+    const remoteRenderUrl = process.env.REMOTION_RENDER_URL;
 
-    if (isLambdaConfigured) {
+    if (remoteRenderUrl) {
       try {
-        await this.renderOnLambda(opts, scale);
+        await this.renderViaRemoteWorker(opts, scale, remoteRenderUrl);
       } catch (err: any) {
-        console.warn(`[VideoRenderer] AWS Lambda render failed (${err.message}). Falling back to local engine...`);
+        console.warn(`[VideoRenderer] Remote worker failed (${err.message}). Falling back to local engine...`);
         await this.renderLocally(opts, scale);
       }
     } else {
       console.log(`[VideoRenderer] Executing local Remotion motion graphics renderer for ${opts.outputPath} (scale ${scale})...`);
       await this.renderLocally(opts, scale);
     }
+
 
 
     await this.normalizeLoudness(opts.outputPath);

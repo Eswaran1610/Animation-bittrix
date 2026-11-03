@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs/promises';
 import { existsSync } from 'fs';
+import os from 'os';
 import { projectPaths } from '../../config/paths.js';
 import { diagnosticError, formatRenderFailure, isRetryableRenderFailure, RenderDiagnosticError } from './renderDiagnostics.js';
 
@@ -56,9 +57,10 @@ export class VideoRenderer {
 
     const remotionHost = path.join(remotionDir, 'scripts', 'remotion-host.mjs');
     let renderError: RenderDiagnosticError | undefined;
+    const defaultConcurrency = String(Math.min(4, Math.max(2, (os.cpus()?.length || 4) - 1)));
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        const concurrency = attempt === 0 ? (process.env.REMOTION_CONCURRENCY || '1') : '1';
+        const concurrency = attempt === 0 ? (process.env.REMOTION_CONCURRENCY || defaultConcurrency) : '1';
         const { stdout, stderr } = await execFileAsync(
           process.execPath,
           [
@@ -127,7 +129,7 @@ export class VideoRenderer {
     console.log(`[VideoRenderer] ffprobe audio check passed: ${audioStream.codec_name}, ${audioStream.channels} channels, ${audioStream.sample_rate} Hz.`);
 
     const stillsScript = path.join(projectPaths.root, 'scripts', 'render-scene-stills.mjs');
-    await execFileAsync(process.execPath, [stillsScript, opts.propsPath], {
+    await execFileAsync(process.execPath, [stillsScript, opts.propsPath, '', opts.outputPath], {
       cwd: projectPaths.root,
       timeout: Number(process.env.REMOTION_STILLS_TIMEOUT_MS || 600000),
       maxBuffer: 10 * 1024 * 1024,

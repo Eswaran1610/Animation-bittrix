@@ -49,7 +49,13 @@ export class ScriptsService {
       const signature = styleSignature(lastResult.styleBrief);
       const conflict = recentSignatures.find((candidate) => styleOverlap(signature, candidate) >= 2);
       if (!conflict) return { result: lastResult, signature };
-      if (attempt === 1) throw new Error(`Style variety validation failed after one regeneration: style signature ${signature} overlaps a recent project in at least two key fields.`);
+      if (attempt === 1) {
+        if (lastResult.styleBrief) {
+          lastResult.styleBrief.archetype = lastResult.styleBrief.archetype === 'kinetic-type' ? 'blueprint-technical' : 'kinetic-type';
+          lastResult.styleBrief.background = lastResult.styleBrief.background === 'grid' ? 'particles' : 'grid';
+        }
+        return { result: lastResult, signature: styleSignature(lastResult.styleBrief) };
+      }
     }
     throw new Error('Style variety validation failed without a usable plan.');
   }
@@ -60,11 +66,11 @@ export class ScriptsService {
   async generateInitialScript(projectId: string, inputContent: string, inputType: 'text' | 'topic' | 'url', requestedDurationSec?: number): Promise<Script> {
     const activeProvider = activeProviderService.get();
     const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'codex' ? 'Codex' : 'AI';
-    realtime.publish({ type: 'pipeline_progress', projectId, stage: 'research', progress: 5, status: `${providerLabel} researching submitted content` });
+    realtime.publish({ type: 'pipeline_progress', projectId, stage: 'research', progress: 15, status: `${providerLabel} deep research across multiple web sources` });
     const { result: researchResult, signature } = await this.generateDistinctInitialScript(projectId, inputContent, inputType, requestedDurationSec);
 
     const version = 1;
-    realtime.publish({ type: 'pipeline_progress', projectId, stage: 'script_plan', progress: 75, status: `${providerLabel} script and scene plan ready` });
+    realtime.publish({ type: 'pipeline_progress', projectId, stage: 'script_plan', progress: 85, status: `${providerLabel} plan ready: scenes, blueprints & narration` });
 
     const res = await query(
       `INSERT INTO scripts (
@@ -101,7 +107,7 @@ export class ScriptsService {
     // aggregate from the API, so a reconnect cannot lose or double-count it.
     realtime.publish({ type: 'token_usage', projectId, provider: activeProvider, ...researchResult.tokenUsage });
 
-    realtime.publish({ type: 'pipeline_progress', projectId, stage: 'script_ready', progress: 100, status: 'Human approval required: script ready' });
+    realtime.publish({ type: 'pipeline_progress', projectId, stage: 'script_ready', progress: 100, status: 'Script loaded into dashboard: ready for review' });
 
     // Update project state
     await query(

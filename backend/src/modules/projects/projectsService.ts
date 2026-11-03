@@ -5,6 +5,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { projectPaths } from '../../config/paths.js';
 import { productionPackageService } from '../production/productionPackageService.js';
+import { realtime } from '../../realtime.js';
 
 export class ProjectsService {
   private styleColumnReady?: Promise<void>;
@@ -37,23 +38,53 @@ export class ProjectsService {
 
     const project = res.rows[0];
 
-    // Automatically generate initial script v1
-    try {
-      await scriptsService.generateInitialScript(project.id, inputContent, inputType, requestedDurationSec);
-    } catch (err) {
-      console.error('Error generating initial script:', err);
-      await query(
-        `UPDATE projects SET stage = 'failed', status = 'Failed / Needs attention' WHERE id = $1`,
-        [project.id]
-      );
-      // Do not return HTTP 201 for a project whose required script was not
-      // generated. The failed project remains stored for inspection, while
-      // the API correctly tells the frontend that creation did not complete.
-      throw err;
-    }
+    // Publish realtime project_created event immediately so UI shows it in dashboard instantly!
+    realtime.publish({
+      type: 'project_created',
+      project,
+      projectId: project.id,
+      stage: 'research',
+      progress: 10,
+      status: 'Researching topic & literature...'
+    });
 
-    const updatedRes = await query(`SELECT * FROM projects WHERE id = $1`, [project.id]);
-    return updatedRes.rows[0];
+    // Run initial script generation in background so HTTP response returns immediately without timing out
+    void scriptsService.generateInitialScript(project.id, inputContent, inputType, requestedDurationSec)
+      .then(async () => {
+        const finishedRes = await query(`SELECT * FROM projects WHERE id = $1`, [project.id]);
+        if (finishedRes.rows[0]) {
+          realtime.publish({
+            type: 'project_updated',
+            project: finishedRes.rows[0],
+            projectId: project.id,
+            stage: finishedRes.rows[0].stage,
+            status: finishedRes.rows[0].status,
+            progress: 100
+          });
+        }
+      })
+      .catch(async (err: any) => {
+        console.error(`[ProjectsService] Background initial script generation failed for ${project.id}:`, err);
+        await query(
+          `UPDATE projects SET stage = 'failed', status = 'Failed / Needs attention' WHERE id = $1`,
+          [project.id]
+        );
+        realtime.publish({
+          type: 'pipeline_progress',
+          projectId: project.id,
+          stage: 'failed',
+          progress: 0,
+          status: `Generation failed: ${err?.message || err}`
+        });
+        realtime.publish({
+          type: 'project_updated',
+          projectId: project.id,
+          stage: 'failed',
+          status: 'Failed / Needs attention'
+        });
+      });
+
+    return project;
   }
 
   /**

@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
 import { Project } from '../types';
-import { Sparkles, Plus, Clock, FileText, Play, Trash2, ArrowRight, CheckCircle2, AlertCircle, Cpu } from 'lucide-react';
+import { 
+  Sparkles, Plus, Clock, FileText, Play, Trash2, ArrowRight, 
+  CheckCircle2, AlertCircle, Cpu, Globe, Layers, LayoutDashboard, Loader2 
+} from 'lucide-react';
 
 interface DashboardProps {
   activeProvider?: string;
   projects: Project[];
   loading: boolean;
   liveUsage?: { active?: boolean } | null;
+  liveProgress?: { progress: number; label: string; stage?: string; projectId?: string };
   onSelectProject: (projectId: string) => void;
   onCreateProject: (content: string, type: 'text' | 'topic' | 'url', title?: string, durationSec?: number) => Promise<void>;
   onDeleteProject: (projectId: string) => Promise<void>;
@@ -17,11 +21,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
   projects,
   loading,
   liveUsage,
+  liveProgress,
   onSelectProject,
   onCreateProject,
   onDeleteProject,
 }) => {
-  const providerLabel = activeProvider === 'agy' ? 'AGY (Claude)' : activeProvider === 'codex' ? 'Codex' : 'AI';
+  const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'codex' ? 'Codex' : 'AI';
   const [inputType, setInputType] = useState<'text' | 'topic' | 'url'>('topic');
   const [inputContent, setInputContent] = useState('');
   const [projectTitle, setProjectTitle] = useState('');
@@ -32,6 +37,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const totalCodexRuns = projects.reduce((sum, project) => sum + Number(project.codex_run_count || 0), 0);
   const hasEstimatedUsage = projects.some((project) => project.codex_usage_estimated);
   const formatTokens = (value: number) => new Intl.NumberFormat().format(value);
+
+  const activeResearchProject = projects.find((p) => p.stage === 'research' || p.status?.toLowerCase().includes('research'));
+  const isResearching = Boolean(submitting || activeResearchProject || (liveProgress?.stage === 'research' || liveProgress?.stage === 'script_plan'));
+
+  const currentProgress = liveProgress?.progress ?? (isResearching ? (activeResearchProject ? 35 : 15) : 0);
+  const currentStage = liveProgress?.stage ?? (isResearching ? (activeResearchProject ? 'research' : 'research') : '');
+
+  const isStep1Done = currentProgress >= 70 || currentStage === 'script_plan' || currentStage === 'script_ready';
+  const isStep1Active = isResearching || (!isStep1Done && (currentStage === 'research' || currentProgress > 0));
+
+  const isStep2Done = currentProgress >= 95 || currentStage === 'script_ready';
+  const isStep2Active = !isStep2Done && isStep1Done && (currentStage === 'script_plan' || currentProgress >= 70);
+
+  const isStep3Done = currentProgress === 100 || currentStage === 'script_ready';
+  const isStep3Active = !isStep3Done && isStep2Done && (currentStage === 'script_ready' || currentProgress >= 95);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,6 +205,148 @@ export const Dashboard: React.FC<DashboardProps> = ({
               {submitting ? 'Researching & Generating Script...' : 'Create Project / Start Video'}
             </button>
           </div>
+
+          {isResearching && (
+            <div style={{
+              marginTop: '20px',
+              padding: '20px 24px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.9) 100%)',
+              border: '1px solid rgba(56, 189, 248, 0.35)',
+              boxShadow: '0 12px 36px rgba(0, 0, 0, 0.4)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Sparkles size={18} color="#38bdf8" className="spin-animate" />
+                  <span style={{ fontSize: '15px', fontWeight: 700, color: '#f8fafc' }}>
+                    {providerLabel} Video Generation Pipeline {activeResearchProject ? `• ${activeResearchProject.title}` : ''}
+                  </span>
+                </div>
+                <span style={{ fontSize: '13px', color: '#38bdf8', fontWeight: 700 }}>
+                  {Math.max(15, Math.min(100, liveProgress?.progress || (isStep2Done ? 85 : 25)))}%
+                </span>
+              </div>
+
+              {/* 3 Step Milestone Cards with Small Icons */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+                {/* Milestone 1: CLI Research */}
+                <div style={{
+                  padding: '12px 14px',
+                  borderRadius: '8px',
+                  background: isStep1Done ? 'rgba(74, 222, 128, 0.1)' : isStep1Active ? 'rgba(56, 189, 248, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                  border: `1px solid ${isStep1Done ? '#22c55e' : isStep1Active ? '#38bdf8' : 'rgba(255, 255, 255, 0.08)'}`,
+                  transition: 'all 0.3s ease'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {isStep1Done ? <CheckCircle2 size={16} color="#4ade80" /> : isStep1Active ? <Loader2 size={16} className="spin-animate" color="#38bdf8" /> : <Globe size={16} color="#64748b" />}
+                      <strong style={{ fontSize: '13px', color: isStep1Done ? '#4ade80' : isStep1Active ? '#38bdf8' : '#94a3b8' }}>
+                        1. CLI Research
+                      </strong>
+                    </div>
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      background: isStep1Done ? 'rgba(74, 222, 128, 0.2)' : isStep1Active ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
+                      color: isStep1Done ? '#4ade80' : isStep1Active ? '#38bdf8' : '#64748b'
+                    }}>
+                      {isStep1Done ? 'Success ✓' : isStep1Active ? 'Running...' : 'Pending'}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0 }}>
+                    Multi-website deep research across authoritative scientific & academic portals
+                  </p>
+                </div>
+
+                {/* Milestone 2: CLI Plan Ready */}
+                <div style={{
+                  padding: '12px 14px',
+                  borderRadius: '8px',
+                  background: isStep2Done ? 'rgba(74, 222, 128, 0.1)' : isStep2Active ? 'rgba(56, 189, 248, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                  border: `1px solid ${isStep2Done ? '#22c55e' : isStep2Active ? '#38bdf8' : 'rgba(255, 255, 255, 0.08)'}`,
+                  transition: 'all 0.3s ease'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {isStep2Done ? <CheckCircle2 size={16} color="#4ade80" /> : isStep2Active ? <Loader2 size={16} className="spin-animate" color="#38bdf8" /> : <Layers size={16} color="#64748b" />}
+                      <strong style={{ fontSize: '13px', color: isStep2Done ? '#4ade80' : isStep2Active ? '#38bdf8' : '#94a3b8' }}>
+                        2. CLI Plan Ready
+                      </strong>
+                    </div>
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      background: isStep2Done ? 'rgba(74, 222, 128, 0.2)' : isStep2Active ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
+                      color: isStep2Done ? '#4ade80' : isStep2Active ? '#38bdf8' : '#64748b'
+                    }}>
+                      {isStep2Done ? 'Success ✓' : isStep2Active ? 'Generating...' : 'Pending'}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0 }}>
+                    Structuring 7-9 scenes, blueprints, frame timing & narration
+                  </p>
+                </div>
+
+                {/* Milestone 3: Get Into Dashboard */}
+                <div style={{
+                  padding: '12px 14px',
+                  borderRadius: '8px',
+                  background: isStep3Done ? 'rgba(74, 222, 128, 0.1)' : isStep3Active ? 'rgba(56, 189, 248, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                  border: `1px solid ${isStep3Done ? '#22c55e' : isStep3Active ? '#38bdf8' : 'rgba(255, 255, 255, 0.08)'}`,
+                  transition: 'all 0.3s ease'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {isStep3Done ? <CheckCircle2 size={16} color="#4ade80" /> : isStep3Active ? <Loader2 size={16} className="spin-animate" color="#38bdf8" /> : <LayoutDashboard size={16} color="#64748b" />}
+                      <strong style={{ fontSize: '13px', color: isStep3Done ? '#4ade80' : isStep3Active ? '#38bdf8' : '#94a3b8' }}>
+                        3. Into Dashboard
+                      </strong>
+                    </div>
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      background: isStep3Done ? 'rgba(74, 222, 128, 0.2)' : isStep3Active ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
+                      color: isStep3Done ? '#4ade80' : isStep3Active ? '#38bdf8' : '#64748b'
+                    }}>
+                      {isStep3Done ? 'Success ✓' : isStep3Active ? 'Loading...' : 'Pending'}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '11px', color: '#94a3b8', margin: 0 }}>
+                    Script ready in dashboard for human review & Gate 1 approval
+                  </p>
+                </div>
+              </div>
+
+              {/* Progress Bar */}
+              <div style={{ width: '100%', height: '6px', borderRadius: '999px', background: '#0b1220', overflow: 'hidden', marginBottom: '10px' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${Math.max(15, Math.min(100, currentProgress))}%`,
+                  background: 'linear-gradient(90deg, #38bdf8, #818cf8, #34d399)',
+                  transition: 'width 400ms ease'
+                }} />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                <span style={{ color: '#38bdf8', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Loader2 size={13} className="spin-animate" />
+                  {liveProgress?.label || `${providerLabel} deep research running across multiple web sources...`}
+                </span>
+                <span style={{ color: '#64748b' }}>
+                  Please wait ~30-60s while deep research completes
+                </span>
+              </div>
+            </div>
+          )}
         </form>
       </div>
 
@@ -259,6 +421,54 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <h4 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px', lineHeight: '1.4' }}>
                     {proj.title}
                   </h4>
+
+                  {(proj.status === 'Researching' || proj.stage === 'research') && (
+                    <div style={{
+                      margin: '8px 0 12px',
+                      padding: '8px 10px',
+                      borderRadius: '8px',
+                      background: 'rgba(15, 23, 42, 0.8)',
+                      border: '1px solid rgba(56, 189, 248, 0.3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      fontSize: '11px',
+                      gap: '4px'
+                    }}>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        color: isStep1Done ? '#4ade80' : '#38bdf8',
+                        fontWeight: 600
+                      }}>
+                        {isStep1Done ? <CheckCircle2 size={12} color="#4ade80" /> : isStep1Active ? <Loader2 size={12} className="spin-animate" color="#38bdf8" /> : <Globe size={12} />}
+                        Research {isStep1Done ? '✓' : ''}
+                      </span>
+                      <span style={{ color: '#475569', fontSize: '8px' }}>▶</span>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        color: isStep2Done ? '#4ade80' : isStep2Active ? '#38bdf8' : '#64748b',
+                        fontWeight: 600
+                      }}>
+                        {isStep2Done ? <CheckCircle2 size={12} color="#4ade80" /> : isStep2Active ? <Loader2 size={12} className="spin-animate" color="#38bdf8" /> : <Layers size={12} />}
+                        Plan {isStep2Done ? '✓' : ''}
+                      </span>
+                      <span style={{ color: '#475569', fontSize: '8px' }}>▶</span>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        color: isStep3Done ? '#4ade80' : isStep3Active ? '#38bdf8' : '#64748b',
+                        fontWeight: 600
+                      }}>
+                        {isStep3Done ? <CheckCircle2 size={12} color="#4ade80" /> : isStep3Active ? <Loader2 size={12} className="spin-animate" color="#38bdf8" /> : <LayoutDashboard size={12} />}
+                        Dashboard {isStep3Done ? '✓' : ''}
+                      </span>
+                    </div>
+                  )}
 
                   <p style={{
                     fontSize: '13px',

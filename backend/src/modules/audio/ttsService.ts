@@ -49,6 +49,23 @@ export class TTSService {
     const remotionFile = path.join(remotionPublicDir, fileName);
     const wavFile = path.join(mediaDir, `${projectId}_kokoro.wav`);
 
+    // Check disk cache first
+    try {
+      const stats = await fs.stat(backendFile);
+      if (stats.size > 1000) {
+        const { stdout } = await execFileAsync('ffprobe', [
+          '-v', 'error', '-show_entries', 'format=duration',
+          '-of', 'default=noprint_wrappers=1:nokey=1', backendFile,
+        ]);
+        const cachedDuration = parseFloat(stdout.trim()) || 0;
+        if (cachedDuration > 0.1) {
+          try { await fs.access(remotionFile); } catch { await fs.copyFile(backendFile, remotionFile); }
+          console.log(`[TTSService] Kokoro narration cached: ${remotionFile} (${cachedDuration.toFixed(1)}s)`);
+          return { audioPath: backendFile, staticUrl: `audio/${fileName}`, durationSec: cachedDuration };
+        }
+      }
+    } catch {}
+
     const kokoro = await this.getKokoro();
     console.log(`[TTSService] Generating Kokoro narration for project ${projectId} with voice ${KOKORO_VOICE}...`);
     const audio = await kokoro.generate(text.replace(/[\r\n]+/g, ' ').trim(), {
@@ -84,6 +101,28 @@ export class TTSService {
     const backendFile = path.join(mediaDir, fileName);
     const remotionFile = path.join(remotionPublicDir, fileName);
     const wavFile = path.join(mediaDir, `${projectId}_preview_v${renderVersion}_scene_${String(sceneNumber).padStart(2, '0')}_kokoro.wav`);
+
+    // Check disk cache first to avoid redundant CPU TTS inference
+    try {
+      const stats = await fs.stat(backendFile);
+      if (stats.size > 1000) {
+        const { stdout } = await execFileAsync('ffprobe', [
+          '-v', 'error', '-show_entries', 'format=duration',
+          '-of', 'default=noprint_wrappers=1:nokey=1', backendFile,
+        ]);
+        const cachedDuration = parseFloat(stdout.trim()) || 0;
+        if (cachedDuration > 0.1) {
+          try {
+            await fs.access(remotionFile);
+          } catch {
+            await fs.copyFile(backendFile, remotionFile);
+          }
+          console.log(`[TTSService] Scene ${sceneNumber} narration cached: ${remotionFile} (${cachedDuration.toFixed(2)}s)`);
+          return { audioPath: backendFile, staticUrl: `audio/${fileName}`, durationSec: cachedDuration };
+        }
+      }
+    } catch {}
+
     const kokoro = await this.getKokoro();
     const voiceSpeed = Math.min(KOKORO_MAX_SPEED, KOKORO_SPEED * speedMultiplier);
     const audio = await kokoro.generate(text.replace(/[\r\n]+/g, ' ').trim(), {

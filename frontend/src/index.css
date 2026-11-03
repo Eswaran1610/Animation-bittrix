@@ -168,3 +168,21 @@ code, pre, .font-mono {
   border-color: var(--accent-blue);
   box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
 }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin-animate {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+.pulse-animate {
+  animation: pulse-glow 2s ease-in-out infinite;
+}

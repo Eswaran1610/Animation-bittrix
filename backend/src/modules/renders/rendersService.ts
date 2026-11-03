@@ -6,6 +6,7 @@ import { ttsService } from '../audio/ttsService.js';
 import { assetFetcher } from '../assets/assetFetcher.js';
 import { sfxService, SfxRole } from '../audio/sfxService.js';
 import { audioBedService } from '../audio/audioBedService.js';
+import { audioMixerService } from '../audio/audioMixerService.js';
 import path from 'path';
 import fs from 'fs/promises';
 import { projectPaths } from '../../config/paths.js';
@@ -44,8 +45,25 @@ export class RendersService {
     });
   }
 
+  private isWhisperAvailable: boolean | null = null;
+  private async checkWhisperAvailable(): Promise<boolean> {
+    if (this.isWhisperAvailable !== null) return this.isWhisperAvailable;
+    if (process.env.DISABLE_WHISPER === '1') {
+      this.isWhisperAvailable = false;
+      return false;
+    }
+    try {
+      const bin = process.env.WHISPER_BIN || 'whisper';
+      await execFileAsync(bin, ['--help'], { timeout: 3000 });
+      this.isWhisperAvailable = true;
+    } catch {
+      this.isWhisperAvailable = false;
+    }
+    return this.isWhisperAvailable;
+  }
+
   private async buildMeasuredCaptions(text: string, audioPath: string | undefined, durationSec: number, fps: number) {
-    if (!audioPath || process.env.DISABLE_WHISPER === '1') return this.buildWordCaptions(text, durationSec, fps);
+    if (!audioPath || !(await this.checkWhisperAvailable())) return this.buildWordCaptions(text, durationSec, fps);
     const outputDir = path.join(projectPaths.backendMedia, 'captions');
     const outputBase = path.basename(audioPath).replace(/\.[^.]+$/, '');
     const outputPath = path.join(outputDir, `${outputBase}.json`);
@@ -57,7 +75,7 @@ export class RendersService {
         '--output_format', 'json',
         '--output_dir', outputDir,
         '--word_timestamps', 'True',
-      ], { timeout: 180000, maxBuffer: 2 * 1024 * 1024 });
+      ], { timeout: 30000, maxBuffer: 2 * 1024 * 1024 });
       const transcript = JSON.parse(await fs.readFile(outputPath, 'utf8'));
       const words = (transcript.segments || []).flatMap((segment: any) => segment.words || [])
         .filter((word: any) => typeof word.word === 'string' && Number.isFinite(word.start) && Number.isFinite(word.end));
@@ -102,14 +120,14 @@ export class RendersService {
     const projectAssets: Array<Record<string, unknown>> = [];
     let narrationCompleted = 0;
     try {
-      await Promise.all(scenePlan.map(async (scene: any) => {
+      for (const scene of scenePlan) {
         const result = await ttsService.generateSceneNarration(projectId, Number(scene.scene_number), scene.narration, renderVersion);
         sceneNarration.set(Number(scene.scene_number), result);
         narrationCompleted += 1;
         if (progressCallback) {
           await progressCallback(8 + Math.round((narrationCompleted / scenePlan.length) * 17), `Narration prepared for scene ${narrationCompleted}/${scenePlan.length}`);
         }
-      }));
+      }
     } catch (err: any) {
       throw new Error(`Per-scene narration audio generation failed: ${err.message}`);
     }
@@ -154,6 +172,11 @@ export class RendersService {
     }
 
     // 2. Fetch Open Educational Web Diagrams for Scenes
+    // Ensure procedural SFX library is generated ONCE for the entire render
+    const sfxLibrarySeed = `${projectId}:${renderType}:${renderVersion}:${sfxPack}`;
+    const sfxScope = { projectId, previewVersion: renderVersion };
+    await sfxService.ensureLibrary(sfxLibrarySeed, sfxScope, sfxPack);
+
     let scenesPrepared = 0;
     const formattedScenes = await Promise.all(scenePlan.map(async (s: any, idx: number) => {
       const visualType = String(s.visual_type || '').toLowerCase();
@@ -188,39 +211,43 @@ export class RendersService {
         if (!isImage && !isDownloadedModel) return;
         const downloadUrl = isImage ? spec.asset_download_url : spec.model_download_url;
         if (typeof downloadUrl !== 'string' || !downloadUrl.trim()) {
-          throw new Error(`Scene ${s.scene_number} object "${object.label || object.id}" is marked ${isImage ? 'image' : 'downloaded 3D'} but Codex supplied no direct asset download URL.`);
+          // If no URL, fall back to procedural graphics
+          spec.type = 'procedural';
+          return;
         }
-        const fetched = await assetFetcher.fetchCodexSelectedAsset({
-          projectId,
-          previewVersion: renderVersion,
-          sceneNumber: Number(s.scene_number),
-          objectId: String(object.id),
-          title: String(object.label || object.id),
-          kind: isImage ? 'image' : '3d-model',
-          downloadUrl,
-          sourceUrl: String(spec.asset_source_url || ''),
-          license: String(spec.asset_license || ''),
-          attribution: typeof spec.asset_attribution === 'string' ? spec.asset_attribution : undefined,
-        });
-        if (isImage) {
-          spec.asset_url = fetched.staticUrl;
-          spec.asset_backend_url = `/media/${fetched.staticUrl}`;
-          if (spec.asset_query) imageAssets[spec.asset_query] = fetched.staticUrl;
-          imageAssets[downloadUrl] = fetched.staticUrl;
-          if (!imageUrl) imageUrl = fetched.staticUrl;
-        } else {
-          spec.model_url = fetched.staticUrl;
-          spec.model_backend_url = `/media/${fetched.staticUrl}`;
+        try {
+          const fetched = await assetFetcher.fetchCodexSelectedAsset({
+            projectId,
+            previewVersion: renderVersion,
+            sceneNumber: Number(s.scene_number),
+            objectId: String(object.id),
+            title: String(object.label || object.id),
+            kind: isImage ? 'image' : '3d-model',
+            downloadUrl,
+            sourceUrl: String(spec.asset_source_url || ''),
+            license: String(spec.asset_license || ''),
+            attribution: typeof spec.asset_attribution === 'string' ? spec.asset_attribution : undefined,
+          });
+          if (isImage) {
+            spec.asset_url = fetched.staticUrl;
+            spec.asset_backend_url = `/media/${fetched.staticUrl}`;
+            if (spec.asset_query) imageAssets[spec.asset_query] = fetched.staticUrl;
+            imageAssets[downloadUrl] = fetched.staticUrl;
+            if (!imageUrl) imageUrl = fetched.staticUrl;
+          } else {
+            spec.model_url = fetched.staticUrl;
+            spec.model_backend_url = `/media/${fetched.staticUrl}`;
+          }
+          projectAssets.push({ type: fetched.kind, sceneNumber: fetched.sceneNumber, objectId: fetched.objectId, title: fetched.title, path: fetched.localPath, projectUrl: `/media/${fetched.staticUrl}`, remotionUrl: fetched.staticUrl, downloadUrl: fetched.downloadUrl, sourceUrl: fetched.sourceUrl, license: fetched.license, attribution: fetched.attribution || null, fileSizeBytes: fetched.fileSizeBytes });
+        } catch (assetErr: any) {
+          console.warn(`[RendersService] Non-fatal: Asset fetch skipped for scene ${s.scene_number} ("${object.label || object.id}"):`, assetErr.message);
+          spec.type = 'procedural';
+          delete spec.asset_download_url;
+          delete spec.model_download_url;
         }
-        projectAssets.push({ type: fetched.kind, sceneNumber: fetched.sceneNumber, objectId: fetched.objectId, title: fetched.title, path: fetched.localPath, projectUrl: `/media/${fetched.staticUrl}`, remotionUrl: fetched.staticUrl, downloadUrl: fetched.downloadUrl, sourceUrl: fetched.sourceUrl, license: fetched.license, attribution: fetched.attribution || null, fileSizeBytes: fetched.fileSizeBytes });
       }));
 
-      // Generate object sound cues using one deterministic, render-specific
-      // procedural library. Roles come from the authored object labels/motion,
-      // while the seed keeps a render repeatable without reusing one global set.
-      const sfxLibrarySeed = `${projectId}:${renderType}:${renderVersion}:${sfxPack}`;
-      const sfxScope = { projectId, previewVersion: renderVersion };
-      await sfxService.ensureLibrary(sfxLibrarySeed, sfxScope, sfxPack);
+      // Generate object sound cues using the already-ensured procedural library
       const lastHitTime: number[] = [];
       const cueRequests: Array<{ hitFrame: number; role: SfxRole; sourceId: string; seedKey: string; pan?: number }> = [];
       const movingObjectIndexes = blueprint.objects.map((object: any, objectIndex: number) => {
@@ -426,6 +453,18 @@ export class RendersService {
     const totalFrames = formattedScenes.reduce((acc: number, s: any, index: number) =>
       acc + s.durationInFrames - (index < formattedScenes.length - 1 ? s.transitionOutFrames || 0 : 0), 0);
     const backgroundAudioUrl = await audioBedService.generate(projectId, renderType, renderVersion, totalFrames / fps);
+
+    // Mix narration + sfx + background bed into ONE unified master audio track
+    const masterAudioUrl = await audioMixerService.mixMasterAudio({
+      projectId,
+      renderType,
+      renderVersion,
+      fps,
+      totalDurationFrames: totalFrames,
+      scenes: formattedScenes,
+      backgroundAudioUrl,
+    });
+
     let captionOffset = 0;
     const sceneCaptions = await Promise.all(formattedScenes.map(async (scene: any) => this.buildMeasuredCaptions(
       scene.narration,
@@ -454,8 +493,9 @@ export class RendersService {
         sourceProjectId: projectId,
         previewVersion: renderVersion,
         scriptVersion: script.version,
+        audioUrl: masterAudioUrl || undefined,
         audioDurationSec: narrationDurationSec || undefined,
-        backgroundAudioUrl,
+        backgroundAudioUrl: masterAudioUrl ? undefined : backgroundAudioUrl,
         captions,
         styleBrief,
         styleProfile
@@ -619,7 +659,26 @@ export default function GeneratedCodexVideo(props: any) {
     const scriptResult = await query(`SELECT * FROM scripts WHERE project_id = $1 AND version = $2`, [projectId, scriptVersion]);
     if (!projectResult.rows[0] || !scriptResult.rows[0]) throw new Error('Project or approved script not found for production preparation.');
     const previewVersion = Number(projectResult.rows[0].current_preview_version || 0) + 1;
-    const propsPath = await this.writeRemotionSceneData(projectId, projectResult.rows[0].title, scriptResult.rows[0], previewVersion, 'preview');
+    const publishPackageProgress = async (progress: number, status: string) => {
+      realtime.publish({
+        type: 'render_progress',
+        projectId,
+        renderType: 'preview',
+        previewVersion,
+        progress,
+        status,
+      });
+      realtime.publish({
+        type: 'pipeline_progress',
+        projectId,
+        stage: 'animation_prepare',
+        progress,
+        status,
+      });
+    };
+    await publishPackageProgress(10, 'Preparing animation: Synthesizing voiceover & procedural audio...');
+    const propsPath = await this.writeRemotionSceneData(projectId, projectResult.rows[0].title, scriptResult.rows[0], previewVersion, 'preview', publishPackageProgress);
+    await publishPackageProgress(85, 'Staging 1-track master audio & Remotion TSX...');
     const remotionProps = JSON.parse(await fs.readFile(propsPath, 'utf8'));
     const manifestPath = path.join(projectPaths.backendMedia, 'projects', projectId, 'previews', `v${previewVersion}`, 'asset-manifest.json');
     let manifest: any = {};
@@ -632,6 +691,7 @@ export default function GeneratedCodexVideo(props: any) {
       audio: this.buildCueManifestFromProps(remotionProps),
       captions: remotionProps.video.captions || [],
     });
+    await publishPackageProgress(100, 'Animation package prepared; launching preview render...');
     await this.createPreviewRender(projectId, scriptVersion);
   }
 

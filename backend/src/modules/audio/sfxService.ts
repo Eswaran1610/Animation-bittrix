@@ -70,14 +70,19 @@ export class SfxService {
     const variantPath = sourcePath.replace(/\.wav$/i, `.pan-${hashText(`${seedKey}:${boundedPan.toFixed(2)}`)}.wav`);
     try {
       await fs.access(variantPath);
+      return path.relative(projectPaths.remotionPublic, variantPath).replace(/\\/g, '/');
     } catch {
-      await execFileAsync('ffmpeg', [
-        '-v', 'error', '-y', '-i', sourcePath,
-        '-af', `pan=stereo|c0=${left}*c0|c1=${right}*c0`,
-        '-ac', '2', '-ar', '48000', variantPath,
-      ], { timeout: 30000, maxBuffer: 2 * 1024 * 1024 });
+      try {
+        await execFileAsync('ffmpeg', [
+          '-v', 'error', '-y', '-i', sourcePath,
+          '-af', `pan=stereo|c0=${left}*c0|c1=${right}*c0`,
+          '-ac', '2', '-ar', '48000', variantPath,
+        ], { timeout: 10000, maxBuffer: 2 * 1024 * 1024 });
+        return path.relative(projectPaths.remotionPublic, variantPath).replace(/\\/g, '/');
+      } catch {
+        return sourceFile;
+      }
     }
-    return path.relative(projectPaths.remotionPublic, variantPath).replace(/\\/g, '/');
   }
 
   /**

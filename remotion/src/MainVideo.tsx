@@ -119,19 +119,25 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
           pointerEvents: 'none',
         }}
       />
-      {audioUrl && <Audio src={assetSource(audioUrl)} volume={narrationVolume} />}
-      {/* Background audio loop: ducks 6-8 dB (-7 dB, multiplier 0.45) under spoken narration */}
-      {backgroundAudioUrl && <Audio src={assetSource(backgroundAudioUrl)} volume={(frame) => 0.8 * (voiceActive(frame) ? 0.5 : 1) * narrationVolume(frame)} />}
-      {narrationTracks.map((track, index) => (
-        <Sequence key={`narration-${index}`} from={track.frame} durationInFrames={track.durationFrames}>
-          <Audio src={assetSource(track.src)} volume={(localFrame) => 0.92 * narrationVolume(track.frame + localFrame)} />
-        </Sequence>
-      ))}
-      {timedCues.map((cue, index) => (
-        <Sequence key={`cue-${cue.sourceId || index}`} from={cue.frame} durationInFrames={Math.max(1, cue.durationFrames || 18)}>
-          <Audio src={assetSource(cue.src)} volume={sfxVolume(cue)} />
-        </Sequence>
-      ))}
+      {audioUrl ? (
+        /* Unified 1-file master audio track (narration + sounds/sfx + background bed) */
+        <Audio src={assetSource(audioUrl)} />
+      ) : (
+        /* Multi-track fallback when master audio is not yet generated */
+        <>
+          {backgroundAudioUrl && <Audio src={assetSource(backgroundAudioUrl)} volume={(frame) => 0.8 * (voiceActive(frame) ? 0.5 : 1) * narrationVolume(frame)} />}
+          {narrationTracks.map((track, index) => (
+            <Sequence key={`narration-${index}`} from={track.frame} durationInFrames={track.durationFrames}>
+              <Audio src={assetSource(track.src)} volume={(localFrame) => 0.92 * narrationVolume(track.frame + localFrame)} />
+            </Sequence>
+          ))}
+          {timedCues.map((cue, index) => (
+            <Sequence key={`cue-${cue.sourceId || index}`} from={cue.frame} durationInFrames={Math.max(1, cue.durationFrames || 18)}>
+              <Audio src={assetSource(cue.src)} volume={sfxVolume(cue)} />
+            </Sequence>
+          ))}
+        </>
+      )}
       <TransitionSeries>{transitionNodes}</TransitionSeries>
       <WordCaptions captions={captions} color={styleProfile?.primary} />
     </AbsoluteFill>

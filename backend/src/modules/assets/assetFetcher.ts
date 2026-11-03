@@ -26,7 +26,7 @@ export interface FetchedAsset extends CodexAssetRequest {
   fileSizeBytes: number;
 }
 
-const REQUEST_TIMEOUT_MS = Number(process.env.ASSET_FETCH_TIMEOUT_MS || 20000);
+const REQUEST_TIMEOUT_MS = Number(process.env.ASSET_FETCH_TIMEOUT_MS || 8000);
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const MAX_MODEL_BYTES = 30 * 1024 * 1024;
 const USER_AGENT = 'AnimationPipeline/1.0 (Codex-selected licensed video assets)';

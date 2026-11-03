@@ -123,6 +123,20 @@ def finish(x, peak_db=-1.0):
     k = int(SR * 0.012); x[-k:] *= np.linspace(1, 0, k)                   # 12 ms fade-out, no end click
     return x / (np.max(np.abs(x)) + 1e-12) * 10 ** (peak_db / 20)
 
+def apply_pack(x, pack):
+    """Give each style brief a repeatable sonic identity without samples."""
+    if pack == "organic":
+        sos = sg.butter(2, 7200, "low", fs=SR, output="sos")
+        return sg.sosfilt(sos, x)
+    if pack == "cinematic":
+        low = sg.butter(2, 180, "low", fs=SR, output="sos")
+        return x + 0.18 * sg.sosfilt(low, x)
+    if pack == "playful":
+        return np.roll(x, int(SR * 0.003)) * 0.92 + x * 0.08
+    # digital: sharpen attacks and remove low-frequency rumble.
+    high = sg.butter(2, 180, "high", fs=SR, output="sos")
+    return sg.sosfilt(high, x)
+
 
 def hit_time_ms(x, mode):
     # Align measurement with verify_sync.py high-pass spectral flux analysis
@@ -145,6 +159,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="public/sfx"); ap.add_argument("--seed", default="default")
     ap.add_argument("--variants", type=int, default=4); ap.add_argument("--roles", default="all")
+    ap.add_argument("--pack", choices=["digital", "organic", "cinematic", "playful"], default="digital")
     ap.add_argument("--prefix", default="sfx", help="path prefix written into the manifest (staticFile-relative)")
     a = ap.parse_args()
     roles = list(ROLES) if a.roles == "all" else [r.strip() for r in a.roles.split(",")]
@@ -155,14 +170,14 @@ def main():
     for ri, role in enumerate(roles):
         fn, mode, gain = ROLES[role]
         for v in range(1, a.variants + 1):
-            rng = np.random.default_rng([base, ri, v]); x = finish(np.asarray(fn(rng), float))
+            rng = np.random.default_rng([base, ri, v]); x = finish(apply_pack(np.asarray(fn(rng), float), a.pack))
             assert np.isfinite(x).all() and len(x) > 0 and np.max(np.abs(x)) <= 0.9
             name = f"{role}_{v:02d}.wav"; wavfile.write(os.path.join(a.out, name), SR, (x * 32767).astype(np.int16))
-            manifest.append({"file": f"{a.prefix}/{name}", "role": role, "transientMs": round(hit_time_ms(x, mode), 1),
+            manifest.append({"file": f"{a.prefix}/{name}", "role": role, "pack": a.pack, "transientMs": round(hit_time_ms(x, mode), 1),
                              "durationMs": round(len(x) / SR * 1000), "gain": gain, "peakDb": round(20 * np.log10(np.max(np.abs(x))), 1)})
             if v == 1: demo += [x * gain, np.zeros(int(SR * 0.6))]
 
-    json.dump({"seed": a.seed, "sampleRate": SR, "items": manifest}, open(os.path.join(a.out, "sfx.manifest.json"), "w"), indent=1)
+    json.dump({"seed": a.seed, "pack": a.pack, "sampleRate": SR, "items": manifest}, open(os.path.join(a.out, "sfx.manifest.json"), "w"), indent=1)
     wavfile.write(os.path.join(a.out, "demo_all.wav"), SR, (np.concatenate(demo) * 32767).astype(np.int16))
     print(f"seed={a.seed!r}: {len(manifest)} files in {a.out}")
     for m in manifest:

@@ -2,6 +2,7 @@ import { lookup } from 'dns/promises';
 import { isIP } from 'net';
 import fs from 'fs/promises';
 import path from 'path';
+import sharp from 'sharp';
 import { projectPaths } from '../../config/paths.js';
 
 export type CodexAssetKind = 'image' | '3d-model';
@@ -164,6 +165,13 @@ export class AssetFetcher {
     if (request.kind === '3d-model') validateGlb(buffer, request.title);
     else if (buffer.length < 1024 || buffer.length > MAX_IMAGE_BYTES) throw new Error(`Selected image "${request.title}" has an invalid file size.`);
 
+    // Keep downloaded raster assets close to their display size. This lowers
+    // Chromium memory pressure while preserving the source URL and license
+    // metadata in the generated scene plan.
+    const normalizedBuffer = request.kind === 'image' && extension !== 'gif'
+      ? await sharp(buffer).rotate().resize({ width: 2048, height: 2048, fit: 'inside', withoutEnlargement: true }).toBuffer()
+      : buffer;
+
     const safeProjectId = request.projectId.replace(/[^a-zA-Z0-9_-]/g, '_');
     const fileName = `scene_${request.sceneNumber}_${safeSegment(request.objectId)}.${extension}`;
     const relativePath = path.posix.join('projects', safeProjectId, 'previews', `v${request.previewVersion}`, 'assets', request.kind === 'image' ? 'images' : 'models', fileName);
@@ -171,9 +179,9 @@ export class AssetFetcher {
     const remotionFile = path.join(projectPaths.remotionPublic, ...relativePath.split('/'));
     await fs.mkdir(path.dirname(backendFile), { recursive: true });
     await fs.mkdir(path.dirname(remotionFile), { recursive: true });
-    await fs.writeFile(backendFile, buffer);
+    await fs.writeFile(backendFile, normalizedBuffer);
     await fs.copyFile(backendFile, remotionFile);
-    return { ...request, localPath: backendFile, staticUrl: relativePath, fileSizeBytes: buffer.length };
+    return { ...request, localPath: backendFile, staticUrl: relativePath, fileSizeBytes: normalizedBuffer.length };
   }
 }
 

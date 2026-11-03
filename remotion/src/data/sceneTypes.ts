@@ -18,6 +18,10 @@ export interface BlueprintObject {
   motion_plan?: {
     enter_frame?: number;
     exit_frame?: number;
+    hold_start_frame?: number;
+    hold_end_frame?: number;
+    stagger_frames?: number;
+    easing?: 'spring' | 'easeOut' | 'linear';
     idle?: 'float' | 'pulse' | 'orbit' | 'shimmer' | 'drift';
     focal?: boolean;
   };
@@ -28,6 +32,8 @@ export interface BlueprintObject {
     model_id?: string;
     /** Backend-resolved, project-local GLB path injected after plan approval. */
     model_url?: string;
+    /** Backend URL used by the dashboard for the same local model. */
+    model_backend_url?: string;
     /** Direct URL selected by Codex research; downloaded by the backend. */
     model_download_url?: string;
     asset_download_url?: string;
@@ -36,6 +42,8 @@ export interface BlueprintObject {
     asset_attribution?: string;
     /** Backend-resolved project-local image path. */
     asset_url?: string;
+    /** Backend URL used by the dashboard for the same local asset. */
+    asset_backend_url?: string;
     viewBox?: [number, number, number, number];
     paths?: Array<{ d: string; fill?: string; stroke?: string; strokeWidth?: number; opacity?: number }>;
     circles?: Array<{ cx: number; cy: number; r: number; fill?: string; stroke?: string; strokeWidth?: number; opacity?: number }>;
@@ -78,6 +86,17 @@ export interface StyleProfile {
   secondary: string;
   motion_language: string;
   transition_language: string;
+}
+
+export interface StyleBrief {
+  archetype: 'kinetic-type' | 'isometric-diagram' | 'data-story' | 'paper-cutout' | 'neo-brutalist' | 'glass-ui' | 'blueprint-technical' | 'retro-terminal';
+  palette: { bg: string; primary: string; accent: string; text: string };
+  fonts: { heading: string; body: string };
+  motionPersonality: 'snappy' | 'fluid' | 'bouncy' | 'precise';
+  transitionSet: Array<'slide' | 'wipe' | 'flip' | 'fade' | 'push' | 'whip'>;
+  background: 'grid' | 'particles' | 'gradient-flow' | 'halftone' | 'lines';
+  sfxPack: 'digital' | 'organic' | 'cinematic' | 'playful';
+  bedMood: string;
 }
 
 export interface CaptionWord {
@@ -127,6 +146,7 @@ export interface SceneData {
   image_assets?: Record<string, string>;
   visualBlueprint?: VisualBlueprint;
   styleProfile?: StyleProfile;
+  styleBrief?: StyleBrief;
 }
 
 export interface SceneDataPayload {
@@ -147,6 +167,7 @@ export interface SceneDataPayload {
     backgroundAudioUrl?: string;
     captions?: CaptionWord[];
     styleProfile?: StyleProfile;
+    styleBrief?: StyleBrief;
   };
   scenes: SceneData[];
 }

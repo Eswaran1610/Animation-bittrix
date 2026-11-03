@@ -3,7 +3,7 @@ import { SceneTemplate } from '../../components/SceneTemplate';
 import { BlueprintVisual } from '../../components/BlueprintVisual';
 import { ShortVideoScene } from '../shortVideoProps';
 import { shortVideoPalettes, ShortVideoPalette } from '../designTokens';
-import { VisualBlueprint } from '../../data/sceneTypes';
+import { StyleBrief, VisualBlueprint } from '../../data/sceneTypes';
 
 /**
  * Playbook-compliant TemplateScene:
@@ -17,7 +17,8 @@ export const TemplateScene: React.FC<{
   palette: ShortVideoPalette;
   visualBlueprint?: VisualBlueprint;
   imageAssets?: Record<string, string>;
-}> = ({ scene, palette, visualBlueprint, imageAssets }) => {
+  styleBrief?: StyleBrief;
+}> = ({ scene, palette, visualBlueprint, imageAssets, styleBrief }) => {
   const colors = shortVideoPalettes[palette] || shortVideoPalettes.cool;
   const color = scene.accent || colors.accent || '#22d3ee';
 
@@ -46,12 +47,14 @@ export const TemplateScene: React.FC<{
       screenshotUrl={screenshotUrl}
       bulletTimings={bulletTimings}
       accentColor={color}
+      styleBrief={styleBrief}
     >
       {hasBlueprint && visualBlueprint && (
         <BlueprintVisual
           blueprint={visualBlueprint}
           imageAssets={imageAssets}
           durationInFrames={scene.durationInFrames}
+          styleBrief={styleBrief}
         />
       )}
     </SceneTemplate>

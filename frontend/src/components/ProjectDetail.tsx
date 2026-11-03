@@ -13,7 +13,7 @@ interface ProjectDetailProps {
 }
 
 export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, onRefresh }) => {
-  const { project, scripts, approvals, renderJobs, videos } = details;
+  const { project, scripts, approvals, renderJobs, videos, productionPackages = [] } = details;
   const [activeTab, setActiveTab] = useState<'script' | 'preview' | 'video' | 'approvals'>('script');
 
   // Script Revision & Approval State
@@ -24,6 +24,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
   // Preview Revision & Approval State
   const [previewFeedback, setPreviewFeedback] = useState('');
   const [isSubmittingPreviewAction, setIsSubmittingPreviewAction] = useState(false);
+  const [previewReport, setPreviewReport] = useState<any>(null);
 
   // Selected Script Version
   const [selectedScriptVer, setSelectedScriptVer] = useState(project.current_script_version || 1);
@@ -45,16 +46,21 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
 
   const latestPreviewJob = renderJobs.find((j) => j.render_type === 'preview');
   const finalVideo = videos[0];
+  const latestProductionPackage = productionPackages[0];
 
   useEffect(() => {
     if (!latestPreviewJob || latestPreviewJob.status === 'completed' || latestPreviewJob.status === 'failed') {
-      return;
+      if (latestProductionPackage?.status !== 'queued' && latestProductionPackage?.status !== 'building') return;
     }
     const refreshTimer = window.setInterval(() => {
       void onRefresh();
     }, 2000);
     return () => window.clearInterval(refreshTimer);
-  }, [latestPreviewJob?.id, latestPreviewJob?.status]);
+  }, [latestPreviewJob?.id, latestPreviewJob?.status, latestProductionPackage?.status]);
+
+  useEffect(() => {
+    if (currentPreviewVer > 0) void api.getPreviewReport(project.id, currentPreviewVer).then(setPreviewReport).catch(() => setPreviewReport(null));
+  }, [project.id, currentPreviewVer, latestPreviewJob?.status]);
 
   // Actions
   const handleApproveScript = async () => {
@@ -110,7 +116,9 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
     setIsSubmittingPreviewAction(true);
     try {
       await api.approvePreview(project.id, latestPreviewJob.id, currentPreviewVer);
+      await api.renderFinalVideo(project.id);
       await onRefresh();
+      setActiveTab('video');
     } catch (err: any) {
       alert(`Preview approval error: ${err.message}`);
     } finally {
@@ -132,23 +140,6 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
       setActiveTab('script');
     } catch (err: any) {
       alert(`Preview correction error: ${err.message}`);
-    } finally {
-      setIsSubmittingPreviewAction(false);
-    }
-  };
-
-  const handleRenderFinal = async () => {
-    if (!isCurrentPreviewApproved) {
-      alert('Gate 2 Violation: Final render requires explicit approval of the current preview version.');
-      return;
-    }
-    setIsSubmittingPreviewAction(true);
-    try {
-      await api.renderFinalVideo(project.id);
-      await onRefresh();
-      setActiveTab('video');
-    } catch (err: any) {
-      alert(`Final render error: ${err.message}`);
     } finally {
       setIsSubmittingPreviewAction(false);
     }
@@ -176,6 +167,11 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
         <p style={{ color: 'var(--text-secondary)', fontSize: '14px', maxWidth: '900px' }}>
           {project.input_content}
         </p>
+        <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--text-muted)' }}>
+          Codex production package: <strong style={{ color: latestProductionPackage?.status === 'ready' ? '#34d399' : '#fbbf24' }}>
+            {latestProductionPackage?.status || 'not requested'}
+          </strong> · images, characters, audio, Whisper timings, FFmpeg metadata, and Remotion props are prepared by the Codex worker.
+        </div>
 
         {/* Pipeline Stepper */}
         <div style={{
@@ -441,7 +437,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
               ) : (
                 <div style={{ marginBottom: '16px' }}>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px', lineHeight: '1.4' }}>
-                    Review the voice-over narration and scene plan. Approving authorizes Codex to create Remotion animation code and render a preview.
+                    Review the voice-over narration and scene plan. Approving authorizes Codex to prepare the complete production package; the local dashboard only waits for the returned package.
                   </p>
                   <button
                     onClick={handleApproveScript}
@@ -464,7 +460,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                   style={{ width: '100%', padding: '12px' }}
                 >
                   <Play size={18} />
-                  {isSubmittingPreviewAction ? 'Preparing Live Remotion Preview...' : 'Prepare Live Remotion Preview'}
+                  {isSubmittingPreviewAction ? 'Waiting for Codex production package...' : 'Render Codex Package Preview'}
                 </button>
                 {!isScriptApproved && (
                   <p style={{ fontSize: '11px', color: '#f59e0b', marginTop: '8px', textAlign: 'center' }}>
@@ -616,6 +612,12 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                   <span>Rendered preview: <strong>v{currentPreviewVer}</strong> (Script v{project.current_script_version})</span>
                   <span style={{ color: '#38bdf8', fontSize: '12px' }}>Natural voice + word captions + motion</span>
                 </div>
+                {previewReport?.summary && (
+                  <div style={{ marginTop: '14px', padding: '12px', borderRadius: '8px', background: '#0f172a', color: 'var(--text-secondary)', fontSize: '12px' }}>
+                    <strong style={{ color: '#e2e8f0' }}>Preview report:</strong>{' '}
+                    {previewReport.summary.sceneCount} scenes · {previewReport.summary.durationSeconds.toFixed(1)}s · {previewReport.summary.assetCount} assets · {previewReport.summary.audioCueCount} sound cues · {previewReport.summary.captionCount} captions · generated by {previewReport.summary.generatedBy}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -641,7 +643,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                     <CheckCircle2 size={16} /> Preview v{currentPreviewVer} Approved!
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '6px' }}>
-                    Approved on {new Date(previewApproval?.created_at || '').toLocaleDateString()}. Final rendering is now authorized.
+                    Approved on {new Date(previewApproval?.created_at || '').toLocaleDateString()}. The final MP4 starts automatically.
                   </div>
                 </div>
               ) : latestPreviewJob?.status !== 'completed' ? (
@@ -651,7 +653,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
               ) : currentPreviewVer > 0 ? (
                 <div style={{ marginBottom: '16px' }}>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px', lineHeight: '1.4' }}>
-                    <strong>Non-negotiable rule:</strong> Final render is strictly locked until you explicitly approve this preview version (v{currentPreviewVer}).
+                    Approving this TSX and audio preview starts the final MP4 automatically.
                   </p>
                   <button
                     onClick={handleApprovePreview}
@@ -669,23 +671,6 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                 </p>
               )}
 
-              {/* Final Render Button */}
-              <div style={{ paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
-                <button
-                  onClick={handleRenderFinal}
-                  disabled={!isCurrentPreviewApproved || isSubmittingPreviewAction}
-                  className="btn btn-primary"
-                  style={{ width: '100%', padding: '12px' }}
-                >
-                  <Play size={18} />
-                  {isSubmittingPreviewAction ? 'Rendering Final Video...' : 'Render Final High-Res Video'}
-                </button>
-                {!isCurrentPreviewApproved && (
-                  <p style={{ fontSize: '11px', color: '#f59e0b', marginTop: '8px', textAlign: 'center' }}>
-                    🔒 Locked until Gate 2 current preview is approved
-                  </p>
-                )}
-              </div>
             </div>
 
             {/* Request Visual Changes Card */}

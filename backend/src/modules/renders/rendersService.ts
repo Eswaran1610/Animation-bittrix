@@ -12,6 +12,9 @@ import { projectPaths } from '../../config/paths.js';
 import { realtime } from '../../realtime.js';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { preflightRenderProps } from './preflight.js';
+import { formatRenderFailure } from './renderDiagnostics.js';
+import { productionPackageService } from '../production/productionPackageService.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -89,6 +92,8 @@ export class RendersService {
       throw new Error('Approved script has no scene plan; render refused.');
     }
     const styleProfile = scenePlan.find((scene: any) => scene.style_profile)?.style_profile;
+    const styleBrief = scenePlan.find((scene: any) => scene.style_brief)?.style_brief;
+    const sfxPack = styleBrief?.sfxPack || 'digital';
 
     // 1. Generate one Kokoro clip per scene. FFprobe measures each clip and the
     // measured duration drives that scene's visual duration; speech is never
@@ -122,34 +127,8 @@ export class RendersService {
     });
     let minSceneFrames = requiredSceneFrames();
     let requiredFrames = minSceneFrames.reduce((sum: number, frames: number) => sum + frames, 0);
-    const maxSpeedMultiplier = ttsService.getMaxSceneSpeedMultiplier();
-    let narrationSpeedMultiplier = 1;
-    // Kokoro's measured duration does not always scale linearly with its speed
-    // setting. Re-probe the same approved words and adjust from the observed
-    // remaining overflow, rather than trusting a single estimated speed jump.
-    for (let attempt = 0; requiredFrames > targetSceneFrameTotal && attempt < 3 && narrationSpeedMultiplier < maxSpeedMultiplier; attempt += 1) {
-      const estimatedMultiplier = narrationSpeedMultiplier === 1
-        ? (requiredFrames / targetSceneFrameTotal) + 0.03
-        : narrationSpeedMultiplier * (requiredFrames / targetSceneFrameTotal) * 1.02;
-      const requestedSpeedMultiplier = Math.min(maxSpeedMultiplier, estimatedMultiplier);
-      if (requestedSpeedMultiplier <= narrationSpeedMultiplier + 0.001) break;
-      narrationSpeedMultiplier = requestedSpeedMultiplier;
-      console.warn(`[RendersService] Approved narration needs ${(requiredFrames / fps).toFixed(2)}s in a ${(targetSceneFrameTotal / fps).toFixed(2)}s plan; recalculating the same approved words at ${narrationSpeedMultiplier.toFixed(2)}x Kokoro speed (attempt ${attempt + 1}).`);
-      await Promise.all(scenePlan.map(async (scene: any) => {
-        const result = await ttsService.generateSceneNarration(
-          projectId,
-          Number(scene.scene_number),
-          scene.narration,
-          renderVersion,
-          narrationSpeedMultiplier,
-        );
-        sceneNarration.set(Number(scene.scene_number), result);
-      }));
-      minSceneFrames = requiredSceneFrames();
-      requiredFrames = minSceneFrames.reduce((sum: number, frames: number) => sum + frames, 0);
-    }
     if (requiredFrames > targetSceneFrameTotal) {
-      throw new Error(`Approved narration still needs ${(requiredFrames / fps).toFixed(2)}s after the supported narration pacing adjustment, but only ${(targetSceneFrameTotal / fps).toFixed(2)}s is available before transition overlaps. Shorten the narration and approve a new script.`);
+      throw new Error(`Approved narration needs ${(requiredFrames / fps).toFixed(2)}s, but the approved plan provides ${(targetSceneFrameTotal / fps).toFixed(2)}s. Narration is never speed-changed after approval; shorten the narration and approve a new script.`);
     }
     const allocatedSceneFrames = [...minSceneFrames];
     let framesToAllocate = targetSceneFrameTotal - requiredFrames;
@@ -225,11 +204,13 @@ export class RendersService {
         });
         if (isImage) {
           spec.asset_url = fetched.staticUrl;
+          spec.asset_backend_url = `/media/${fetched.staticUrl}`;
           if (spec.asset_query) imageAssets[spec.asset_query] = fetched.staticUrl;
           imageAssets[downloadUrl] = fetched.staticUrl;
           if (!imageUrl) imageUrl = fetched.staticUrl;
         } else {
           spec.model_url = fetched.staticUrl;
+          spec.model_backend_url = `/media/${fetched.staticUrl}`;
         }
         projectAssets.push({ type: fetched.kind, sceneNumber: fetched.sceneNumber, objectId: fetched.objectId, title: fetched.title, path: fetched.localPath, projectUrl: `/media/${fetched.staticUrl}`, remotionUrl: fetched.staticUrl, downloadUrl: fetched.downloadUrl, sourceUrl: fetched.sourceUrl, license: fetched.license, attribution: fetched.attribution || null, fileSizeBytes: fetched.fileSizeBytes });
       }));
@@ -237,11 +218,11 @@ export class RendersService {
       // Generate object sound cues using one deterministic, render-specific
       // procedural library. Roles come from the authored object labels/motion,
       // while the seed keeps a render repeatable without reusing one global set.
-      const sfxLibrarySeed = `${projectId}:${renderType}:${renderVersion}`;
+      const sfxLibrarySeed = `${projectId}:${renderType}:${renderVersion}:${sfxPack}`;
       const sfxScope = { projectId, previewVersion: renderVersion };
-      await sfxService.ensureLibrary(sfxLibrarySeed, sfxScope);
+      await sfxService.ensureLibrary(sfxLibrarySeed, sfxScope, sfxPack);
       const lastHitTime: number[] = [];
-      const cueRequests: Array<{ hitFrame: number; role: SfxRole; sourceId: string; seedKey: string }> = [];
+      const cueRequests: Array<{ hitFrame: number; role: SfxRole; sourceId: string; seedKey: string; pan?: number }> = [];
       const movingObjectIndexes = blueprint.objects.map((object: any, objectIndex: number) => {
         const hasDestination = Number.isFinite(object.to_x) || Number.isFinite(object.to_y);
         const motion = String(object.motion || '');
@@ -262,7 +243,7 @@ export class RendersService {
           const appearRole = sfxService.determineRole(object, 'appear');
 
           // Space distinct sound events at least 8 frames apart
-          const isSpaced = lastHitTime.every((t) => Math.abs(t - entranceHitFrame) >= 8);
+          const isSpaced = cueRequests.length < 6 && lastHitTime.every((t) => Math.abs(t - entranceHitFrame) >= 12);
           if (isSpaced) {
             lastHitTime.push(entranceHitFrame);
             cueRequests.push({
@@ -270,6 +251,7 @@ export class RendersService {
               role: appearRole,
               sourceId: `${s.scene_number}.object-${objectIndex + 1}.appear`,
               seedKey: `${projectId}:${s.scene_number}:${objectIndex}:appear`,
+              pan: Math.max(-1, Math.min(1, (Number(object.x) - 0.5) * 1.6)),
             });
           }
         }
@@ -288,7 +270,7 @@ export class RendersService {
           const movementEnd = Math.max(movementStart + 1, durationInFrames - 22);
           const moveHitFrame = Math.min(durationInFrames - 12, movementStart + Math.round((movementEnd - movementStart) * 0.35));
 
-          const isMoveSpaced = lastHitTime.every((t) => Math.abs(t - moveHitFrame) >= 8);
+          const isMoveSpaced = cueRequests.length < 6 && lastHitTime.every((t) => Math.abs(t - moveHitFrame) >= 12);
           if (isMoveSpaced) {
             lastHitTime.push(moveHitFrame);
             cueRequests.push({
@@ -296,6 +278,7 @@ export class RendersService {
               role: moveRole,
               sourceId: `${s.scene_number}.object-${objectIndex + 1}.motion`,
               seedKey: `${projectId}:${s.scene_number}:${objectIndex}:motion`,
+              pan: Math.max(-1, Math.min(1, (Number(object.to_x ?? object.x) - 0.5) * 1.6)),
             });
           }
         }
@@ -305,7 +288,7 @@ export class RendersService {
       const bulletItems = (s.key_takeaways || s.items || []).slice(0, 3);
       bulletItems.forEach((_: any, bIdx: number) => {
         const bulletHitFrame = Math.min(durationInFrames - 12, 22 + bIdx * 8);
-        const isSpaced = lastHitTime.every((t) => Math.abs(t - bulletHitFrame) >= 6);
+        const isSpaced = cueRequests.length < 6 && lastHitTime.every((t) => Math.abs(t - bulletHitFrame) >= 12);
         if (isSpaced) {
           lastHitTime.push(bulletHitFrame);
           cueRequests.push({
@@ -313,6 +296,7 @@ export class RendersService {
             role: 'tick',
             sourceId: `${s.scene_number}.bullet-${bIdx + 1}`,
             seedKey: `${projectId}:${s.scene_number}:bullet:${bIdx}`,
+              pan: (bIdx - 1) * 0.22,
           });
         }
       });
@@ -320,7 +304,7 @@ export class RendersService {
       // Final CTA sting: short chime or ding on the closing scene
       if (s.role === 'cta' || idx === scenePlan.length - 1) {
         const ctaHitFrame = Math.max(12, durationInFrames - 24);
-        const isSpaced = lastHitTime.every((t) => Math.abs(t - ctaHitFrame) >= 6);
+        const isSpaced = cueRequests.length < 6 && lastHitTime.every((t) => Math.abs(t - ctaHitFrame) >= 12);
         if (isSpaced) {
           lastHitTime.push(ctaHitFrame);
           cueRequests.push({
@@ -328,6 +312,7 @@ export class RendersService {
             role: 'ding',
             sourceId: `${s.scene_number}.cta-sting`,
             seedKey: `${projectId}:${s.scene_number}:cta`,
+            pan: 0,
           });
         }
       }
@@ -335,11 +320,19 @@ export class RendersService {
       // Scene transition: whoosh at the midpoint of the transition
       if (transitionOutFrames > 0 && idx < scenePlan.length - 1) {
         const transitionHitFrame = durationInFrames - Math.round(transitionOutFrames / 2);
-        cueRequests.push({
+        if (cueRequests.length < 6) cueRequests.push({
           hitFrame: transitionHitFrame,
           role: 'whoosh',
           sourceId: `${s.scene_number}.transition`,
           seedKey: `${projectId}:${s.scene_number}:transition`,
+          pan: idx % 2 === 0 ? -0.28 : 0.28,
+        });
+        if (cueRequests.length < 6) cueRequests.push({
+          hitFrame: Math.min(durationInFrames - 8, transitionHitFrame + 2),
+          role: sfxPack === 'cinematic' ? 'impact' : 'click',
+          sourceId: `${s.scene_number}.transition-layer`,
+          seedKey: `${projectId}:${s.scene_number}:transition-layer`,
+          pan: idx % 2 === 0 ? 0.28 : -0.28,
         });
       }
 
@@ -350,6 +343,7 @@ export class RendersService {
           role: 'pop',
           sourceId: `${s.scene_number}.appear`,
           seedKey: `${projectId}:${s.scene_number}:fallback`,
+          pan: 0,
         });
       }
 
@@ -359,7 +353,7 @@ export class RendersService {
       // Resolve cues from sfxService, shifting start frame by transient duration for exact hits
       const audioCues = await Promise.all(
         cueRequests.map(async (req) => {
-          const cueInfo = await sfxService.getCueForRole(req.role, req.seedKey, fps, sfxLibrarySeed, sfxScope);
+          const cueInfo = await sfxService.getCueForRole(req.role, req.seedKey, fps, sfxLibrarySeed, sfxScope, sfxPack, req.pan ?? 0);
           const startFrame = Math.max(0, req.hitFrame - cueInfo.transientFrames);
           return {
             frame: startFrame,
@@ -369,6 +363,7 @@ export class RendersService {
             volume: cueInfo.volume,
             durationFrames: cueInfo.durationFrames,
             transientMs: cueInfo.transientMs,
+            pan: cueInfo.pan,
             sourceId: req.sourceId,
           };
         })
@@ -405,6 +400,7 @@ export class RendersService {
         image_url: imageUrl,
         image_assets: imageAssets,
         visualBlueprint: blueprint,
+        styleBrief,
         motion_cue: s.motion_cue,
         continuity_to_next: s.continuity_to_next,
         motion: s.motion || [],
@@ -461,6 +457,7 @@ export class RendersService {
         audioDurationSec: narrationDurationSec || undefined,
         backgroundAudioUrl,
         captions,
+        styleBrief,
         styleProfile
       },
       scenes: formattedScenes
@@ -524,6 +521,14 @@ export class RendersService {
     if (!script) {
       throw new Error(`Script v${scriptVersion} was not found for this project.`);
     }
+    const packageRow = await productionPackageService.latest(projectId, scriptVersion);
+    if (packageRow && packageRow.status !== 'ready') {
+      if (process.env.REMOTE_PRODUCTION_WORKER !== '1') {
+        void this.prepareCodexProductionPackage(projectId, scriptVersion)
+          .catch((error: any) => productionPackageService.fail(projectId, packageRow.package_version, String(error?.message || error)));
+      }
+      throw new Error('Codex production package is still being prepared. Wait until images, characters, audio, Whisper timings, FFmpeg metadata, and Remotion props are ready.');
+    }
 
     const currentPreviewVersion = (projectRes.rows[0].current_preview_version || 0) + 1;
     const previewUrl = `/media/previews/${projectId}_preview_v${currentPreviewVersion}.mp4`;
@@ -555,6 +560,81 @@ export class RendersService {
     return renderJobRes.rows[0];
   }
 
+  private async useCodexProductionPackage(projectId: string, scriptVersion: number, previewVersion: number): Promise<string> {
+    const packageRow = await productionPackageService.latestReady(projectId, scriptVersion);
+    if (!packageRow?.package_path) {
+      throw new Error('Codex production package is not ready. Wait for Codex to finish images, characters, Kokoro audio, Whisper timings, FFmpeg metadata, and Remotion props.');
+    }
+    const packagePayload = JSON.parse(await fs.readFile(packageRow.package_path, 'utf8'));
+    const props = JSON.parse(JSON.stringify(packagePayload.remotionProps));
+    if (!props || typeof props !== 'object' || !Array.isArray((props as any).scenes) || !(props as any).video) {
+      throw new Error('Codex production package contains invalid Remotion props.');
+    }
+    props.video.previewVersion = previewVersion;
+    const renderDataPath = projectPaths.renderData(projectId, 'preview', previewVersion);
+    await fs.mkdir(projectPaths.renderDataDir, { recursive: true });
+    await fs.writeFile(renderDataPath, JSON.stringify(props, null, 2), 'utf8');
+    // Always derive global frames from scene-local Remotion cues. Older
+    // packages stored local frames in `audio`; trusting them shifts later
+    // scenes and produces missing/late hits during verification.
+    const cueManifest = this.buildCueManifestFromProps(props);
+    if (!cueManifest.length) throw new Error('Codex production package has no valid object-sound cues for audio-sync verification.');
+    await fs.writeFile(`${renderDataPath}.cues.json`, JSON.stringify(cueManifest, null, 2), 'utf8');
+    return renderDataPath;
+  }
+
+  private buildCueManifestFromProps(props: any) {
+    let sceneOffset = 0;
+    return (props.scenes || []).flatMap((scene: any, sceneIndex: number) => {
+      const cues = (scene.audioCues || []).filter((cue: any) => Number.isFinite(Number(cue.hitFrame ?? cue.frame))).map((cue: any, cueIndex: number) => ({
+        hitFrame: sceneOffset + Number(cue.hitFrame ?? cue.frame),
+        startFrame: sceneOffset + Number(cue.frame ?? cue.hitFrame),
+        transientMs: Number(cue.transientMs || 0),
+        src: cue.src,
+        role: cue.role || 'motion',
+        sourceId: cue.sourceId || `${scene.id || sceneIndex}.cue-${cueIndex + 1}`,
+      }));
+      sceneOffset += Number(scene.durationInFrames || 0) - (sceneIndex < props.scenes.length - 1 ? Number(scene.transitionOutFrames || 0) : 0);
+      return cues;
+    });
+  }
+
+  private buildGeneratedTsx() {
+    return `import React from 'react';
+import { MainVideo } from './MainVideo';
+
+// Generated by Codex. Scene motion, narration, captions, and object sound
+// effects are supplied through sceneData props and remain frame-deterministic.
+export default function GeneratedCodexVideo(props: any) {
+  return <MainVideo sceneData={props} />;
+}
+`;
+  }
+
+  async prepareCodexProductionPackage(projectId: string, scriptVersion: number): Promise<void> {
+    const packageRow = await productionPackageService.latest(projectId, scriptVersion);
+    if (!packageRow || packageRow.status === 'ready' || packageRow.status === 'building') return;
+    await query(`UPDATE production_packages SET status = 'building', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [packageRow.id]);
+    const projectResult = await query(`SELECT * FROM projects WHERE id = $1`, [projectId]);
+    const scriptResult = await query(`SELECT * FROM scripts WHERE project_id = $1 AND version = $2`, [projectId, scriptVersion]);
+    if (!projectResult.rows[0] || !scriptResult.rows[0]) throw new Error('Project or approved script not found for production preparation.');
+    const previewVersion = Number(projectResult.rows[0].current_preview_version || 0) + 1;
+    const propsPath = await this.writeRemotionSceneData(projectId, projectResult.rows[0].title, scriptResult.rows[0], previewVersion, 'preview');
+    const remotionProps = JSON.parse(await fs.readFile(propsPath, 'utf8'));
+    const manifestPath = path.join(projectPaths.backendMedia, 'projects', projectId, 'previews', `v${previewVersion}`, 'asset-manifest.json');
+    let manifest: any = {};
+    try { manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8')); } catch { /* procedural-only projects have no manifest */ }
+    await productionPackageService.receive(projectId, Number(packageRow.package_version), {
+      generatedBy: 'codex',
+      tsxSource: this.buildGeneratedTsx(),
+      remotionProps,
+      assets: manifest.assets || [],
+      audio: this.buildCueManifestFromProps(remotionProps),
+      captions: remotionProps.video.captions || [],
+    });
+    await this.createPreviewRender(projectId, scriptVersion);
+  }
+
   private async processPreviewRender(
     renderJobId: string,
     projectId: string,
@@ -577,10 +657,12 @@ export class RendersService {
         );
         realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress, status });
       };
-      await this.writeRemotionSceneData(projectId, projectTitle, script, previewVersion, 'preview', publishPreviewProgress);
-      const propsPath = projectPaths.renderData(projectId, 'preview', previewVersion);
+      const propsPath = (await productionPackageService.latestReady(projectId, script.version))
+        ? await this.useCodexProductionPackage(projectId, script.version, previewVersion)
+        : await this.writeRemotionSceneData(projectId, projectTitle, script, previewVersion, 'preview', publishPreviewProgress);
       const previewProps = JSON.parse(await fs.readFile(propsPath, 'utf8'));
       const previewDiskPath = path.join(projectPaths.backendMedia, 'previews', `${projectId}_preview_v${previewVersion}.mp4`);
+      await preflightRenderProps(propsPath);
       await publishPreviewProgress(92, 'Rendering Remotion preview video');
       await videoRenderer.renderVideo({
         outputPath: previewDiskPath,
@@ -607,7 +689,7 @@ export class RendersService {
         [projectId]
       );
     } catch (err: any) {
-      const errorMessage = err?.message || String(err);
+      const errorMessage = formatRenderFailure(err);
       console.error(`[RendersService] Preview render ${renderJobId} failed:`, errorMessage);
       await query(
         `UPDATE render_jobs
@@ -662,33 +744,46 @@ export class RendersService {
     await fs.copyFile(`${approvedPreviewPropsPath}.cues.json`, `${renderPropsPath}.cues.json`).catch((error: any) => {
       if (error?.code !== 'ENOENT') throw error;
     });
+    await preflightRenderProps(renderPropsPath);
 
     // Real output path on disk
     const diskPath = path.join(projectPaths.backendMedia, 'videos', `${projectId}_final.mp4`);
     const finalVideoUrl = `/media/videos/${projectId}_final.mp4`;
 
+    const renderJobRes = await query(
+      `INSERT INTO render_jobs (
+        project_id, render_type, preview_version, script_version, status, progress, output_location
+      ) VALUES ($1, 'final', $2, $3, 'rendering', 5, $4)
+      RETURNING *`,
+      [projectId, previewVersion, scriptVersion, finalVideoUrl]
+    );
+    await query(
+      `UPDATE projects SET stage = 'final_render', status = 'Rendering final video', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      [projectId]
+    );
+
     // Render final high-res 1080p MP4 file via Remotion (scale 1.0)
-    await videoRenderer.renderVideo({
-      outputPath: diskPath,
-      title: project.title,
-      subheading: script.scene_plan[0].subtitle,
-      versionLabel: `FINAL VIDEO • APPROVED v${previewVersion}`,
-      scale: 1.0,
-      propsPath: renderPropsPath
-    });
+    try {
+      await videoRenderer.renderVideo({
+        outputPath: diskPath,
+        title: project.title,
+        subheading: script.scene_plan[0].subtitle,
+        versionLabel: `FINAL VIDEO • APPROVED v${previewVersion}`,
+        scale: 1.0,
+        propsPath: renderPropsPath
+      });
+      await query(`UPDATE render_jobs SET status = 'completed', progress = 100, updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [renderJobRes.rows[0].id]);
+    } catch (error) {
+      const errorMessage = formatRenderFailure(error);
+      await query(`UPDATE render_jobs SET status = 'failed', progress = 100, errors = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [renderJobRes.rows[0].id, errorMessage]);
+      await query(`UPDATE projects SET stage = 'failed', status = 'Failed / Needs attention', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [projectId]);
+      throw error;
+    }
 
     const stats = await fs.stat(diskPath);
     const fileSize = stats.size;
     const finalProps = JSON.parse(await fs.readFile(renderPropsPath, 'utf8'));
     const durationSeconds = finalProps.video.durationInFrames / finalProps.video.fps;
-
-    const renderJobRes = await query(
-      `INSERT INTO render_jobs (
-        project_id, render_type, preview_version, script_version, status, progress, output_location
-      ) VALUES ($1, 'final', $2, $3, 'completed', 100, $4)
-      RETURNING *`,
-      [projectId, previewVersion, scriptVersion, finalVideoUrl]
-    );
 
     // Save final video record
     const videoRes = await query(
@@ -729,6 +824,39 @@ export class RendersService {
       if (error?.code === 'ENOENT') return null;
       throw error;
     }
+  }
+
+  async getPreviewReport(projectId: string, previewVersion: number) {
+    const jobResult = await query(`SELECT * FROM render_jobs WHERE project_id = $1 AND render_type = 'preview' AND preview_version = $2 LIMIT 1`, [projectId, previewVersion]);
+    if (!jobResult.rows.length) return null;
+    const propsPath = projectPaths.renderData(projectId, 'preview', previewVersion);
+    let props: any = null;
+    try { props = JSON.parse(await fs.readFile(propsPath, 'utf8')); } catch { /* report still includes job failure */ }
+    const manifestPath = path.join(projectPaths.backendMedia, 'projects', projectId, 'previews', `v${previewVersion}`, 'asset-manifest.json');
+    let manifest: any = null;
+    try { manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8')); } catch { /* remote packages may not use the legacy manifest */ }
+    if (!manifest) {
+      const packageResult = await query(`SELECT manifest FROM production_packages WHERE project_id = $1 AND status = 'ready' ORDER BY package_version DESC LIMIT 1`, [projectId]);
+      manifest = packageResult.rows[0]?.manifest || null;
+    }
+    const scenes = Array.isArray(props?.scenes) ? props.scenes : [];
+    const durationInFrames = Number(props?.video?.durationInFrames || 0);
+    const fps = Number(props?.video?.fps || 30);
+    return {
+      generatedAt: new Date().toISOString(),
+      render: jobResult.rows[0],
+      summary: {
+        status: jobResult.rows[0].status,
+        durationSeconds: durationInFrames / fps,
+        sceneCount: scenes.length,
+        assetCount: Array.isArray(manifest?.assets) ? manifest.assets.length : 0,
+        audioCueCount: scenes.reduce((sum: number, scene: any) => sum + (Array.isArray(scene.audioCues) ? scene.audioCues.length : 0), 0),
+        captionCount: Array.isArray(props?.video?.captions) ? props.video.captions.length : 0,
+        generatedBy: props?.video?.generatedBy || 'unknown',
+      },
+      scenes: scenes.map((scene: any) => ({ id: scene.id, title: scene.title, durationInFrames: scene.durationInFrames, narrationDurationSec: scene.narrationDurationSec, assetCount: scene.visualBlueprint?.objects?.filter((object: any) => object.render_spec?.type === 'image' || object.render_spec?.type === '3d').length || 0 })),
+      assets: manifest?.assets || [],
+    };
   }
 
   /**

@@ -35,6 +35,8 @@ export interface Project {
   status: ProjectStatus;
   current_script_version: number;
   current_preview_version: number;
+  requested_duration_sec?: number;
+  style_signature?: string;
   created_at: string;
   updated_at: string;
   codex_total_tokens?: number;
@@ -80,6 +82,10 @@ export type BlueprintRenderSpec = {
   polygons?: Array<{ points: string; fill?: string; stroke?: string; strokeWidth?: number; opacity?: number }>;
   text?: string;
   asset_query?: string | null;
+  asset_url?: string;
+  asset_backend_url?: string;
+  model_url?: string;
+  model_backend_url?: string;
 };
 
 export interface BlueprintObject {
@@ -97,6 +103,10 @@ export interface BlueprintObject {
   motion_plan?: {
     enter_frame?: number;
     exit_frame?: number;
+    hold_start_frame?: number;
+    hold_end_frame?: number;
+    stagger_frames?: number;
+    easing?: 'spring' | 'easeOut' | 'linear';
     idle?: 'float' | 'pulse' | 'orbit' | 'shimmer' | 'drift';
     focal?: boolean;
   };
@@ -136,6 +146,17 @@ export interface StyleProfile {
   transition_language: string;
 }
 
+export interface StyleBrief {
+  archetype: 'kinetic-type' | 'isometric-diagram' | 'data-story' | 'paper-cutout' | 'neo-brutalist' | 'glass-ui' | 'blueprint-technical' | 'retro-terminal';
+  palette: { bg: string; primary: string; accent: string; text: string };
+  fonts: { heading: string; body: string };
+  motionPersonality: 'snappy' | 'fluid' | 'bouncy' | 'precise';
+  transitionSet: Array<'slide' | 'wipe' | 'flip' | 'fade' | 'push' | 'whip'>;
+  background: 'grid' | 'particles' | 'gradient-flow' | 'halftone' | 'lines';
+  sfxPack: 'digital' | 'organic' | 'cinematic' | 'playful';
+  bedMood: string;
+}
+
 export interface VisualBlueprint {
   purpose: string;
   layout: string;
@@ -169,6 +190,7 @@ export interface ScenePlanItem {
   asset_suggestions?: string;
   visual_blueprint?: VisualBlueprint;
   style_profile?: StyleProfile;
+  style_brief?: StyleBrief;
 }
 
 export interface Script {

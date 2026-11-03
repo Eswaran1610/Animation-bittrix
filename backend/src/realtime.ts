@@ -7,11 +7,13 @@ export type RealtimeEvent = Record<string, unknown> & {
 
 class RealtimeBus extends EventEmitter {
   private readonly latestProgressByProject = new Map<string, RealtimeEvent>();
+  private sequence = 0;
 
   publish(event: RealtimeEvent) {
     const published: RealtimeEvent = {
       ...event,
       timestamp: event.timestamp || new Date().toISOString(),
+      sequence: ++this.sequence,
     };
 
     if ((published.type === 'pipeline_progress' || published.type === 'render_progress') && typeof published.projectId === 'string') {

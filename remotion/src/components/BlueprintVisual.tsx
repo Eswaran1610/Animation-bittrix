@@ -1,10 +1,10 @@
-import React, { Suspense, useMemo } from 'react';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useLoader } from '@react-three/fiber';
 import { ThreeCanvas } from '@remotion/three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import * as THREE from 'three';
-import { Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
-import { BlueprintObject, VisualBlueprint } from '../data/sceneTypes';
+import { Img, cancelRender, continueRender, delayRender, interpolate, prefetch, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { BlueprintObject, StyleBrief, VisualBlueprint } from '../data/sceneTypes';
 import { springPresets } from '../theme';
 import { assetSource } from '../assetSource';
 import { MODEL_LIBRARY_FILE, ModelLibraryEntry, getModelLibraryEntry } from '../data/modelLibrary';
@@ -13,6 +13,7 @@ interface BlueprintVisualProps {
   blueprint: VisualBlueprint;
   imageAssets?: Record<string, string>;
   durationInFrames: number;
+  styleBrief?: StyleBrief;
 }
 
 /**
@@ -42,19 +43,25 @@ const ParticleField: React.FC<{ frame: number; color: string }> = ({ frame, colo
   })}
 </>;
 
-const objectStyle = (object: BlueprintObject, frame: number, fps: number, index: number, durationInFrames: number): React.CSSProperties => {
-  const entrance = spring({ frame: frame - index * 5, fps, config: springPresets.bouncy });
+const objectStyle = (object: BlueprintObject, frame: number, fps: number, index: number, durationInFrames: number, personality: StyleBrief['motionPersonality'] = 'fluid'): React.CSSProperties => {
+  const springConfig = personality === 'snappy' ? springPresets.snappy : personality === 'precise' ? springPresets.smooth : personality === 'fluid' ? springPresets.soft : springPresets.bouncy;
   const motion = object.motion || '';
   const plan = object.motion_plan;
-  const movementStart = Math.min(durationInFrames - 1, plan?.enter_frame ?? 12 + index * 6);
-  const movementEnd = Math.max(movementStart + 1, durationInFrames - 22);
+  const stagger = Math.max(0, Math.min(20, plan?.stagger_frames ?? 5));
+  const entranceFrame = frame - (plan?.enter_frame ?? index * stagger) - index * stagger;
+  const entrance = plan?.easing === 'linear'
+    ? interpolate(entranceFrame, [0, 18], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+    : spring({ frame: entranceFrame, fps, config: springConfig });
+  const movementStart = Math.min(durationInFrames - 1, plan?.hold_start_frame ?? plan?.enter_frame ?? 12 + index * 6);
+  const movementEnd = Math.max(movementStart + 1, plan?.hold_end_frame ?? durationInFrames - 22);
   const movementProgress = interpolate(frame, [movementStart, movementEnd], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const x = interpolate(movementProgress, [0, 1], [object.x, object.to_x ?? object.x]);
   const y = interpolate(movementProgress, [0, 1], [object.y, object.to_y ?? object.y]);
   const idle = plan?.idle || (motion.match(/orbit/i) ? 'orbit' : motion.match(/float|drift/i) ? 'float' : motion.match(/pulse|glow/i) ? 'pulse' : 'drift');
   // Every object has a substantial but controlled idle path. Static data from
   // a blueprint must still read as motion graphics, not a glowing slide.
-  const driftAmplitude = idle === 'float' || idle === 'drift' || idle === 'orbit' ? 42 : 22;
+  const driftMultiplier = personality === 'snappy' ? 0.75 : personality === 'precise' ? 0.5 : personality === 'bouncy' ? 1.25 : 1;
+  const driftAmplitude = (idle === 'float' || idle === 'drift' || idle === 'orbit' ? 42 : 22) * driftMultiplier;
   const drift = Math.sin(frame * 0.045 + index * 1.7) * driftAmplitude;
   const lateralDrift = Math.cos(frame * 0.037 + index * 1.3) * driftAmplitude * 0.72;
   const spinning = motion.match(/rotate|spin|orbit|revolve/i);
@@ -79,38 +86,39 @@ const objectStyle = (object: BlueprintObject, frame: number, fps: number, index:
   };
 };
 
-const renderShapes = (object: BlueprintObject, fallbackColor: string) => {
+const renderShapes = (object: BlueprintObject, fallbackColor: string, drawProgress = 1) => {
   const spec = object.render_spec;
   return <>
     {spec.rects?.map((shape, i) => <rect key={`r-${i}`} {...shape} />)}
     {spec.circles?.map((shape, i) => <circle key={`c-${i}`} {...shape} />)}
-    {spec.paths?.map((shape, i) => <path key={`p-${i}`} {...shape} />)}
+    {spec.paths?.map((shape, i) => <path key={`p-${i}`} {...shape} pathLength={1} strokeDasharray={shape.stroke ? '1' : undefined} strokeDashoffset={shape.stroke ? 1 - drawProgress : undefined} />)}
     {spec.polygons?.map((shape, i) => <polygon key={`g-${i}`} {...shape} />)}
     {spec.lines?.map((shape, i) => <line key={`l-${i}`} x1={shape.x1} y1={shape.y1} x2={shape.x2} y2={shape.y2} stroke={shape.stroke || fallbackColor} strokeWidth={shape.strokeWidth || 3} strokeDasharray={shape.dash} opacity={shape.opacity} />)}
   </>;
 };
 
 /** Transparent SVG layers create data-driven depth without a repeated card. */
-const VectorObject: React.FC<{ object: BlueprintObject; frame: number; fps: number; index: number; durationInFrames: number }> = ({ object, frame, fps, index, durationInFrames }) => {
+const VectorObject: React.FC<{ object: BlueprintObject; frame: number; fps: number; index: number; durationInFrames: number; personality?: StyleBrief['motionPersonality'] }> = ({ object, frame, fps, index, durationInFrames, personality = 'fluid' }) => {
   const spec = object.render_spec;
   const viewBox = spec.viewBox || [0, 0, 1000, 700];
   const color = object.color || '#38bdf8';
-  const style = objectStyle(object, frame, fps, index, durationInFrames);
+  const style = objectStyle(object, frame, fps, index, durationInFrames, personality);
   const width = 620 + (index % 3) * 120;
   const height = 430 + (index % 2) * 110;
+  const drawProgress = interpolate(frame, [0, Math.min(durationInFrames - 1, 30)], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   return <div style={{ ...style, width, height, filter: `drop-shadow(0 0 18px ${color}66)` }}>
     {[4, 3, 2, 1, 0].map((layer) => (
       <svg key={layer} viewBox={viewBox.join(' ')} width="100%" height="100%" style={{ position: 'absolute', inset: 0, transform: `translate3d(${layer * 4}px, ${layer * 4}px, ${-layer * 7}px)`, opacity: layer === 0 ? 1 : 0.18 }}>
-        {renderShapes(object, color)}
+        {renderShapes(object, color, drawProgress)}
       </svg>
     ))}
   </div>;
 };
 
-const ThreeDObject: React.FC<{ object: BlueprintObject; frame: number; fps: number; index: number; durationInFrames: number }> = ({ object, frame, fps, index, durationInFrames }) => {
+const ThreeDObject: React.FC<{ object: BlueprintObject; frame: number; fps: number; index: number; durationInFrames: number; personality?: StyleBrief['motionPersonality'] }> = ({ object, frame, fps, index, durationInFrames, personality = 'fluid' }) => {
   const color = object.color || '#38bdf8';
   const primitive = object.render_spec.primitive || 'sphere';
-  const style = objectStyle(object, frame, fps, index, durationInFrames);
+  const style = objectStyle(object, frame, fps, index, durationInFrames, personality);
   const spin = frame * (0.55 + index * 0.07);
   const node = (key: string, left: string, top: string, size = 22) => <span key={key} style={{ position: 'absolute', left, top, width: size, height: size, borderRadius: '50%', background: `radial-gradient(circle at 30% 25%, #fff, ${color} 25%, #05070f 100%)`, boxShadow: `0 0 18px ${color}` }} />;
 
@@ -195,18 +203,18 @@ class Model3DErrorBoundary extends React.Component<{ fallback: React.ReactNode; 
   }
 }
 
-const Model3DObject: React.FC<{ object: BlueprintObject; frame: number; fps: number; index: number; durationInFrames: number }> = ({ object, frame, fps, index, durationInFrames }) => {
+const Model3DObject: React.FC<{ object: BlueprintObject; frame: number; fps: number; index: number; durationInFrames: number; personality?: StyleBrief['motionPersonality'] }> = ({ object, frame, fps, index, durationInFrames, personality = 'fluid' }) => {
   const modelId = object.render_spec.model_id;
   const entry = getModelLibraryEntry(modelId);
   const modelUrl = object.render_spec.model_url;
   if ((!modelId || !entry) && !modelUrl) {
-    return <ThreeDObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} />;
+    return <ThreeDObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} personality={personality} />;
   }
   const color = object.color || '#38bdf8';
-  const style = objectStyle(object, frame, fps, index, durationInFrames);
+  const style = objectStyle(object, frame, fps, index, durationInFrames, personality);
   const fallback = modelUrl
     ? <div style={{ ...style, width: 300, padding: 12, color: '#fecaca', background: '#450a0a', border: '2px solid #ef4444', borderRadius: 10, fontSize: 14, fontWeight: 800, textAlign: 'center' }}>3D MODEL FAILED TO LOAD: {object.label || object.id}</div>
-    : <ThreeDObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} />;
+    : <ThreeDObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} personality={personality} />;
   return <Model3DErrorBoundary fallback={fallback}>
     <Suspense fallback={fallback}>
       <div style={{ ...style, width: 360, height: 360, background: 'transparent' }}>
@@ -221,35 +229,102 @@ const Model3DObject: React.FC<{ object: BlueprintObject; frame: number; fps: num
   </Model3DErrorBoundary>;
 };
 
-const BlueprintObjectView: React.FC<{ object: BlueprintObject; frame: number; fps: number; index: number; durationInFrames: number; imageAssets: Record<string, string> }> = ({ object, frame, fps, index, durationInFrames, imageAssets }) => {
-  const color = object.color || '#38bdf8';
-  const style = objectStyle(object, frame, fps, index, durationInFrames);
+const BlueprintAssetPreloader: React.FC<{ blueprint: VisualBlueprint; imageAssets: Record<string, string> }> = ({ blueprint, imageAssets }) => {
+  const assets = useMemo(() => {
+    const values = blueprint.objects.flatMap((object) => {
+      const spec = object.render_spec;
+      const image = spec.asset_url || (spec.asset_query ? imageAssets[spec.asset_query] : undefined);
+      const model = spec.type === '3d' ? (spec.model_url || MODEL_LIBRARY_FILE) : undefined;
+      return [image, model].filter((asset): asset is string => Boolean(asset));
+    });
+    return Array.from(new Set(values));
+  }, [blueprint.objects, imageAssets]);
+  const [handle] = useState(() => delayRender('Preloading blueprint assets'));
+
+  useEffect(() => {
+    let finished = false;
+    const timeout = setTimeout(() => {
+      if (!finished) {
+        finished = true;
+        cancelRender(new Error(`Blueprint asset preload timed out after 30000ms (${assets.length} assets)`));
+      }
+    }, 30000);
+    const requests = assets.map((asset) => prefetch(assetSource(asset), { method: 'blob-url' }));
+    Promise.all(requests.map((request) => request.waitUntilDone()))
+      .then(() => {
+        if (!finished) {
+          finished = true;
+          clearTimeout(timeout);
+          continueRender(handle);
+        }
+      })
+      .catch((error) => {
+        if (!finished) {
+          finished = true;
+          clearTimeout(timeout);
+          cancelRender(error);
+        }
+      });
+    return () => {
+      finished = true;
+      clearTimeout(timeout);
+    };
+  }, [assets, handle]);
+
+  return null;
+};
+
+const BlueprintObjectView: React.FC<{ object: BlueprintObject; frame: number; fps: number; index: number; durationInFrames: number; imageAssets: Record<string, string>; personality?: StyleBrief['motionPersonality']; palette?: StyleBrief['palette']; archetype?: StyleBrief['archetype'] }> = ({ object, frame, fps, index, durationInFrames, imageAssets, personality = 'fluid', palette, archetype }) => {
+  const color = object.color || (index % 2 ? palette?.accent : palette?.primary) || '#38bdf8';
+  const style = objectStyle(object, frame, fps, index, durationInFrames, personality);
   const spec = object.render_spec;
   // A specifically requested query must resolve to its own fetched image; do
   // not silently show a different object's asset when that query is missing.
-  const imageUrl = spec.asset_url || (spec.asset_query ? imageAssets[spec.asset_query] : Object.values(imageAssets)[0]);
-  if (spec.type === '3d') return <Model3DObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} />;
+  // Never substitute another object's image. A local asset must be tied to
+  // this exact blueprint object or the render should fail preflight.
+  const imageUrl = spec.asset_url || (spec.asset_query ? imageAssets[spec.asset_query] : undefined);
+  if (spec.type === '3d') return <Model3DObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} personality={personality} />;
   if (spec.type === 'image' && imageUrl) {
     const clipPath = index % 3 === 0 ? 'circle(48% at 50% 50%)' : index % 3 === 1 ? 'polygon(8% 0, 92% 0, 100% 82%, 50% 100%, 0 82%)' : 'inset(0 round 28px 4px 28px 4px)';
-    return <div style={{ ...style, width: 300 + (index % 2) * 100, height: 210, clipPath, border: `2px solid ${color}`, boxShadow: `0 0 32px ${color}77`, overflow: 'hidden' }}><Img src={assetSource(imageUrl)} alt={object.label || 'Codex-selected asset'} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: `saturate(1.25) contrast(1.08) hue-rotate(${index * 9}deg)` }} /><div style={{ position: 'absolute', left: '10%', bottom: '8%', color: '#fff', fontSize: '14px', fontWeight: 800, textShadow: `0 2px 14px #000, 0 0 12px ${color}` }}>{object.label}</div></div>;
+    const imageRadius = archetype === 'neo-brutalist' ? '0' : archetype === 'paper-cutout' ? '18px 5px 18px 5px' : '28px 4px 28px 4px';
+    return <div style={{ ...style, width: 300 + (index % 2) * 100, height: 210, clipPath, border: `2px solid ${color}`, borderRadius: imageRadius, boxShadow: archetype === 'paper-cutout' ? `14px 14px 0 ${color}99` : `0 0 32px ${color}77`, overflow: 'hidden' }}><Img src={assetSource(imageUrl)} alt={object.label || 'Codex-selected asset'} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: archetype === 'paper-cutout' ? 'saturate(0.9) contrast(1.08)' : `saturate(1.25) contrast(1.08) hue-rotate(${index * 9}deg)` }} /><div style={{ position: 'absolute', left: '10%', bottom: '8%', color: palette?.text || '#fff', fontSize: '14px', fontWeight: 800, textShadow: `0 2px 14px #000, 0 0 12px ${color}` }}>{object.label}</div></div>;
   }
-  if (spec.type === 'vector') return <VectorObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} />;
+  if (spec.type === 'vector') return <VectorObject object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} personality={personality} />;
   const text = spec.text || object.label || object.id;
   return <div style={{ ...style, minWidth: 130, maxWidth: 330, padding: '9px 0', color: '#f8fafc', textAlign: 'center', fontWeight: 900, fontSize: `${18 + (index % 3) * 5}px`, letterSpacing: '0.04em', textShadow: `0 0 18px ${color}, 0 4px 18px #000`, borderBottom: `3px solid ${color}`, background: `linear-gradient(90deg, transparent, ${color}33, transparent)` }}>{text}</div>;
 };
 
-export const BlueprintVisual: React.FC<BlueprintVisualProps> = ({ blueprint, imageAssets = {}, durationInFrames }) => {
+export const BlueprintVisual: React.FC<BlueprintVisualProps> = ({ blueprint, imageAssets = {}, durationInFrames, styleBrief }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const scan = (frame * 9) % 1400 - 180;
-  const coreColor = blueprint.objects[0]?.color || '#8b5cf6';
-  return <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', perspective: '1200px', transformStyle: 'preserve-3d' }}>
-    <div style={{ position: 'absolute', inset: 0, opacity: 0.22, backgroundImage: 'linear-gradient(rgba(148,163,184,.22) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.22) 1px, transparent 1px)', backgroundSize: '72px 72px', backgroundPosition: `${frame * 1.8}px ${frame * 1.1}px`, maskImage: 'linear-gradient(to bottom, transparent, black 18%, black 82%, transparent)' }} />
-    <ParticleField frame={frame} color={coreColor} />
+  const coreColor = blueprint.objects[0]?.color || styleBrief?.palette.primary || '#8b5cf6';
+  const accentColor = styleBrief?.palette.accent || '#F59E0B';
+  const background = styleBrief?.background || 'grid';
+  const backgroundStyle = background === 'halftone'
+    ? { backgroundImage: `radial-gradient(${accentColor}66 2px, transparent 2px)`, backgroundSize: '22px 22px', backgroundPosition: `${frame * 0.4}px ${frame * 0.2}px` }
+    : background === 'lines'
+      ? { backgroundImage: `repeating-linear-gradient(${45 + Math.sin(frame * 0.01) * 10}deg, ${coreColor}22 0 2px, transparent 2px 26px)`, backgroundPosition: `${frame * 1.2}px ${frame * 0.6}px` }
+      : background === 'gradient-flow'
+        ? { background: `radial-gradient(circle at ${35 + Math.sin(frame * 0.02) * 20}% ${30 + Math.cos(frame * 0.017) * 15}%, ${coreColor}44, transparent 48%), linear-gradient(135deg, ${styleBrief?.palette.bg || '#05070f'}, ${accentColor}33)` }
+        : { backgroundImage: background === 'particles' ? undefined : `linear-gradient(${coreColor}28 1px, transparent 1px), linear-gradient(90deg, ${coreColor}28 1px, transparent 1px)`, backgroundSize: '72px 72px', backgroundPosition: `${frame * 1.8}px ${frame * 1.1}px` };
+  const archetypeStyle = styleBrief?.archetype === 'neo-brutalist'
+    ? { border: `4px solid ${styleBrief.palette.text}`, boxShadow: `12px 12px 0 ${accentColor}` }
+    : styleBrief?.archetype === 'glass-ui'
+      ? { backdropFilter: 'blur(4px)', backgroundColor: `${styleBrief.palette.bg}55` }
+      : styleBrief?.archetype === 'retro-terminal'
+        ? { fontFamily: 'Courier New, monospace', filter: 'contrast(1.12)' }
+        : styleBrief?.archetype === 'paper-cutout'
+          ? { filter: 'saturate(0.82)', transform: `rotate(${Math.sin(frame * 0.012) * 0.5}deg)` }
+          : {};
+  return <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', perspective: '1200px', transformStyle: 'preserve-3d', ...archetypeStyle }}>
+    <div style={{ position: 'absolute', inset: 0, opacity: 0.22, maskImage: 'linear-gradient(to bottom, transparent, black 18%, black 82%, transparent)', ...backgroundStyle }} />
+    {(background === 'particles' || styleBrief?.archetype === 'isometric-diagram' || styleBrief?.archetype === 'data-story') && <ParticleField frame={frame} color={accentColor} />}
     {!blueprint.objects.some((obj) => obj.render_spec.type === '3d' || obj.render_spec.type === 'image' || (obj.render_spec.type === 'vector' && ((obj.render_spec.paths?.length ?? 0) > 0 || (obj.render_spec.circles?.length ?? 0) > 0 || (obj.render_spec.rects?.length ?? 0) > 0))) && (
       <KineticCore frame={frame} color={coreColor} />
     )}
-    <div style={{ position: 'absolute', top: 0, bottom: 0, width: 150, left: scan, opacity: 0.18, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,.16), transparent)', filter: 'blur(10px)', transform: 'skewX(-16deg)' }} />
-    {blueprint.objects.map((object, index) => <BlueprintObjectView key={object.id} object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} imageAssets={imageAssets} />)}
+    <BlueprintAssetPreloader blueprint={blueprint} imageAssets={imageAssets} />
+    <div style={{ position: 'absolute', top: 0, bottom: 0, width: 96, left: scan, opacity: 0.14, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,.16), transparent)', transform: 'skewX(-16deg)' }} />
+    {blueprint.objects.map((object, index) => <BlueprintObjectView key={object.id} object={object} frame={frame} fps={fps} index={index} durationInFrames={durationInFrames} imageAssets={imageAssets} personality={styleBrief?.motionPersonality} palette={styleBrief?.palette} archetype={styleBrief?.archetype} />)}
   </div>;
 };

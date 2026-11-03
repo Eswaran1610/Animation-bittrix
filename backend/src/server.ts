@@ -12,7 +12,11 @@ import { pool, query } from './config/db.js';
 import { realtime } from './realtime.js';
 import { projectPaths } from './config/paths.js';
 import { codexAuthService } from './modules/auth/codexAuthService.js';
+import { agyAuthService } from './modules/auth/agyAuthService.js';
+import { claudeAuthService } from './modules/auth/claudeAuthService.js';
 import { shutdownCodexProcesses } from './modules/providers/codexProvider.js';
+import { productionPackageService } from './modules/production/productionPackageService.js';
+import { activeProviderService } from './modules/providers/activeProviderService.js';
 
 dotenv.config();
 
@@ -37,10 +41,25 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    aiProvider: 'codex',
+    aiProvider: activeProviderService.get(),
     animationEngine: 'remotion (integrated by default)',
     database: databaseLabel
   });
+});
+
+// Active provider selection — GET to read, PUT to switch.
+app.get('/api/providers/active', (req, res) => {
+  res.json(activeProviderService.status());
+});
+
+app.put('/api/providers/active', (req, res) => {
+  try {
+    const { provider } = req.body;
+    if (!provider) return res.status(400).json({ error: '"provider" field is required (codex | agy)' });
+    res.json(activeProviderService.set(provider));
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 // Codex is authenticated by the local CLI on the backend machine; credentials
@@ -50,7 +69,11 @@ app.get('/api/auth/codex', async (req, res) => {
 });
 
 app.post('/api/auth/codex', async (req, res) => {
-  res.json(await codexAuthService.start());
+  res.json(await codexAuthService.connect());
+});
+
+app.post('/api/auth/codex/disconnect', async (req, res) => {
+  res.json(await codexAuthService.disconnect());
 });
 
 // Projects Endpoints
@@ -65,11 +88,15 @@ app.get('/api/projects', async (req, res) => {
 
 app.post('/api/projects', async (req, res) => {
   try {
-    const { input_content, input_type = 'text', title } = req.body;
+    const { input_content, input_type = 'text', title, requested_duration_sec } = req.body;
     if (!input_content) {
       return res.status(400).json({ error: 'input_content is required' });
     }
-    const project = await projectsService.createProject(input_content, input_type, title);
+    const duration = requested_duration_sec === undefined || requested_duration_sec === null || requested_duration_sec === '' ? undefined : Number(requested_duration_sec);
+    if (duration !== undefined && (!Number.isInteger(duration) || duration < 20 || duration > 40)) {
+      return res.status(400).json({ error: 'requested_duration_sec must be an integer between 20 and 40 seconds' });
+    }
+    const project = await projectsService.createProject(input_content, input_type, title, duration);
     res.status(201).json(project);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -88,6 +115,26 @@ app.get('/api/projects/:id', async (req, res) => {
   }
 });
 
+// Token usage across providers
+app.get(['/api/usage', '/api/usage/active'], async (req, res) => {
+  try {
+    const targetProvider = (req.query.provider as string) || activeProviderService.get();
+    const usage = await query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN execution_metadata->>'input_tokens' ~ '^[0-9]+$' THEN (execution_metadata->>'input_tokens')::bigint ELSE 0 END), 0)::bigint AS input_tokens,
+        COALESCE(SUM(CASE WHEN execution_metadata->>'output_tokens' ~ '^[0-9]+$' THEN (execution_metadata->>'output_tokens')::bigint ELSE 0 END), 0)::bigint AS output_tokens,
+        COALESCE(SUM(CASE WHEN execution_metadata->>'total_tokens' ~ '^[0-9]+$' THEN (execution_metadata->>'total_tokens')::bigint ELSE 0 END), 0)::bigint AS total_tokens,
+        COUNT(*)::int AS run_count,
+        COALESCE(BOOL_OR(COALESCE((execution_metadata->>'estimated')::boolean, false)), false) AS estimated,
+        true AS available
+      FROM agent_runs WHERE ($1 = 'all' OR provider = $1)
+    `, [targetProvider]);
+    res.json({ ...usage.rows[0], provider: targetProvider });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/usage/codex', async (req, res) => {
   try {
     const usage = await query(`
@@ -96,8 +143,27 @@ app.get('/api/usage/codex', async (req, res) => {
         COALESCE(SUM(CASE WHEN execution_metadata->>'output_tokens' ~ '^[0-9]+$' THEN (execution_metadata->>'output_tokens')::bigint ELSE 0 END), 0)::bigint AS output_tokens,
         COALESCE(SUM(CASE WHEN execution_metadata->>'total_tokens' ~ '^[0-9]+$' THEN (execution_metadata->>'total_tokens')::bigint ELSE 0 END), 0)::bigint AS total_tokens,
         COUNT(*)::int AS run_count,
-        COALESCE(BOOL_OR(COALESCE((execution_metadata->>'estimated')::boolean, true)), false) AS estimated
+        COALESCE(BOOL_OR(COALESCE((execution_metadata->>'estimated')::boolean, false)), false) AS estimated,
+        true AS available
       FROM agent_runs WHERE provider = 'codex'
+    `);
+    res.json(usage.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/usage/agy', async (req, res) => {
+  try {
+    const usage = await query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN execution_metadata->>'input_tokens' ~ '^[0-9]+$' THEN (execution_metadata->>'input_tokens')::bigint ELSE 0 END), 0)::bigint AS input_tokens,
+        COALESCE(SUM(CASE WHEN execution_metadata->>'output_tokens' ~ '^[0-9]+$' THEN (execution_metadata->>'output_tokens')::bigint ELSE 0 END), 0)::bigint AS output_tokens,
+        COALESCE(SUM(CASE WHEN execution_metadata->>'total_tokens' ~ '^[0-9]+$' THEN (execution_metadata->>'total_tokens')::bigint ELSE 0 END), 0)::bigint AS total_tokens,
+        COUNT(*)::int AS run_count,
+        COALESCE(BOOL_OR(COALESCE((execution_metadata->>'estimated')::boolean, false)), false) AS estimated,
+        true AS available
+      FROM agent_runs WHERE provider = 'agy'
     `);
     res.json(usage.rows[0]);
   } catch (err: any) {
@@ -112,7 +178,53 @@ app.get('/api/providers/codex/status', async (req, res) => {
 });
 
 app.post('/api/providers/codex/connect', async (req, res) => {
-  res.json(await codexAuthService.start());
+  res.json(await codexAuthService.connect());
+});
+
+app.post('/api/providers/codex/disconnect', async (req, res) => {
+  res.json(await codexAuthService.disconnect());
+});
+
+// AGY (Antigravity) CLI auth — local session, no credentials returned.
+app.get('/api/auth/agy', async (req, res) => {
+  res.json(await agyAuthService.status());
+});
+
+app.post('/api/auth/agy', async (req, res) => {
+  res.json(await agyAuthService.connect());
+});
+
+app.post('/api/auth/agy/disconnect', async (req, res) => {
+  res.json(await agyAuthService.disconnect());
+});
+
+app.get('/api/providers/agy/status', async (req, res) => {
+  res.json(await agyAuthService.status());
+});
+
+app.post('/api/providers/agy/connect', async (req, res) => {
+  res.json(await agyAuthService.connect());
+});
+
+app.post('/api/providers/agy/disconnect', async (req, res) => {
+  res.json(await agyAuthService.disconnect());
+});
+
+// Claude Code CLI auth — local session, no credentials returned.
+app.get('/api/auth/claude', async (req, res) => {
+  res.json(await claudeAuthService.status());
+});
+
+app.post('/api/auth/claude', async (req, res) => {
+  res.json(await claudeAuthService.start());
+});
+
+app.get('/api/providers/claude/status', async (req, res) => {
+  res.json(await claudeAuthService.status());
+});
+
+app.post('/api/providers/claude/connect', async (req, res) => {
+  res.json(await claudeAuthService.start());
 });
 
 app.delete('/api/projects/:id', async (req, res) => {
@@ -151,9 +263,27 @@ app.post('/api/projects/:id/scripts/approve', async (req, res) => {
       approved_by,
       feedback_notes
     );
-    res.json(approval);
+    const packageRequest = await productionPackageService.queue(req.params.id, version_number);
+    if (process.env.REMOTE_PRODUCTION_WORKER !== '1') {
+      void rendersService.prepareCodexProductionPackage(req.params.id, version_number)
+        .catch((error: any) => productionPackageService.fail(req.params.id, packageRequest.package_version, String(error?.message || error)));
+    }
+    res.json({ ...approval, production_package: packageRequest });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Called by the Codex CLI/remote production worker after it has generated and
+// staged every image, character, Kokoro track, Whisper timing, FFmpeg output
+// metadata, and Remotion props. The browser/local machine does not do that work.
+app.post('/api/projects/:id/production-packages/:version', async (req, res) => {
+  try {
+    const packageVersion = Number(req.params.version);
+    if (!Number.isInteger(packageVersion) || packageVersion < 1) return res.status(400).json({ error: 'package version must be a positive integer' });
+    res.json(await productionPackageService.receive(req.params.id, packageVersion, req.body));
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
   }
 });
 
@@ -167,6 +297,18 @@ app.get('/api/projects/:id/previews/:version/props', async (req, res) => {
     const props = await rendersService.getPreviewProps(req.params.id, previewVersion);
     if (!props) return res.status(404).json({ error: 'Preview composition data not found' });
     res.json(props);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/projects/:id/previews/:version/report', async (req, res) => {
+  try {
+    const version = Number(req.params.version);
+    if (!Number.isInteger(version) || version < 1) return res.status(400).json({ error: 'preview version must be a positive integer' });
+    const report = await rendersService.getPreviewReport(req.params.id, version);
+    if (!report) return res.status(404).json({ error: 'Preview report not found' });
+    res.json(report);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -248,13 +390,26 @@ const httpServer = createServer(app);
 const websocketServer = new WebSocketServer({ server: httpServer, path: '/ws' });
 
 websocketServer.on('connection', (socket) => {
+  let alive = true;
+  const heartbeat = setInterval(() => {
+    if (!alive) {
+      socket.terminate();
+      return;
+    }
+    alive = false;
+    socket.ping();
+  }, 30_000);
+  socket.on('pong', () => { alive = true; });
   const listener = (event: Record<string, unknown>) => {
     if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(event));
   };
   realtime.on('event', listener);
   socket.send(JSON.stringify({ type: 'connected', timestamp: new Date().toISOString() }));
   socket.send(JSON.stringify({ type: 'progress_snapshot', events: realtime.progressSnapshot() }));
-  socket.on('close', () => realtime.off('event', listener));
+  socket.on('close', () => {
+    clearInterval(heartbeat);
+    realtime.off('event', listener);
+  });
 });
 
 let shuttingDown = false;

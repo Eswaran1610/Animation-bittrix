@@ -11,14 +11,16 @@ export const api = {
   },
 
   async getCodexUsage() {
-    const res = await fetch(`${API_BASE}/usage/codex`);
-    if (!res.ok) throw new Error('Failed to fetch Codex usage');
+    const res = await fetch(`${API_BASE}/usage`);
+    if (!res.ok) throw new Error('Failed to fetch AI usage');
     return res.json() as Promise<{
       input_tokens: number;
       output_tokens: number;
       total_tokens: number;
       run_count: number;
       estimated: boolean;
+      available: boolean;
+      provider?: string;
     }>;
   },
 
@@ -34,17 +36,23 @@ export const api = {
     return res.json() as Promise<CodexConnection>;
   },
 
+  async disconnectCodex() {
+    const res = await fetch(`${API_BASE}/auth/codex/disconnect`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to disconnect Codex');
+    return res.json() as Promise<CodexConnection>;
+  },
+
   async listProjects(): Promise<Project[]> {
     const res = await fetch(`${API_BASE}/projects`);
     if (!res.ok) throw new Error('Failed to fetch projects');
     return res.json();
   },
 
-  async createProject(input_content: string, input_type: 'text' | 'topic' | 'url', title?: string): Promise<Project> {
+  async createProject(input_content: string, input_type: 'text' | 'topic' | 'url', title?: string, requested_duration_sec?: number): Promise<Project> {
     const res = await fetch(`${API_BASE}/projects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input_content, input_type, title }),
+      body: JSON.stringify({ input_content, input_type, title, requested_duration_sec }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -114,6 +122,12 @@ export const api = {
     return res.json();
   },
 
+  async getPreviewReport(projectId: string, previewVersion: number): Promise<any> {
+    const res = await fetch(`${API_BASE}/projects/${projectId}/previews/${previewVersion}/report`);
+    if (!res.ok) throw new Error('Failed to load preview report');
+    return res.json();
+  },
+
   async revisePreview(projectId: string, feedback: string): Promise<Script> {
     const res = await fetch(`${API_BASE}/projects/${projectId}/previews/revise`, {
       method: 'POST',
@@ -157,10 +171,76 @@ export const api = {
     if (!res.ok) throw new Error('Failed to fetch videos');
     return res.json();
   },
+
+  // AGY (Antigravity) CLI connection
+  async getAgyConnection() {
+    const res = await fetch(`${API_BASE}/auth/agy`);
+    if (!res.ok) throw new Error('Failed to check AGY connection');
+    return res.json() as Promise<CliConnection>;
+  },
+
+  async connectAgy() {
+    const res = await fetch(`${API_BASE}/auth/agy`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to refresh AGY connection');
+    return res.json() as Promise<CliConnection>;
+  },
+
+  async disconnectAgy() {
+    const res = await fetch(`${API_BASE}/auth/agy/disconnect`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to disconnect AGY');
+    return res.json() as Promise<CliConnection>;
+  },
+
+  // Claude Code CLI connection
+  async getClaudeConnection() {
+    const res = await fetch(`${API_BASE}/auth/claude`);
+    if (!res.ok) throw new Error('Failed to check Claude Code connection');
+    return res.json() as Promise<CliConnection>;
+  },
+
+  async connectClaude() {
+    const res = await fetch(`${API_BASE}/auth/claude`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to refresh Claude Code connection');
+    return res.json() as Promise<CliConnection>;
+  },
+
+  // Active provider selection
+  async getActiveProvider() {
+    const res = await fetch(`${API_BASE}/providers/active`);
+    if (!res.ok) throw new Error('Failed to fetch active provider');
+    return res.json() as Promise<ActiveProviderStatus>;
+  },
+
+  async setActiveProvider(provider: 'codex' | 'agy' | 'none') {
+    const res = await fetch(`${API_BASE}/providers/active`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as any).error || 'Failed to set active provider');
+    }
+    return res.json() as Promise<{ activeProvider: 'codex' | 'agy' | 'none'; message: string }>;
+  },
 };
 
-export type CodexConnection = {
+/** Shared type for all local CLI auth status responses. */
+export type CliConnection = {
   cliAvailable: boolean;
-  state: 'unknown' | 'connected' | 'failed';
+  state: 'unknown' | 'connected' | 'standby' | 'failed';
+  isActive?: boolean;
   message: string;
+  /** Only present on AGY: CLI version string */
+  version?: string;
+  /** Only present on AGY: active model name */
+  model?: string;
 };
+
+export type ActiveProviderStatus = {
+  activeProvider: 'codex' | 'agy' | 'none';
+  available: Array<'codex' | 'agy' | 'none'>;
+};
+
+/** @deprecated Use CliConnection instead. */
+export type CodexConnection = CliConnection;

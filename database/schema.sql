@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS projects (
     -- Statuses: 'Draft', 'Queued for research', 'Researching', 'Script ready for review', 'Script changes requested', 'Script approved', 'Preparing animation', 'Rendering preview', 'Preview ready for review', 'Preview changes requested', 'Rendering final video', 'Completed', 'Failed / Needs attention'
     current_script_version INT DEFAULT 0,
     current_preview_version INT DEFAULT 0,
+    requested_duration_sec INT,
+    style_signature TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -127,3 +129,21 @@ CREATE INDEX IF NOT EXISTS idx_scripts_project_ver ON scripts(project_id, versio
 CREATE INDEX IF NOT EXISTS idx_approvals_project ON approvals(project_id, approval_type);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_render_jobs_project ON render_jobs(project_id);
+
+-- Codex production-worker handoff. The dashboard/backend never generates the
+-- heavy media in remote mode; it only tracks the package returned by Codex.
+CREATE TABLE IF NOT EXISTS production_packages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    script_version INT NOT NULL,
+    package_version INT NOT NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'queued', -- queued, building, ready, failed
+    manifest JSONB DEFAULT '{}'::jsonb,
+    package_path TEXT,
+    error_message TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (project_id, package_version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_production_packages_project ON production_packages(project_id, package_version DESC);

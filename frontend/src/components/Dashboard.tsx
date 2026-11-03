@@ -3,15 +3,17 @@ import { Project } from '../types';
 import { Sparkles, Plus, Clock, FileText, Play, Trash2, ArrowRight, CheckCircle2, AlertCircle, Cpu } from 'lucide-react';
 
 interface DashboardProps {
+  activeProvider?: string;
   projects: Project[];
   loading: boolean;
-  liveUsage?: { total_tokens?: number; estimated?: boolean } | null;
+  liveUsage?: { active?: boolean } | null;
   onSelectProject: (projectId: string) => void;
-  onCreateProject: (content: string, type: 'text' | 'topic' | 'url', title?: string) => Promise<void>;
+  onCreateProject: (content: string, type: 'text' | 'topic' | 'url', title?: string, durationSec?: number) => Promise<void>;
   onDeleteProject: (projectId: string) => Promise<void>;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
+  activeProvider,
   projects,
   loading,
   liveUsage,
@@ -19,14 +21,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onCreateProject,
   onDeleteProject,
 }) => {
+  const providerLabel = activeProvider === 'agy' ? 'AGY (Claude)' : activeProvider === 'codex' ? 'Codex' : 'AI';
   const [inputType, setInputType] = useState<'text' | 'topic' | 'url'>('topic');
   const [inputContent, setInputContent] = useState('');
   const [projectTitle, setProjectTitle] = useState('');
+  const [durationSec, setDurationSec] = useState(30);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const totalCodexTokens = projects.reduce((sum, project) => sum + Number(project.codex_total_tokens || 0), 0) + Number(liveUsage?.total_tokens || 0);
+  const totalCodexTokens = projects.reduce((sum, project) => sum + Number(project.codex_total_tokens || 0), 0);
   const totalCodexRuns = projects.reduce((sum, project) => sum + Number(project.codex_run_count || 0), 0);
-  const hasEstimatedUsage = projects.some((project) => project.codex_usage_estimated) || Boolean(liveUsage);
+  const hasEstimatedUsage = projects.some((project) => project.codex_usage_estimated);
   const formatTokens = (value: number) => new Intl.NumberFormat().format(value);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,7 +42,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     setErrorMsg('');
     setSubmitting(true);
     try {
-      await onCreateProject(inputContent, inputType, projectTitle.trim() || undefined);
+      await onCreateProject(inputContent, inputType, projectTitle.trim() || undefined, durationSec);
       setInputContent('');
       setProjectTitle('');
     } catch (err: any) {
@@ -81,7 +85,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             Start a New Animation Video
           </h2>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
-            Submit your topic, pasted text, or URL. Codex will research and generate a full script, scene breakdown, and voice-over narration.
+            Submit your topic, pasted text, or URL. {providerLabel} will research and generate a full script, scene breakdown, and voice-over narration.
             <strong style={{ color: 'var(--accent-blue)', marginLeft: '6px' }}>
               Requires explicit script & preview approvals before final render.
             </strong>
@@ -122,7 +126,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             ))}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '16px', marginBottom: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: '16px', marginBottom: '16px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                 Project Title (Optional)
@@ -134,6 +138,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 value={projectTitle}
                 onChange={(e) => setProjectTitle(e.target.value)}
               />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                Video Duration (seconds)
+              </label>
+              <input
+                type="number"
+                min={20}
+                max={40}
+                step={1}
+                className="input-text"
+                value={durationSec}
+                onChange={(e) => setDurationSec(Math.max(20, Math.min(40, Number(e.target.value) || 30)))}
+              />
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '5px' }}>{providerLabel} plans exactly this duration.</div>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
@@ -169,20 +188,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </form>
       </div>
 
-      {/* Codex Usage Summary */}
+      {/* Provider Usage Summary */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '36px' }}>
         <div className="glass-panel" style={{ padding: '18px 20px' }}>
-          <div style={{ color: 'var(--text-muted)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>Codex Tokens Used</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>{providerLabel} Tokens Used</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginTop: '8px' }}>
             <Cpu size={20} color="var(--accent-blue)" />
             <strong style={{ fontSize: '25px' }}>{formatTokens(totalCodexTokens)}</strong>
           </div>
           <div style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '5px' }}>
-            {liveUsage ? 'Includes current live Codex estimate' : hasEstimatedUsage ? 'Includes estimated runs until Codex reports native usage' : 'Reported by Codex process'}
+            {liveUsage?.active ? `${providerLabel} run in progress; live count updating` : hasEstimatedUsage ? 'Includes legacy estimated runs' : `Reported by ${providerLabel} runs`}
           </div>
         </div>
         <div className="glass-panel" style={{ padding: '18px 20px' }}>
-          <div style={{ color: 'var(--text-muted)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>Codex Runs</div>
+          <div style={{ color: 'var(--text-muted)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>{providerLabel} Runs</div>
           <strong style={{ display: 'block', fontSize: '25px', marginTop: '8px' }}>{formatTokens(totalCodexRuns)}</strong>
           <div style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '5px' }}>Script and revision generations</div>
         </div>
@@ -270,9 +289,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       <Play size={13} style={{ verticalAlign: '-2px', marginRight: '4px' }} />
                       Preview v{proj.current_preview_version || 0}
                     </span>
-                    <span title={proj.codex_usage_estimated ? 'Estimated from Codex input/output size' : 'Reported by Codex'}>
+                    <span title={proj.codex_usage_estimated ? 'Estimated from model input/output size' : `Reported by ${providerLabel}`}>
                       <Cpu size={13} style={{ verticalAlign: '-2px', marginRight: '4px' }} />
-                      Codex {formatTokens(Number(proj.codex_total_tokens || 0))} tokens{proj.codex_usage_estimated ? ' ~' : ''}
+                      {providerLabel} {formatTokens(Number(proj.codex_total_tokens || 0))} tokens{proj.codex_usage_estimated ? ' ~' : ''}
                     </span>
                   </div>
                 </div>

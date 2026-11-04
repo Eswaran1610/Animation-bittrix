@@ -136,7 +136,7 @@ export interface SceneData {
   duration_sec: number;
   durationInFrames: number;
   transitionOutFrames?: number;
-  visualType: 'blueprint';
+  visualType?: 'blueprint' | 'orbital' | 'network' | 'metric' | 'headline' | 'diagram' | string;
   themeColor: string;
   narration: string;
   narrationAudio?: string;

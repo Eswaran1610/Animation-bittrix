@@ -13,6 +13,8 @@ import {
   ACCENT_CYAN,
 } from '../constants';
 import { StyleBrief } from '../data/sceneTypes';
+import { assetSource } from '../assetSource';
+import { DynamicDiagram } from './MotionElements';
 
 const clamp = (v: number) => Math.min(1, Math.max(0, v));
 const prog = (f: number, s: number, l: number) => clamp((f - s) / Math.max(1, l));
@@ -148,6 +150,16 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
   const mediaOpacity = mediaP * exitProgress;
   const mediaY = (1 - mediaP) * 40;
   const mediaScale = 1 + 0.08 * (frame / Math.max(1, durationInFrames));
+
+  // Procedural Ken Burns Motion for Images (Cinematic Pan & Dynamic Zoom)
+  const kbProg = interpolate(frame, [0, Math.max(1, durationInFrames)], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const imageScale = interpolate(kbProg, [0, 1], [1.06, 1.20]);
+  const imagePanX = interpolate(kbProg, [0, 1], [-20, 20]);
+  const imagePanY = interpolate(kbProg, [0, 1], [10, -10]);
+  const imageBreathe = Math.sin(frame * 0.05) * 3;
 
   // Caption entrance: 12 frames ease-out
   const capP = easeOut(prog(frame, 35, 14));
@@ -324,22 +336,27 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
             transform: `translateY(${mediaY}px)`,
           }}
         >
-          {/* Browser Chrome Header */}
+          {/* Frame Header / Console Status Bar */}
           <div
             style={{
-              height: 54,
+              height: 50,
               background: archetype === 'retro-terminal' ? '#071a12' : `${palette?.primary || '#151d28'}33`,
               borderBottom: '1px solid rgba(255,255,255,0.08)',
               display: 'flex',
               alignItems: 'center',
-              gap: 10,
+              justifyContent: 'space-between',
               padding: '0 22px',
               flex: 'none',
             }}
           >
-            <i style={{ width: 14, height: 14, borderRadius: '50%', background: '#ff5f56', display: 'inline-block' }} />
-            <i style={{ width: 14, height: 14, borderRadius: '50%', background: '#ffbd2e', display: 'inline-block' }} />
-            <i style={{ width: 14, height: 14, borderRadius: '50%', background: '#27c93f', display: 'inline-block' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <i style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f56', display: 'inline-block' }} />
+              <i style={{ width: 12, height: 12, borderRadius: '50%', background: '#ffbd2e', display: 'inline-block' }} />
+              <i style={{ width: 12, height: 12, borderRadius: '50%', background: '#27c93f', display: 'inline-block' }} />
+            </div>
+            <div style={{ fontSize: 13, color: '#94a3b8', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700 }}>
+              {archetype === 'retro-terminal' ? 'SYS://TERMINAL' : 'MOTION ENGINE'}
+            </div>
           </div>
 
           {/* Media Body / Screenshot / Custom Visual */}
@@ -364,52 +381,37 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
                 {children}
               </div>
             ) : screenshotUrl ? (
-              <img
-                src={screenshotUrl}
-                alt="Scene visual"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  transform: `scale(${mediaScale})`,
-                }}
-              />
-            ) : (
               <div
                 style={{
                   width: '100%',
                   height: '100%',
-                  background: 'linear-gradient(135deg, #0a8fa6, #0b2b3a)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: 40,
-                  transform: `scale(${mediaScale})`,
+                  position: 'relative',
+                  overflow: 'hidden',
                 }}
               >
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 52, fontWeight: 800, color: '#fff', marginBottom: 20 }}>
-                    {title}
-                  </div>
-                  <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-                    {bullets.map((b, i) => (
-                      <span
-                        key={i}
-                        style={{
-                          background: '#fff',
-                          color: '#0b2b3a',
-                          borderRadius: 14,
-                          padding: '14px 24px',
-                          fontSize: 26,
-                          fontWeight: 700,
-                        }}
-                      >
-                        {b}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+                <img
+                  src={assetSource(screenshotUrl)}
+                  alt="Scene visual"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    transform: `scale(${imageScale}) translate3d(${imagePanX}px, ${imagePanY + imageBreathe}px, 0)`,
+                    transformOrigin: 'center center',
+                    filter: 'contrast(1.08) saturate(1.15)',
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: 'radial-gradient(circle at 50% 50%, transparent 50%, rgba(0,0,0,0.65) 100%)',
+                    pointerEvents: 'none',
+                  }}
+                />
               </div>
+            ) : (
+              <DynamicDiagram color={accentColor} title={title} />
             )}
           </div>
         </div>

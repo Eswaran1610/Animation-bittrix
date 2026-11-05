@@ -17,6 +17,7 @@ export interface ResearchAndScriptRequest {
   changeRequestFeedback?: string;
   existingNarration?: string; // Must be preserved on visual edits unless explicitly asked
   requestedDurationSec?: number;
+  selectedTheme?: string;
 }
 
 export interface ResearchAndScriptResult {

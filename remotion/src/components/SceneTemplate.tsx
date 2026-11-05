@@ -336,28 +336,30 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
             transform: `translateY(${mediaY}px)`,
           }}
         >
-          {/* Frame Header / Console Status Bar */}
-          <div
-            style={{
-              height: 50,
-              background: archetype === 'retro-terminal' ? '#071a12' : `${palette?.primary || '#151d28'}33`,
-              borderBottom: '1px solid rgba(255,255,255,0.08)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '0 22px',
-              flex: 'none',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <i style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f56', display: 'inline-block' }} />
-              <i style={{ width: 12, height: 12, borderRadius: '50%', background: '#ffbd2e', display: 'inline-block' }} />
-              <i style={{ width: 12, height: 12, borderRadius: '50%', background: '#27c93f', display: 'inline-block' }} />
+          {/* Frame Header / Console Status Bar (Only for retro-terminal archetype) */}
+          {archetype === 'retro-terminal' && (
+            <div
+              style={{
+                height: 50,
+                background: '#071a12',
+                borderBottom: '1px solid rgba(255,255,255,0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0 22px',
+                flex: 'none',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <i style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f56', display: 'inline-block' }} />
+                <i style={{ width: 12, height: 12, borderRadius: '50%', background: '#ffbd2e', display: 'inline-block' }} />
+                <i style={{ width: 12, height: 12, borderRadius: '50%', background: '#27c93f', display: 'inline-block' }} />
+              </div>
+              <div style={{ fontSize: 13, color: '#94a3b8', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700 }}>
+                SYS://TERMINAL
+              </div>
             </div>
-            <div style={{ fontSize: 13, color: '#94a3b8', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700 }}>
-              {archetype === 'retro-terminal' ? 'SYS://TERMINAL' : 'MOTION ENGINE'}
-            </div>
-          </div>
+          )}
 
           {/* Media Body / Screenshot / Custom Visual */}
           <div

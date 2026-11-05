@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Project } from '../types';
+import { THEME_CATALOG } from '../data/themes';
 import { 
   Sparkles, Plus, Clock, FileText, Play, Trash2, ArrowRight, 
   CheckCircle2, AlertCircle, Cpu, Globe, Layers, LayoutDashboard, Loader2 
@@ -12,7 +13,7 @@ interface DashboardProps {
   liveUsage?: { active?: boolean } | null;
   liveProgress?: { progress: number; label: string; stage?: string; projectId?: string };
   onSelectProject: (projectId: string) => void;
-  onCreateProject: (content: string, type: 'text' | 'topic' | 'url', title?: string, durationSec?: number) => Promise<void>;
+  onCreateProject: (content: string, type: 'text' | 'topic' | 'url', title?: string, durationSec?: number, themeId?: string) => Promise<void>;
   onDeleteProject: (projectId: string) => Promise<void>;
 }
 
@@ -28,6 +29,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 }) => {
   const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'codex' ? 'Codex' : 'AI';
   const [inputType, setInputType] = useState<'text' | 'topic' | 'url'>('topic');
+  const [selectedThemeId, setSelectedThemeId] = useState<string>('character-explainer');
   const [inputContent, setInputContent] = useState('');
   const [projectTitle, setProjectTitle] = useState('');
   const [durationSec, setDurationSec] = useState(30);
@@ -62,7 +64,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     setErrorMsg('');
     setSubmitting(true);
     try {
-      await onCreateProject(inputContent, inputType, projectTitle.trim() || undefined, durationSec);
+      await onCreateProject(inputContent, inputType, projectTitle.trim() || undefined, durationSec, selectedThemeId);
       setInputContent('');
       setProjectTitle('');
     } catch (err: any) {
@@ -146,19 +148,39 @@ export const Dashboard: React.FC<DashboardProps> = ({
             ))}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr', gap: '16px', marginBottom: '16px' }}>
+          {/* Row 1: Theme, Duration & Title */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                Project Title (Optional)
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                <span>🎨 Animation Theme ({THEME_CATALOG.length} Styles)</span>
+                <span style={{ fontSize: '11px', color: (THEME_CATALOG.find((t) => t.id === selectedThemeId) || THEME_CATALOG[0]).palette.primary, fontWeight: 700 }}>
+                  {(THEME_CATALOG.find((t) => t.id === selectedThemeId) || THEME_CATALOG[0]).name}
+                </span>
               </label>
-              <input
-                type="text"
+              <select
                 className="input-text"
-                placeholder="e.g. How Transformers Work"
-                value={projectTitle}
-                onChange={(e) => setProjectTitle(e.target.value)}
-              />
+                value={selectedThemeId}
+                onChange={(e) => setSelectedThemeId(e.target.value)}
+                style={{
+                  background: 'var(--surface-color, #1e293b)',
+                  color: '#f8fafc',
+                  border: `1px solid ${(THEME_CATALOG.find((t) => t.id === selectedThemeId) || THEME_CATALOG[0]).palette.primary}77`,
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  cursor: 'pointer'
+                }}
+              >
+                {THEME_CATALOG.map((theme) => (
+                  <option key={theme.id} value={theme.id} style={{ background: '#0f172a', color: '#f8fafc' }}>
+                    {theme.icon} {theme.name}
+                  </option>
+                ))}
+              </select>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                {(THEME_CATALOG.find((t) => t.id === selectedThemeId) || THEME_CATALOG[0]).tagline}
+              </div>
             </div>
+
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                 Video Duration (seconds)
@@ -172,29 +194,59 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 value={durationSec}
                 onChange={(e) => setDurationSec(Math.max(20, Math.min(40, Number(e.target.value) || 30)))}
               />
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '5px' }}>{providerLabel} plans exactly this duration.</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>{providerLabel} plans exactly this duration.</div>
             </div>
+
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
-                {inputType === 'topic' ? 'Topic Description' : inputType === 'url' ? 'Source URL' : 'Content / Text'}
+                Project Title (Optional)
               </label>
               <input
                 type="text"
                 className="input-text"
-                placeholder={
-                  inputType === 'topic'
-                    ? 'e.g. Quantum Computing for Beginners: Key principles and future outlook'
-                    : inputType === 'url'
-                    ? 'https://example.com/article'
-                    : 'Paste article or transcript content here...'
-                }
-                value={inputContent}
-                onChange={(e) => setInputContent(e.target.value)}
+                placeholder="e.g. VPN vs ZTNA Security"
+                value={projectTitle}
+                onChange={(e) => setProjectTitle(e.target.value)}
               />
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Auto-derived if left blank.</div>
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          {/* Row 2: Content Input */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+              {inputType === 'topic' ? 'Topic Description' : inputType === 'url' ? 'Source URL' : 'Content / Text'}
+            </label>
+            <textarea
+              className="input-text"
+              rows={2}
+              style={{ width: '100%', resize: 'vertical' }}
+              placeholder={
+                inputType === 'topic'
+                  ? 'e.g. Explain VPN vs ZTNA security: architectural differences, least-privilege access, attack surface, and performance'
+                  : inputType === 'url'
+                  ? 'https://example.com/article'
+                  : 'Paste article or transcript content here...'
+              }
+              value={inputContent}
+              onChange={(e) => setInputContent(e.target.value)}
+            />
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#94a3b8' }}>
+              <span style={{
+                display: 'inline-block',
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                background: (THEME_CATALOG.find((t) => t.id === selectedThemeId) || THEME_CATALOG[0]).palette.primary
+              }} />
+              <span>
+                Selected: <strong>{(THEME_CATALOG.find((t) => t.id === selectedThemeId) || THEME_CATALOG[0]).name}</strong> — {(THEME_CATALOG.find((t) => t.id === selectedThemeId) || THEME_CATALOG[0]).description.slice(0, 75)}...
+              </span>
+            </div>
+
             <button
               type="submit"
               disabled={submitting || !inputContent.trim()}

@@ -13,7 +13,8 @@ export class ProjectsService {
   private async ensureMotionUpgrade(): Promise<void> {
     if (!this.styleColumnReady) {
       this.styleColumnReady = query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS style_signature TEXT`)
-        .then(() => query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS requested_duration_sec INT`).then(() => undefined))
+        .then(() => query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS requested_duration_sec INT`))
+        .then(() => query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS theme_id TEXT`).then(() => undefined))
         .catch((error) => {
           this.styleColumnReady = undefined;
           throw error;
@@ -25,15 +26,15 @@ export class ProjectsService {
   /**
    * Create a new project and trigger initial research & script generation.
    */
-  async createProject(inputContent: string, inputType: 'text' | 'topic' | 'url', title?: string, requestedDurationSec?: number): Promise<Project> {
+  async createProject(inputContent: string, inputType: 'text' | 'topic' | 'url', title?: string, requestedDurationSec?: number, themeId?: string): Promise<Project> {
     await this.ensureMotionUpgrade();
     const derivedTitle = title || inputContent.slice(0, 40).replace(/[\r\n]+/g, ' ') || 'Untitled Animation';
 
     const res = await query(
-      `INSERT INTO projects (title, input_content, input_type, requested_duration_sec, stage, status)
-       VALUES ($1, $2, $3, $4, 'research', 'Researching')
+      `INSERT INTO projects (title, input_content, input_type, requested_duration_sec, theme_id, stage, status)
+       VALUES ($1, $2, $3, $4, $5, 'research', 'Researching')
        RETURNING *`,
-      [derivedTitle, inputContent, inputType, requestedDurationSec || null]
+      [derivedTitle, inputContent, inputType, requestedDurationSec || null, themeId || null]
     );
 
     const project = res.rows[0];
@@ -49,7 +50,7 @@ export class ProjectsService {
     });
 
     // Run initial script generation in background so HTTP response returns immediately without timing out
-    void scriptsService.generateInitialScript(project.id, inputContent, inputType, requestedDurationSec)
+    void scriptsService.generateInitialScript(project.id, inputContent, inputType, requestedDurationSec, themeId)
       .then(async () => {
         const finishedRes = await query(`SELECT * FROM projects WHERE id = $1`, [project.id]);
         if (finishedRes.rows[0]) {

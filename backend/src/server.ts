@@ -17,6 +17,7 @@ import { claudeAuthService } from './modules/auth/claudeAuthService.js';
 import { shutdownCodexProcesses } from './modules/providers/codexProvider.js';
 import { productionPackageService } from './modules/production/productionPackageService.js';
 import { activeProviderService } from './modules/providers/activeProviderService.js';
+import { THEME_CATALOG } from './modules/themes/themeCatalog.js';
 
 dotenv.config();
 
@@ -76,6 +77,11 @@ app.post('/api/auth/codex/disconnect', async (req, res) => {
   res.json(await codexAuthService.disconnect());
 });
 
+// Themes Endpoint
+app.get('/api/themes', (_req, res) => {
+  res.json(THEME_CATALOG);
+});
+
 // Projects Endpoints
 app.get('/api/projects', async (req, res) => {
   try {
@@ -88,7 +94,7 @@ app.get('/api/projects', async (req, res) => {
 
 app.post('/api/projects', async (req, res) => {
   try {
-    const { input_content, input_type = 'text', title, requested_duration_sec } = req.body;
+    const { input_content, input_type = 'text', title, requested_duration_sec, theme_id, theme } = req.body;
     if (!input_content) {
       return res.status(400).json({ error: 'input_content is required' });
     }
@@ -96,7 +102,8 @@ app.post('/api/projects', async (req, res) => {
     if (duration !== undefined && (!Number.isInteger(duration) || duration < 20 || duration > 40)) {
       return res.status(400).json({ error: 'requested_duration_sec must be an integer between 20 and 40 seconds' });
     }
-    const project = await projectsService.createProject(input_content, input_type, title, duration);
+    const selectedTheme = typeof (theme_id || theme) === 'string' ? String(theme_id || theme).trim() : undefined;
+    const project = await projectsService.createProject(input_content, input_type, title, duration, selectedTheme);
     res.status(201).json(project);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -284,6 +291,18 @@ app.post('/api/projects/:id/production-packages/:version', async (req, res) => {
     res.json(await productionPackageService.receive(req.params.id, packageVersion, req.body));
   } catch (err: any) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/projects/:id/done', async (req, res) => {
+  try {
+    const donePackage = await productionPackageService.getDonePackage(req.params.id);
+    if (!donePackage) {
+      return res.status(404).json({ error: 'Done production package not yet assembled' });
+    }
+    res.json(donePackage);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 

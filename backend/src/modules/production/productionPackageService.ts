@@ -72,9 +72,98 @@ export class ProductionPackageService {
        WHERE project_id = $1 AND package_version = $2 RETURNING *`,
       [projectId, packageVersion, { tsxPath, assets: candidate.assets, audio: candidate.audio, captions: candidate.captions, generatedBy: candidate.generatedBy || 'codex' }, packagePath],
     );
+    const doneManifest = await this.saveDonePackage(projectId, packageVersion, candidate);
+
     if (!result.rows.length) throw new Error('Production package version was not queued.');
-    realtime.publish({ type: 'pipeline_progress', projectId, progress: 100, status: 'Codex production package ready for Remotion' });
-    return { ...result.rows[0], tsx_url: `/media/${path.relative(projectPaths.backendMedia, tsxPath).replace(/\\/g, '/')}` };
+    realtime.publish({ type: 'pipeline_progress', projectId, progress: 100, status: 'Production package ready in done path' });
+    return {
+      ...result.rows[0],
+      tsx_url: `/media/${path.relative(projectPaths.backendMedia, tsxPath).replace(/\\/g, '/')}`,
+      done_package: doneManifest,
+    };
+  }
+
+  async saveDonePackage(
+    projectId: string,
+    packageVersion: number,
+    candidate: Record<string, unknown>,
+    extra?: { videoDiskPath?: string; audioDiskPath?: string }
+  ) {
+    const doneDir = path.join(projectPaths.backendMedia, 'done', projectId);
+    await fs.mkdir(doneDir, { recursive: true });
+
+    // 1. Composition TSX
+    const tsxPath = path.join(doneDir, 'composition.tsx');
+    if (typeof candidate.tsxSource === 'string') {
+      await fs.writeFile(tsxPath, candidate.tsxSource, 'utf8');
+    }
+
+    // 2. Complete package JSON
+    const packagePath = path.join(doneDir, 'package.json');
+    await fs.writeFile(packagePath, JSON.stringify(candidate, null, 2), 'utf8');
+
+    // 3. Isolated Remotion props
+    if (candidate.remotionProps) {
+      await fs.writeFile(path.join(doneDir, 'props.json'), JSON.stringify(candidate.remotionProps, null, 2), 'utf8');
+    }
+
+    // 4. Copy master audio if available
+    const remotionVideo = (candidate.remotionProps as any)?.video;
+    const audioUrl = remotionVideo?.audioUrl;
+    if (extra?.audioDiskPath) {
+      try {
+        await fs.copyFile(extra.audioDiskPath, path.join(doneDir, 'master_audio.wav'));
+      } catch {}
+    } else if (audioUrl && typeof audioUrl === 'string' && audioUrl.startsWith('/media/')) {
+      const srcAudio = path.join(projectPaths.backendMedia, audioUrl.replace(/^\/media\//, ''));
+      try {
+        await fs.copyFile(srcAudio, path.join(doneDir, 'master_audio.wav'));
+      } catch {}
+    }
+
+    // 5. Copy video if available
+    if (extra?.videoDiskPath) {
+      try {
+        await fs.copyFile(extra.videoDiskPath, path.join(doneDir, 'video.mp4'));
+      } catch {}
+    }
+
+    // 6. Summary Done Manifest
+    const manifest = {
+      projectId,
+      packageVersion,
+      status: 'ready',
+      generatedBy: candidate.generatedBy || 'codex',
+      completedAt: new Date().toISOString(),
+      paths: {
+        doneDir,
+        tsx: path.join(doneDir, 'composition.tsx'),
+        package: path.join(doneDir, 'package.json'),
+        props: path.join(doneDir, 'props.json'),
+        audio: path.join(doneDir, 'master_audio.wav'),
+        video: path.join(doneDir, 'video.mp4'),
+      },
+      urls: {
+        tsx: `/media/done/${projectId}/composition.tsx`,
+        package: `/media/done/${projectId}/package.json`,
+        props: `/media/done/${projectId}/props.json`,
+        audio: `/media/done/${projectId}/master_audio.wav`,
+        video: `/media/done/${projectId}/video.mp4`,
+      },
+    };
+    await fs.writeFile(path.join(doneDir, 'done-manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
+    return manifest;
+  }
+
+  async getDonePackage(projectId: string) {
+    const doneDir = path.join(projectPaths.backendMedia, 'done', projectId);
+    const manifestPath = path.join(doneDir, 'done-manifest.json');
+    try {
+      const content = await fs.readFile(manifestPath, 'utf8');
+      return JSON.parse(content);
+    } catch {
+      return null;
+    }
   }
 
   async latestReady(projectId: string, scriptVersion: number) {

@@ -1,10 +1,12 @@
 import { AIProvider, ResearchAndScriptRequest, ResearchAndScriptResult, AnimationCodeRequest, AnimationCodeResult, TokenUsage, StyleBrief } from './providerAdapter.js';
-import { generateInternalPlan } from './internalPlanGenerator.js';
 import { readFile } from 'fs/promises';
 import { existsSync, readFileSync } from 'fs';
 import path from 'path';
 import { projectPaths } from '../../config/paths.js';
 import { StyleProfile } from '../../types/index.js';
+import { getThemeById } from '../themes/themeCatalog.js';
+import { contentPreparationService, PreparedMotionDossier } from '../production/contentPreparationService.js';
+import { realtime } from '../../realtime.js';
 
 export const relativeLuminance = (hex: string) => {
   const channels = [0, 1, 2].map((index) => parseInt(hex.slice(1 + index * 2, 3 + index * 2), 16) / 255);
@@ -434,6 +436,23 @@ export abstract class BasePlanProvider implements AIProvider {
       if (!brief.bedMood || typeof brief.bedMood !== 'string' || !brief.bedMood.trim()) {
         brief.bedMood = DEFAULT_STYLE_BRIEF.bedMood;
       }
+    }
+
+    if (input?.selectedTheme) {
+      const chosen = getThemeById(input.selectedTheme);
+      parsed.styleBrief.archetype = chosen.archetype;
+      parsed.styleBrief.motionPersonality = chosen.motionPersonality;
+      parsed.styleBrief.background = chosen.background;
+      parsed.styleBrief.sfxPack = chosen.sfxPack;
+      parsed.styleBrief.bedMood = chosen.bedMood;
+      parsed.styleBrief.palette = {
+        bg: chosen.palette.bg,
+        primary: chosen.palette.primary,
+        accent: chosen.palette.accent,
+        text: chosen.palette.text,
+      };
+      parsed.styleProfile = styleProfileFromBrief(parsed.styleBrief);
+      parsed.styleProfile.surface = chosen.palette.surface;
     }
 
     if (!parsed.styleProfile || typeof parsed.styleProfile !== 'object') {
@@ -889,13 +908,38 @@ export abstract class BasePlanProvider implements AIProvider {
     productionSkill: string,
     researchSkill: string,
     rendererContract: Record<string, unknown>,
-    shouldKeepNarration: boolean
+    shouldKeepNarration: boolean,
+    preparationDossier?: PreparedMotionDossier
   ): string {
     const isRevision = !!req.changeRequestFeedback;
     const requestedDuration = this.requestedDurationSec(req);
     const websiteTour = this.isWebsiteVisit(req);
     const researchRequired = this.requiresResearch(req);
     const videoComplexity = this.videoComplexity(req);
+    const selectedThemeObj = req.selectedTheme ? getThemeById(req.selectedTheme) : undefined;
+    const themeDirective = selectedThemeObj
+      ? `USER-SELECTED MOTION GRAPHICS THEME:
+- Theme: "${selectedThemeObj.name}" (ID: ${selectedThemeObj.id})
+- Tagline: ${selectedThemeObj.tagline}
+- Target Archetype: ${selectedThemeObj.archetype}
+- Required Palette: Background: ${selectedThemeObj.palette.bg}, Surface: ${selectedThemeObj.palette.surface}, Primary: ${selectedThemeObj.palette.primary}, Accent: ${selectedThemeObj.palette.accent}, Text: ${selectedThemeObj.palette.text}
+- Required Fonts: Heading: ${selectedThemeObj.fonts.heading}, Body: ${selectedThemeObj.fonts.body}
+- Motion Personality: ${selectedThemeObj.motionPersonality}
+- Background System: ${selectedThemeObj.background}
+- SFX Pack: ${selectedThemeObj.sfxPack}
+- Bed Mood: ${selectedThemeObj.bedMood}
+- Theme & Asset Search Directives:
+  ${selectedThemeObj.assetPromptGuide}
+
+MANDATORY THEME COMPLIANCE:
+- Set styleBrief.archetype strictly to "${selectedThemeObj.archetype}".
+- Set styleBrief.motionPersonality to "${selectedThemeObj.motionPersonality}".
+- Set styleBrief.background to "${selectedThemeObj.background}".
+- Set styleBrief.sfxPack to "${selectedThemeObj.sfxPack}".
+- Set styleBrief.bedMood to "${selectedThemeObj.bedMood}".
+- Set styleBrief.palette to bg="${selectedThemeObj.palette.bg}", primary="${selectedThemeObj.palette.primary}", accent="${selectedThemeObj.palette.accent}", text="${selectedThemeObj.palette.text}".
+- All visual scenes and blueprints MUST follow this theme's layout and asset guidance.`
+      : '';
 
     const taskDirective = researchRequired
       ? 'You are a Senior Video Production Director, Academic Researcher, and Remotion Expert acting in accordance with repository production rules and the deep-researcher skill. You MUST conduct deep, multi-query scholarly/technical web research across multiple independent authoritative websites to extract verified mechanisms, quantitative facts, and 3-5 primary academic/institutional sources.'
@@ -917,6 +961,10 @@ export abstract class BasePlanProvider implements AIProvider {
       ? 'VIDEO COMPLEXITY: simple-motion. The user wants a focused object-action story. Keep the causal action clear—introduce the subject, show the action step by step, show the destination/result, then close with a relevant CTA. Use the full renderable scene schema and motion/audio requirements; simple means focused, not low quality.'
       : 'VIDEO COMPLEXITY: production-explainer. Build a richer narrative arc with evidence, mechanisms, comparisons, or researched context as supported by the submitted content. Use the full renderable scene schema and content-specific motion/audio requirements.';
 
+    const preparationDirective = preparationDossier
+      ? contentPreparationService.formatDossierForPrompt(preparationDossier)
+      : '';
+
     return `REQUIRED ORDER: First read and follow the repository video-production skill, the deep-researcher skill (if research-required), and the project renderer contract below. The actual project renderer contract is authoritative where the skill lists generic defaults. Second, use web search to deeply research the submitted content across multiple angles and select suitable asset candidates. Third, create the scene plan using only supported project capabilities. Do not plan first and research afterward.
 
 ${researchSkill ? `REPOSITORY DEEP-RESEARCHER SKILL (.agents/skills/deep-researcher/SKILL.md):\n${researchSkill}\n\n` : ''}REPOSITORY VIDEO-PRODUCTION SKILL (.agents/skills/video-production-director/SKILL.md):
@@ -929,6 +977,8 @@ ${taskDirective}
 
 ${complexityDirective}
 
+${preparationDirective}
+
 TASK: Create one original, content-specific script and screen motion plan based only on the submitted content. Do not reuse a previous topic, example, stock phrase, stock metric, stock concept node, or generic fallback. Every scene must explain a real idea from this content.
 
 ${researchDirective}
@@ -938,6 +988,7 @@ BEGIN SUBMITTED CONTENT
 ${req.topicOrContent}
 END SUBMITTED CONTENT
 INPUT TYPE: ${req.inputType}
+${themeDirective ? `\n${themeDirective}\n` : ''}
 BACKEND-CONTROLLED PRODUCTION RULES:
 ${BACKEND_PRODUCTION_RULES}
 ${requestedDuration ? `TARGET DURATION: final rendered composition exactly ${requestedDuration} seconds. Hard narration limit: at most ${Math.floor(requestedDuration * 1.5)} spoken words TOTAL across all scenes (1.5 words/second). Count every spoken word before returning JSON. Spread the words across 7-9 scenes proportionally to their duration; aim for no more than ${Math.max(1, Math.floor((requestedDuration * 1.5) / 8))} words per scene on average. If the submitted content is too broad, select the most important points and omit secondary details. Never exceed the total word limit. Keep at least 0.27 seconds of audio tail per scene. Scene durations must sum to target plus transition overlap frames divided by 30 fps.` : ''}
@@ -1100,7 +1151,22 @@ Before responding, validate the first and final scene against these rules. Do no
       }
     }
     const rendererContract = this.projectRenderContract();
-    const prompt = this.buildProductionPrompt(req, productionSkill, researchSkill, rendererContract, shouldKeepNarration);
+
+    // Preparation Layer: Analyze content, classify domain, curate motion references & visual metaphors
+    const contentStr = req.topicOrContent || (req as any).topic || 'Untitled Topic';
+    const preparationDossier = contentPreparationService.prepare(contentStr, req.inputType || 'topic');
+
+    if (req.projectId) {
+      realtime.publish({
+        type: 'pipeline_progress',
+        projectId: req.projectId,
+        stage: 'research',
+        progress: 10,
+        status: `Preparation layer: Synthesized ${preparationDossier.domainLabel} motion animation references`
+      });
+    }
+
+    const prompt = this.buildProductionPrompt(req, productionSkill, researchSkill, rendererContract, shouldKeepNarration, preparationDossier);
 
     try {
       const contentStr = req.topicOrContent || (req as any).topic || 'Untitled Topic';
@@ -1154,11 +1220,8 @@ Before responding, validate the first and final scene against these rules. Do no
         tokenUsage: response.tokenUsage
       };
     } catch (error: any) {
-      console.warn(`[${this.name}] Provider planning unavailable (${error?.message}); activating reliable internal production generator...`);
-      const fallbackPlan = generateInternalPlan(req);
-      fallbackPlan.providerName = this.name;
-      fallbackPlan.tokenUsage.source = this.name === 'agy' ? 'agy' : 'codex';
-      return fallbackPlan;
+      console.error(`[${this.name}] Provider planning failed:`, error?.message || error);
+      throw new Error(`[${this.name}] Video planning failed: ${error?.message || error}`);
     }
   }
 

@@ -36,6 +36,7 @@ export interface Project {
   current_script_version: number;
   current_preview_version: number;
   requested_duration_sec?: number;
+  theme_id?: string;
   style_signature?: string;
   created_at: string;
   updated_at: string;

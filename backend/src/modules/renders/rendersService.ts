@@ -761,6 +761,15 @@ export default function GeneratedCodexVideo(props: any) {
         [renderJobId]
       );
       realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress: 100, status: 'Preview ready for human review' });
+      const latestPackage = await productionPackageService.latestReady(projectId, script.version);
+      if (latestPackage) {
+        await productionPackageService.saveDonePackage(
+          projectId,
+          latestPackage.package_version,
+          latestPackage.manifest || {},
+          { videoDiskPath: previewDiskPath }
+        ).catch(() => {});
+      }
       await query(
         `UPDATE projects
          SET stage = 'preview_review', status = 'Preview ready for review', updated_at = CURRENT_TIMESTAMP
@@ -917,6 +926,16 @@ export default function GeneratedCodexVideo(props: any) {
        WHERE id = $1`,
       [projectId]
     );
+
+    const latestPackage = await productionPackageService.latestReady(projectId, scriptVersion);
+    if (latestPackage) {
+      await productionPackageService.saveDonePackage(
+        projectId,
+        latestPackage.package_version,
+        latestPackage.manifest || {},
+        { videoDiskPath: diskPath }
+      ).catch(() => {});
+    }
 
     return videoRes.rows[0];
   }

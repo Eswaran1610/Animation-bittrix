@@ -33,10 +33,21 @@ const styleParts = (signature: string) => signature.split('|');
 const styleOverlap = (left: string, right: string) => styleParts(left).reduce((count, value, index) => count + (value && value === styleParts(right)[index] ? 1 : 0), 0);
 
 export class ScriptsService {
-  private async generateDistinctInitialScript(projectId: string, inputContent: string, inputType: 'text' | 'topic' | 'url', requestedDurationSec?: number) {
+  private async generateDistinctInitialScript(projectId: string, inputContent: string, inputType: 'text' | 'topic' | 'url', requestedDurationSec?: number, themeId?: string) {
+    const provider = getActiveAIProvider();
+    if (themeId) {
+      const result = await provider.generateScript({
+        projectId,
+        topicOrContent: inputContent,
+        inputType,
+        requestedDurationSec,
+        selectedTheme: themeId,
+      });
+      return { result, signature: styleSignature(result.styleBrief) };
+    }
+
     const recent = await query(`SELECT style_signature FROM projects WHERE style_signature IS NOT NULL ORDER BY updated_at DESC LIMIT 5`);
     const recentSignatures = recent.rows.map((row) => String(row.style_signature));
-    const provider = getActiveAIProvider();
     let lastResult: any;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       lastResult = await provider.generateScript({
@@ -63,11 +74,11 @@ export class ScriptsService {
   /**
    * Generate initial script (v1) using the currently active AI provider (Codex or AGY).
    */
-  async generateInitialScript(projectId: string, inputContent: string, inputType: 'text' | 'topic' | 'url', requestedDurationSec?: number): Promise<Script> {
+  async generateInitialScript(projectId: string, inputContent: string, inputType: 'text' | 'topic' | 'url', requestedDurationSec?: number, themeId?: string): Promise<Script> {
     const activeProvider = activeProviderService.get();
     const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'codex' ? 'Codex' : 'AI';
     realtime.publish({ type: 'pipeline_progress', projectId, stage: 'research', progress: 15, status: `${providerLabel} deep research across multiple web sources` });
-    const { result: researchResult, signature } = await this.generateDistinctInitialScript(projectId, inputContent, inputType, requestedDurationSec);
+    const { result: researchResult, signature } = await this.generateDistinctInitialScript(projectId, inputContent, inputType, requestedDurationSec, themeId);
 
     const version = 1;
     realtime.publish({ type: 'pipeline_progress', projectId, stage: 'script_plan', progress: 85, status: `${providerLabel} plan ready: scenes, blueprints & narration` });

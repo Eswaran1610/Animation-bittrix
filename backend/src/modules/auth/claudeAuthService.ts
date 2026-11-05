@@ -1,11 +1,12 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { projectPaths } from '../../config/paths.js';
+import { activeProviderService } from '../providers/activeProviderService.js';
 
 const execFileAsync = promisify(execFile);
 type ConnectionState = 'unknown' | 'connected' | 'failed';
 
-/** Checks the existing local Claude Code CLI login session. */
+/** Checks that the local Claude Code CLI is installed and runnable. */
 class ClaudeAuthService {
   private lastState: ConnectionState = 'unknown';
   private lastMessage = 'Claude Code has not been verified in this backend session.';
@@ -16,6 +17,7 @@ class ClaudeAuthService {
       return {
         cliAvailable: false,
         state: 'failed' as const,
+        isActive: false,
         message: 'Claude Code CLI is not installed. Install via: npm install -g @anthropic-ai/claude-code',
       };
     }
@@ -28,15 +30,29 @@ class ClaudeAuthService {
       });
       const version = stdout.trim();
       this.lastState = 'connected';
-      this.lastMessage = `Claude Code is connected on this machine (${version}).`;
+      this.lastMessage = `Claude Code CLI is available on this machine (${version}).`;
     } catch {
       this.lastState = 'failed';
-      this.lastMessage = 'Claude Code is installed but authentication failed. Run `claude login` in this terminal.';
+      this.lastMessage = 'Claude Code CLI could not be verified. Check its installation and run `claude login` if generation reports an authentication error.';
     }
-    return { cliAvailable: true, state: this.lastState, message: this.lastMessage };
+    const isActive = activeProviderService.get() === 'claude';
+    return {
+      cliAvailable: true,
+      state: this.lastState === 'connected' ? (isActive ? 'connected' as const : 'standby' as const) : this.lastState,
+      isActive,
+      message: isActive ? `Claude Code is selected as the active CLI. ${this.lastMessage}` : this.lastMessage,
+    };
   }
 
   async start() {
+    const stat = await this.status();
+    if (stat.state === 'failed' || !stat.cliAvailable) return stat;
+    activeProviderService.set('claude');
+    return this.status();
+  }
+
+  async disconnect() {
+    if (activeProviderService.get() === 'claude') activeProviderService.disconnect();
     return this.status();
   }
 

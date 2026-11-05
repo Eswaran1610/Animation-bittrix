@@ -6,7 +6,7 @@ export interface TokenUsage {
   total_tokens: number;
   estimated: boolean;
   available?: boolean;
-  source: 'codex' | 'agy' | 'unavailable';
+  source: 'codex' | 'agy' | 'claude' | 'unavailable';
 }
 
 export interface ResearchAndScriptRequest {

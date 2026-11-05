@@ -118,8 +118,17 @@ export interface VisualBlueprint {
 export interface SceneData {
   id: string;
   scene_number: number;
-  role?: 'hook' | 'body' | 'cta';
-  template?: 'hero-object' | 'split-compare' | 'stat-callout' | 'list-reveal' | 'quote-focus' | 'timeline' | 'steps-numbered' | 'map-pin' | 'chart-bar' | 'before-after' | 'question-hook' | 'cta-outro' | 'product-showcase' | 'fact-card' | 'icon-grid';
+  role?: 'hook' | 'body' | 'proof' | 'cta';
+  template?: 'hero-object' | 'split-compare' | 'stat-callout' | 'list-reveal' | 'quote-focus' | 'timeline' | 'steps-numbered' | 'map-pin' | 'chart-bar' | 'before-after' | 'question-hook' | 'cta-outro' | 'product-showcase' | 'fact-card' | 'icon-grid' | 'hero-center' | 'frame-cutout' | 'card-stack' | 'big-statement' | 'data-badge' | 'code-or-ui-stage' | 'flow-path' | string;
+  layout?: string;
+  keyword?: string;
+  emphasis_words?: string[];
+  hero_asset?: any;
+  secondary_assets?: any[];
+  decoration?: string[];
+  motion_in?: string;
+  motion_loop?: string;
+  camera?: string;
   title: string;
   on_screen_text: string;
   subtitle: string;
@@ -158,7 +167,7 @@ export interface SceneDataPayload {
     durationInFrames: number;
     targetDurationSec?: number;
     style: string;
-    generatedBy: 'codex';
+    generatedBy?: 'codex' | 'agy' | 'claude' | string;
     sourceProjectId: string;
     previewVersion: number;
     scriptVersion: number;

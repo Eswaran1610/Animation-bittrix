@@ -1,7 +1,9 @@
 // Remotion Theme & Motion Presets according to SKILL.md Step 6
 
 export const springPresets = {
-  snappy: { damping: 12, mass: 0.5, stiffness: 140 },
+  // Maps the production contract's mass/tension/friction = 0.5/160/12
+  // to Remotion's mass/stiffness/damping parameter names.
+  snappy: { damping: 12, mass: 0.5, stiffness: 160 },
   soft: { damping: 18, mass: 1, stiffness: 80 },
   bouncy: { damping: 8, mass: 0.6, stiffness: 120 },
   smooth: { damping: 20, mass: 1, stiffness: 60 }

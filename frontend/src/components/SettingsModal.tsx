@@ -166,8 +166,14 @@ const CliCard: React.FC<CliCardProps> = ({
 // Main Settings modal
 // ──────────────────────────────────────────────────
 
-export const SettingsModal: React.FC = () => {
-  const [activeProvider, setActiveProvider] = useState<'codex' | 'agy' | 'none'>('codex');
+export const SettingsModal: React.FC<{ onActiveProviderChange?: (provider: 'codex' | 'agy' | 'claude' | 'none') => void }> = ({ onActiveProviderChange }) => {
+  const [activeProvider, setActiveProvider] = useState<'codex' | 'agy' | 'claude' | 'none'>('codex');
+
+  const updateActiveProvider = (provider: 'codex' | 'agy' | 'claude' | 'none') => {
+    setActiveProvider(provider);
+    onActiveProviderChange?.(provider);
+    void loadAll();
+  };
 
   // Codex
   const [codex, setCodex] = useState<CliConnection | null>(null);
@@ -237,7 +243,7 @@ export const SettingsModal: React.FC = () => {
       const res = await api.connectCodex();
       setCodex(res);
       setCodexMsg(res.message || '');
-      setActiveProvider('codex');
+      updateActiveProvider('codex');
       // Refresh AGY to show standby
       const agyStat = await api.getAgyConnection();
       setAgy(agyStat);
@@ -254,7 +260,7 @@ export const SettingsModal: React.FC = () => {
       const res = await api.disconnectCodex();
       setCodex(res);
       setCodexMsg('Codex disconnected.');
-      setActiveProvider('none');
+      updateActiveProvider('none');
     } catch (e: any) {
       setCodexMsg(e?.message || 'Disconnect failed.');
     } finally {
@@ -269,7 +275,7 @@ export const SettingsModal: React.FC = () => {
       const res = await api.connectAgy();
       setAgy(res);
       setAgyMsg(res.message || '');
-      setActiveProvider('agy');
+      updateActiveProvider('agy');
       // Refresh Codex to show standby
       const codexStat = await api.getCodexConnection();
       setCodex(codexStat);
@@ -286,7 +292,7 @@ export const SettingsModal: React.FC = () => {
       const res = await api.disconnectAgy();
       setAgy(res);
       setAgyMsg('AGY disconnected.');
-      setActiveProvider('none');
+      updateActiveProvider('none');
     } catch (e: any) {
       setAgyMsg(e?.message || 'Disconnect failed.');
     } finally {
@@ -301,8 +307,23 @@ export const SettingsModal: React.FC = () => {
       const res = await api.connectClaude();
       setClaude(res);
       setClaudeMsg(res.message || '');
+      if (res.isActive) updateActiveProvider('claude');
     } catch (e: any) {
       setClaudeMsg(e?.message || 'Claude Code connection check failed.');
+    } finally {
+      setClaudeBusy(false);
+    }
+  };
+
+  const handleClaudeDisconnect = async () => {
+    setClaudeBusy(true);
+    try {
+      const res = await api.disconnectClaude();
+      setClaude(res);
+      setClaudeMsg('Claude Code disconnected.');
+      updateActiveProvider('none');
+    } catch (e: any) {
+      setClaudeMsg(e?.message || 'Disconnect failed.');
     } finally {
       setClaudeBusy(false);
     }
@@ -338,11 +359,12 @@ export const SettingsModal: React.FC = () => {
             <div style={{ fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
               {activeProvider === 'codex' && <><span style={{ color: '#38bdf8' }}>🤖 OpenAI Codex</span> (Active)</>}
               {activeProvider === 'agy' && <><span style={{ color: '#38bdf8' }}>⚡ AGY Antigravity</span> (Active)</>}
+              {activeProvider === 'claude' && <><span style={{ color: '#f97316' }}>🟠 Claude Code</span> (Active)</>}
               {activeProvider === 'none' && <><span style={{ color: '#fb7185' }}>No CLI Connected</span> (Disconnected)</>}
             </div>
           </div>
           <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-            Switching CLI automatically disconnects the other.
+            Select one active CLI. Other installed CLIs remain available as standby.
           </span>
         </div>
 
@@ -411,11 +433,12 @@ export const SettingsModal: React.FC = () => {
               </>
             }
             connection={claude}
-            isActive={false}
+            isActive={activeProvider === 'claude'}
             loading={claudeLoading}
             busy={claudeBusy}
             message={claudeMsg}
             onConnect={handleClaudeConnect}
+            onDisconnect={handleClaudeDisconnect}
           />
         </section>
 

@@ -10,8 +10,9 @@ export const api = {
     return res.json();
   },
 
-  async getCodexUsage() {
-    const res = await fetch(`${API_BASE}/usage`);
+  async getProviderUsage(provider?: string) {
+    const query = provider ? `?provider=${encodeURIComponent(provider)}` : '';
+    const res = await fetch(`${API_BASE}/usage${query}`);
     if (!res.ok) throw new Error('Failed to fetch AI usage');
     return res.json() as Promise<{
       input_tokens: number;
@@ -204,6 +205,12 @@ export const api = {
     return res.json() as Promise<CliConnection>;
   },
 
+  async disconnectClaude() {
+    const res = await fetch(`${API_BASE}/auth/claude/disconnect`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to disconnect Claude Code');
+    return res.json() as Promise<CliConnection>;
+  },
+
   // Active provider selection
   async getActiveProvider() {
     const res = await fetch(`${API_BASE}/providers/active`);
@@ -211,7 +218,7 @@ export const api = {
     return res.json() as Promise<ActiveProviderStatus>;
   },
 
-  async setActiveProvider(provider: 'codex' | 'agy' | 'none') {
+  async setActiveProvider(provider: 'codex' | 'agy' | 'claude' | 'none') {
     const res = await fetch(`${API_BASE}/providers/active`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -221,7 +228,7 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error((err as any).error || 'Failed to set active provider');
     }
-    return res.json() as Promise<{ activeProvider: 'codex' | 'agy' | 'none'; message: string }>;
+    return res.json() as Promise<{ activeProvider: 'codex' | 'agy' | 'claude' | 'none'; message: string }>;
   },
 };
 
@@ -238,8 +245,8 @@ export type CliConnection = {
 };
 
 export type ActiveProviderStatus = {
-  activeProvider: 'codex' | 'agy' | 'none';
-  available: Array<'codex' | 'agy' | 'none'>;
+  activeProvider: 'codex' | 'agy' | 'claude' | 'none';
+  available: Array<'codex' | 'agy' | 'claude' | 'none'>;
 };
 
 /** @deprecated Use CliConnection instead. */

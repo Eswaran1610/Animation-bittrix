@@ -36,8 +36,14 @@ if (!inputPath) {
 }
 
 const props = JSON.parse(await fs.readFile(path.resolve(inputPath), 'utf8'));
-const outputDir = path.resolve(process.argv[3] || path.join(root, 'qa', 'scene-stills', props.video.sourceProjectId));
 const videoPath = process.argv[4] ? path.resolve(process.argv[4]) : undefined;
+// Keep artifacts from overlapping preview versions isolated. A project-scoped
+// directory lets a later render/delete race remove files while montage is
+// consuming an earlier render's scene stills.
+const renderKey = videoPath
+  ? path.basename(videoPath, path.extname(videoPath))
+  : `script-${Date.now()}-${process.pid}`;
+const outputDir = path.resolve(process.argv[3] || path.join(root, 'qa', 'scene-stills', props.video.sourceProjectId, renderKey));
 const transitionFrames = 12;
 const sceneStartFrames = [];
 let offset = 0;
@@ -67,11 +73,17 @@ if (videoPath && existsSync(videoPath)) {
         '-q:v', '2',
         target,
       ], { timeout: 15000 });
+      const still = await fs.stat(target);
+      if (!still.isFile() || still.size === 0) throw new Error('FFmpeg produced no usable still file.');
       stillFiles.push(target);
       console.log(`Rendered scene ${index + 1}/${props.scenes.length} at frame ${frame} (${timeSec}s): ${target}`);
     } catch (err) {
       console.warn(`[render-scene-stills] FFmpeg still extraction failed for scene ${index + 1}:`, err.message);
     }
+  }
+  if (stillFiles.length < props.scenes.length) {
+    console.warn(`[render-scene-stills] FFmpeg extracted ${stillFiles.length}/${props.scenes.length} stills. Falling back to Remotion renderer for complete stills.`);
+    stillFiles.length = 0;
   }
 }
 
@@ -125,8 +137,27 @@ for (let index = 0; index < props.scenes.length; index += 1) {
 }
 
 if (stillFiles.length) {
-  await execFileAsync('montage', [...stillFiles, '-tile', '4x', '-geometry', '320x568+12+12', path.join(outputDir, 'contact-sheet.png')]);
-  console.log(`Contact sheet: ${path.join(outputDir, 'contact-sheet.png')}`);
+  // Recheck immediately before montage, and pass only files still present.
+  // This avoids making an otherwise valid MP4 fail because a QA still vanished.
+  const montageInputs = [];
+  for (const stillFile of stillFiles) {
+    try {
+      const still = await fs.stat(stillFile);
+      if (still.isFile() && still.size > 0) montageInputs.push(stillFile);
+    } catch {
+      console.warn(`[render-scene-stills] Skipping missing scene still: ${stillFile}`);
+    }
+  }
+  if (montageInputs.length > 0) {
+    try {
+      await execFileAsync('montage', [...montageInputs, '-tile', '4x', '-geometry', '320x568+12+12', path.join(outputDir, 'contact-sheet.png')]);
+      console.log(`Contact sheet: ${path.join(outputDir, 'contact-sheet.png')}`);
+    } catch (montageErr) {
+      console.warn(`[render-scene-stills] Montage contact sheet creation failed: ${montageErr.message}`);
+    }
+  } else {
+    console.warn('[render-scene-stills] No valid scene stills were available to build the contact sheet.');
+  }
 }
 
 const referencePath = process.env.BITTRIX_REFERENCE_VIDEO;

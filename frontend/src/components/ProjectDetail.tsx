@@ -8,12 +8,14 @@ import {
 
 interface ProjectDetailProps {
   details: IProjectDetail;
+  activeProvider?: string;
   onBack: () => void;
   onRefresh: () => void;
 }
 
-export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, onRefresh }) => {
+export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, activeProvider, onBack, onRefresh }) => {
   const { project, scripts, approvals, renderJobs, videos, productionPackages = [] } = details;
+  const labelProvider = (provider?: string) => provider === 'agy' ? 'AGY' : provider === 'claude' ? 'Claude Code' : provider === 'codex' ? 'Codex' : 'AI CLI';
   const [activeTab, setActiveTab] = useState<'script' | 'preview' | 'video' | 'approvals'>('script');
 
   // Script Revision & Approval State
@@ -30,6 +32,10 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
   const [selectedScriptVer, setSelectedScriptVer] = useState(project.current_script_version || 1);
 
   const activeScript = scripts.find((s) => s.version === selectedScriptVer) || scripts[scripts.length - 1];
+  const scriptRun = activeScript && details.agentRuns.find((run) =>
+    ['research_script', 'research_script_revision'].includes(run.task) && Number(run.output_references?.scriptVersion) === activeScript.version,
+  );
+  const providerLabel = labelProvider(scriptRun?.provider || activeProvider);
 
   // Gate 1 check: Is the current or selected script version approved?
   const scriptApproval = approvals.find(
@@ -168,9 +174,9 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
           {project.input_content}
         </p>
         <div style={{ marginTop: '12px', fontSize: '12px', color: 'var(--text-muted)' }}>
-          Codex production package: <strong style={{ color: latestProductionPackage?.status === 'ready' ? '#34d399' : '#fbbf24' }}>
+          CLI production package: <strong style={{ color: latestProductionPackage?.status === 'ready' ? '#34d399' : '#fbbf24' }}>
             {latestProductionPackage?.status || 'not requested'}
-          </strong> · images, characters, audio, Whisper timings, FFmpeg metadata, and Remotion props are prepared by the Codex worker.
+          </strong> · after Gate 1, the CLI designs scene audio and packages the approved plan; the backend synthesizes and stages media for Remotion.
         </div>
 
         {/* Pipeline Stepper */}
@@ -317,7 +323,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
             {/* Research Notes & Sources */}
             <div style={{ background: '#0f172a', padding: '16px', borderRadius: '8px', marginBottom: '20px', border: '1px solid var(--border-color)' }}>
               <h4 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--accent-blue)', textTransform: 'uppercase', marginBottom: '8px' }}>
-                Codex Topic Interpretation & Research Notes
+                {providerLabel} Topic Interpretation & Research Notes
               </h4>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: '1.5' }}>
                 {activeScript.research_notes}
@@ -437,7 +443,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
               ) : (
                 <div style={{ marginBottom: '16px' }}>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px', lineHeight: '1.4' }}>
-                    Review the voice-over narration and scene plan. Approving authorizes Codex to prepare the complete production package; the local dashboard only waits for the returned package.
+                    Review the voice-over narration and scene plan. Approval sends the locked plan to the active CLI for production audio design before the backend prepares the preview package.
                   </p>
                   <button
                     onClick={handleApproveScript}
@@ -460,7 +466,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                   style={{ width: '100%', padding: '12px' }}
                 >
                   <Play size={18} />
-                  {isSubmittingPreviewAction ? 'Waiting for Codex production package...' : 'Render Codex Package Preview'}
+                  {isSubmittingPreviewAction ? 'Waiting for CLI production package...' : 'Render CLI Package Preview'}
                 </button>
                 {!isScriptApproved && (
                   <p style={{ fontSize: '11px', color: '#f59e0b', marginTop: '8px', textAlign: 'center' }}>
@@ -476,7 +482,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                 Request Script Changes
               </h4>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-                Provide feedback to Codex. A new script version will be generated while preserving history.
+                Provide feedback to {providerLabel}. A new script version will be generated while preserving history.
               </p>
               <textarea
                 className="input-textarea"
@@ -505,7 +511,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                 className="btn btn-secondary"
                 style={{ width: '100%' }}
               >
-                <Sparkles size={16} /> Request Codex Script Revision
+                <Sparkles size={16} /> Request {providerLabel} Script Revision
               </button>
             </div>
           </div>
@@ -690,7 +696,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, onBack, o
                 Request Visual Corrections
               </h4>
               <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: '1.4' }}>
-                Codex will preserve the approved narration, regenerate the visual plan from your feedback, and return it to Gate 1 for approval before a new preview is rendered.
+                {providerLabel} will preserve the approved narration, regenerate the visual plan from your feedback, and return it to Gate 1 for approval before a new preview is rendered.
               </p>
               <textarea
                 className="input-textarea"

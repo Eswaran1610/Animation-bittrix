@@ -3,6 +3,7 @@
 An end-to-end autonomous motion-graphics animation platform combining:
 - **Codex Autonomous Agent** with active live web research and skill reference (`video-production-director`)
 - **Remotion** deterministic motion-graphics engine with Chromium headless rendering
+- **Motion Canvas** programmatic 2D vector animation engine (signals, generators, and interactive editor)
 - **Neural Voiceover TTS** via local Kokoro model
 - **Codex-selected media assets** downloaded, validated, versioned, and staged by the backend
 - **PostgreSQL Database** for durable project states, scripts, approvals, and render records
@@ -36,6 +37,11 @@ AnimationPipeline/
 │   │   ├── data/             # Dynamic scene-data.json source of truth
 │   │   ├── MainVideo.tsx     # Scene sequencer with <Audio /> playback
 │   │   └── Root.tsx          # Dynamic composition registration
+├── motion-canvas/            # Motion Canvas 3.17 Vector Animation Studio
+│   ├── src/
+│   │   ├── scenes/           # Procedural generator scenes (signals & vector layouts)
+│   │   └── project.ts        # Motion Canvas project configuration
+│   └── vite.config.ts        # Motion Canvas Vite + FFmpeg export plugin
 ├── database/                 # PostgreSQL cluster & schema
 │   ├── schema.sql            # Table definitions
 │   ├── start_pg.sh           # Start user-space PostgreSQL 5434

@@ -17,8 +17,10 @@ export function App() {
   const [videos, setVideos] = useState<VideoRecord[]>([]);
   const [healthInfo, setHealthInfo] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
- const [codexUsage, setCodexUsage] = useState<any>(null);
-  const [liveCodexUsage, setLiveCodexUsage] = useState<any>(null);
+  const [providerUsage, setProviderUsage] = useState<any>(null);
+  const [activeProvider, setActiveProvider] = useState<'codex' | 'agy' | 'claude' | 'none'>('codex');
+  const activeProviderRef = useRef<'codex' | 'agy' | 'claude' | 'none'>('codex');
+  const [liveProviderUsage, setLiveProviderUsage] = useState<any>(null);
   const [liveProgress, setLiveProgress] = useState<{ progress: number; label: string; stage?: string; projectId?: string }>({ progress: 0, label: 'Waiting for a pipeline run' });
   const [liveConnected, setLiveConnected] = useState(false);
   const selectedProjectIdRef = useRef<string | null>(null);
@@ -29,16 +31,20 @@ export function App() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [projs, vids, health, usage] = await Promise.all([
+      const [projs, vids, health, active] = await Promise.all([
         api.listProjects().catch(() => []),
         api.listVideos().catch(() => []),
         api.getHealth().catch(() => null),
-        api.getCodexUsage().catch(() => null),
+        api.getActiveProvider().catch(() => null),
       ]);
+      const selectedProvider = active?.activeProvider || 'none';
+      activeProviderRef.current = selectedProvider;
+      setActiveProvider(selectedProvider);
+      const usage = await api.getProviderUsage(selectedProvider).catch(() => null);
       setProjects(projs);
       setVideos(vids);
       setHealthInfo(health);
-      setCodexUsage(usage);
+      setProviderUsage(usage);
 
       // If a project is selected, refresh its details too
       if (selectedProjectIdRef.current) {
@@ -62,8 +68,8 @@ export function App() {
     let disposed = false;
 
     const refreshUsage = async () => {
-      const usage = await api.getCodexUsage().catch(() => null);
-      if (usage) setCodexUsage(usage);
+      const usage = await api.getProviderUsage(activeProviderRef.current).catch(() => null);
+      if (usage) setProviderUsage(usage);
     };
 
     const applyProgress = (event: any) => {
@@ -131,11 +137,11 @@ export function App() {
        if (event.type === 'token_usage') {
          // The API is authoritative; do not add event deltas locally because
          // reconnects and snapshots can otherwise produce incorrect totals.
-          setLiveCodexUsage(null);
+          setLiveProviderUsage(null);
          void refreshUsage();
        }
-        if (event.type === 'codex_usage_progress') {
-          setLiveCodexUsage(event.active ? event : null);
+        if (event.type === 'provider_usage_progress' || event.type === 'codex_usage_progress') {
+          if (!event.provider || event.provider === activeProviderRef.current) setLiveProviderUsage(event.active ? event : null);
         }
         if (event.type === 'project_created' && event.project) {
           setProjects((prev) => {
@@ -287,9 +293,9 @@ export function App() {
         healthInfo={healthInfo}
       />
       <LiveStatusBar
-        activeProvider={healthInfo?.aiProvider}
-        usage={codexUsage}
-        liveUsage={liveCodexUsage}
+        activeProvider={activeProvider}
+        usage={providerUsage}
+        liveUsage={liveProviderUsage}
         progress={liveProgress.progress}
         label={liveProgress.label}
         stage={liveProgress.stage}
@@ -300,6 +306,7 @@ export function App() {
         {selectedProjectId && projectDetail ? (
           <ProjectDetail
             details={projectDetail}
+            activeProvider={activeProvider}
             onBack={() => {
               setSelectedProjectId(null);
               setProjectDetail(null);
@@ -317,10 +324,10 @@ export function App() {
           <>
             {currentTab === 'dashboard' && (
               <Dashboard
-                activeProvider={healthInfo?.aiProvider}
+                activeProvider={activeProvider}
                 projects={projects}
                 loading={loading}
-                liveUsage={liveCodexUsage}
+                liveUsage={liveProviderUsage}
                 liveProgress={liveProgress}
                 onSelectProject={handleSelectProject}
                 onCreateProject={handleCreateProject}
@@ -338,7 +345,11 @@ export function App() {
               />
             )}
 
-            {currentTab === 'settings' && <SettingsModal />}
+            {currentTab === 'settings' && <SettingsModal onActiveProviderChange={(provider) => {
+              activeProviderRef.current = provider;
+              setActiveProvider(provider);
+              void api.getProviderUsage(provider).then(setProviderUsage).catch(() => setProviderUsage(null));
+            }} />}
           </>
         )}
       </main>

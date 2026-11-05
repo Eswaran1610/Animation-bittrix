@@ -30,6 +30,8 @@ export interface SceneTemplateProps {
   bulletTimings?: number[];
   accentColor?: string;
   styleBrief?: StyleBrief;
+  globalFrame?: number;
+  emphasisWords?: string[];
   children?: React.ReactNode;
 }
 
@@ -43,6 +45,8 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
   bulletTimings,
   accentColor = ACCENT_CYAN,
   styleBrief,
+  globalFrame,
+  emphasisWords,
   children,
 }) => {
   const frame = useCurrentFrame();
@@ -51,13 +55,8 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
   const headingFont = styleBrief?.fonts.heading || "'Manrope', 'Inter', system-ui, sans-serif";
   const bodyFont = styleBrief?.fonts.body || headingFont;
   const archetype = styleBrief?.archetype || 'blueprint-technical';
-  const stageBackground = styleBrief?.background === 'halftone'
-    ? `radial-gradient(${accentColor}33 1px, transparent 1px), ${palette?.bg || '#071018'}`
-    : styleBrief?.background === 'gradient-flow'
-      ? `radial-gradient(circle at ${35 + Math.sin(frame * 0.012) * 18}% 12%, ${accentColor}55, transparent 48%), ${palette?.bg || '#071018'}`
-      : styleBrief?.background === 'lines'
-        ? `repeating-linear-gradient(115deg, ${accentColor}15 0 2px, transparent 2px 30px), ${palette?.bg || '#071018'}`
-        : `radial-gradient(900px 700px at 20% 0, ${accentColor}55 0, ${palette?.bg || '#071018'} 70%)`;
+  // Transparent stage background so global continuous background in MainVideo flows uninterrupted
+  const stageBackground = 'transparent';
 
   const stageRef = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -67,10 +66,10 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
   // Auto-fit font size state
   const [titleFontSize, setTitleFontSize] = useState<number>(() => {
     const len = title.length;
-    if (len > 70) return 56;
-    if (len > 45) return 72;
-    if (len > 30) return 84;
-    return 96;
+    if (len > 60) return 44;
+    if (len > 40) return 52;
+    if (len > 24) return 60;
+    return 68;
   });
 
   // Client-side auto-fit refinement and quality gate measurement
@@ -78,7 +77,7 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
     // 1. Text auto-fit algorithm: decrease font size in 4px steps if overflowing
     if (titleRef.current) {
       let s = titleFontSize;
-      while (titleRef.current.scrollHeight > titleRef.current.clientHeight && s > 52) {
+      while (titleRef.current.scrollHeight > titleRef.current.clientHeight && s > 36) {
         s -= 4;
         titleRef.current.style.fontSize = `${s}px`;
       }
@@ -136,20 +135,15 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
   }, [title, bullets, screenshotUrl, titleFontSize]);
 
   // Animation values computed purely from frame number
-  const exitFrames = 10;
-  const exitProgress = 1 - prog(frame, durationInFrames - exitFrames, exitFrames);
+  // Continuous Motion: No 26-frame blackout, no early exit fadeout!
+  const titleP = easeOut(prog(frame, 0, 10));
+  const titleOpacity = titleP;
+  const titleY = (1 - titleP) * 14;
 
-  // Title entrance: 18 frames ease-out with 28px slide
-  const titleP = easeOut(prog(frame, 0, 18));
-  const titleOpacity = titleP * exitProgress;
-  const titleY = (1 - titleP) * 28;
-  const titleWords = title.trim().split(/\s+/).filter(Boolean);
-
-  // Media entrance: 20 frames ease-out with 40px slide + 1.0 -> 1.08 slow push
-  const mediaP = easeOut(prog(frame, 16, 20));
-  const mediaOpacity = mediaP * exitProgress;
-  const mediaY = (1 - mediaP) * 40;
-  const mediaScale = 1 + 0.08 * (frame / Math.max(1, durationInFrames));
+  // Media entrance: Always 100% visible, continuous flow across scene transitions!
+  const mediaOpacity = 1;
+  const mediaY = 0;
+  const mediaScale = 1 + 0.03 * (frame / Math.max(1, durationInFrames));
 
   // Procedural Ken Burns Motion for Images (Cinematic Pan & Dynamic Zoom)
   const kbProg = interpolate(frame, [0, Math.max(1, durationInFrames)], [0, 1], {
@@ -162,14 +156,14 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
   const imageBreathe = Math.sin(frame * 0.05) * 3;
 
   // Caption entrance: 12 frames ease-out
-  const capP = easeOut(prog(frame, 35, 14));
-  const capOpacity = capP * exitProgress;
+  const capP = easeOut(prog(frame, 25, 12));
+  const capOpacity = capP;
 
   // Resolved caption words
   const parsedCaptionWords = captionWords || (caption ? caption.split(' ') : []);
   const resolvedActiveWordIndex = activeWordIndex >= 0
     ? activeWordIndex
-    : Math.floor(prog(frame, 38, Math.max(20, durationInFrames - 50)) * parsedCaptionWords.length);
+    : Math.floor(prog(frame, 28, Math.max(20, durationInFrames - 40)) * parsedCaptionWords.length);
 
   return (
     <div
@@ -184,7 +178,7 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
         backgroundSize: styleBrief?.background === 'halftone' ? '22px 22px' : undefined,
         color: palette?.text || '#ffffff',
         display: 'grid',
-        gridTemplateRows: `${ZONE_TITLE_HEIGHT}px ${ZONE_BULLETS_HEIGHT}px ${ZONE_MEDIA_HEIGHT}px ${ZONE_CAPTIONS_HEIGHT}px`,
+        gridTemplateRows: `${ZONE_TITLE_HEIGHT}px ${ZONE_MEDIA_HEIGHT}px ${ZONE_CAPTIONS_HEIGHT}px`,
         gap: `${ZONE_GAP}px`,
         padding: `${SAFE_MARGIN_Y}px ${SAFE_MARGIN_X}px`,
         boxSizing: 'border-box',
@@ -192,7 +186,7 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
         overflow: 'hidden',
       }}
     >
-      {/* Zone 1: Title (340px) */}
+      {/* Zone 1: Dynamic Kinetic Title Header */}
       <div
         data-zone="title"
         style={{
@@ -211,7 +205,7 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
             fontSize: `${titleFontSize}px`,
             fontWeight: archetype === 'neo-brutalist' ? 950 : 800,
             fontFamily: headingFont,
-            lineHeight: 1.08,
+            lineHeight: 1.15,
             letterSpacing: '-0.02em',
             overflow: 'hidden',
             display: '-webkit-box',
@@ -221,92 +215,33 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
             transform: `translateY(${titleY}px)`,
           }}
         >
-          {titleWords.map((word, index) => {
-            const wordFrame = frame - index * 4;
-            const wordP = spring({ frame: Math.max(0, wordFrame), fps, config: { damping: 18, stiffness: 160, mass: 0.7 } });
-            const wordY = interpolate(wordP, [0, 1], [titleFontSize * 0.82, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-            return (
-              <span key={`${word}-${index}`} style={{ display: 'inline-block', overflow: 'hidden', marginRight: '0.24em', verticalAlign: 'bottom' }}>
-                <span style={{ display: 'inline-block', opacity: wordP, transform: `translateY(${wordY}px)` }}>{word}</span>
-              </span>
-            );
-          })}
+          {(() => {
+            if (!emphasisWords || emphasisWords.length === 0) return title;
+            const normSet = new Set(emphasisWords.map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, '')));
+            return title.split(' ').map((word, i) => {
+              const clean = word.toLowerCase().replace(/[^a-z0-9]/g, '');
+              const isEmphasized = normSet.has(clean);
+              return (
+                <span
+                  key={`${word}-${i}`}
+                  style={{
+                    color: isEmphasized ? accentColor : 'inherit',
+                    fontWeight: isEmphasized ? 900 : 'inherit',
+                    display: 'inline-block',
+                    marginRight: '0.24em',
+                    transform: isEmphasized ? 'scale(1.05)' : 'none',
+                    transformOrigin: 'center bottom',
+                  }}
+                >
+                  {word}
+                </span>
+              );
+            });
+          })()}
         </h1>
       </div>
 
-      {/* Zone 2: Bullets (360px) */}
-      <div
-        data-zone="bullets"
-        style={{
-          position: 'relative',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          height: ZONE_BULLETS_HEIGHT,
-        }}
-      >
-        <ul
-          style={{
-            listStyle: 'none',
-            margin: 0,
-            padding: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: bullets.length > 2 ? 14 : 20,
-            fontSize: bullets.length > 2 ? 40 : 44,
-            fontWeight: 600,
-            lineHeight: 1.2,
-          }}
-        >
-          {bullets.slice(0, 3).map((bullet, idx) => {
-            const startFrame = bulletTimings?.[idx] != null
-              ? Math.round(bulletTimings[idx] * fps)
-              : 22 + idx * 8;
-            const q = easeOut(prog(frame, startFrame, 16));
-            const bulletOpacity = q * exitProgress;
-            const bulletY = (1 - q) * 24;
-
-            return (
-              <li
-                key={`${bullet}-${idx}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 22,
-                  opacity: bulletOpacity,
-                  transform: `translateY(${bulletY}px)`,
-                }}
-              >
-                <span
-                  style={{
-                    flex: 'none',
-                    width: 18,
-                    height: 18,
-                    marginTop: 20,
-                    borderRadius: archetype === 'neo-brutalist' ? 0 : '50%',
-                    background: accentColor,
-                    boxShadow: archetype === 'paper-cutout' ? `5px 5px 0 ${accentColor}88` : `0 0 16px ${accentColor}88`,
-                  }}
-                />
-                <span
-                  style={{
-                    color: palette?.text || '#e8edf3',
-                    overflow: 'hidden',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                  }}
-                >
-                  {bullet}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-
-      {/* Zone 3: Media (700px) */}
+      {/* Zone 2: Full Dynamic Visual Stage (Expanded 1480px) */}
       <div
         ref={mediaRef}
         data-zone="media"
@@ -325,43 +260,16 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
           style={{
             width: '100%',
             height: '100%',
-            borderRadius: archetype === 'neo-brutalist' ? 0 : archetype === 'paper-cutout' ? 10 : 28,
+            borderRadius: archetype === 'neo-brutalist' ? 0 : 20,
             overflow: 'hidden',
-            background: palette?.bg || '#0d131c',
-            border: `1px solid ${palette?.primary || 'rgba(255,255,255,0.1)'}`,
-            boxShadow: archetype === 'neo-brutalist' ? `14px 14px 0 ${accentColor}` : archetype === 'paper-cutout' ? `12px 12px 0 ${accentColor}88` : '0 30px 80px rgba(0,0,0,0.65)',
+            background: 'transparent',
             display: 'flex',
             flexDirection: 'column',
             opacity: mediaOpacity,
             transform: `translateY(${mediaY}px)`,
           }}
         >
-          {/* Frame Header / Console Status Bar (Only for retro-terminal archetype) */}
-          {archetype === 'retro-terminal' && (
-            <div
-              style={{
-                height: 50,
-                background: '#071a12',
-                borderBottom: '1px solid rgba(255,255,255,0.08)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '0 22px',
-                flex: 'none',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <i style={{ width: 12, height: 12, borderRadius: '50%', background: '#ff5f56', display: 'inline-block' }} />
-                <i style={{ width: 12, height: 12, borderRadius: '50%', background: '#ffbd2e', display: 'inline-block' }} />
-                <i style={{ width: 12, height: 12, borderRadius: '50%', background: '#27c93f', display: 'inline-block' }} />
-              </div>
-              <div style={{ fontSize: 13, color: '#94a3b8', letterSpacing: '2px', textTransform: 'uppercase', fontWeight: 700 }}>
-                SYS://TERMINAL
-              </div>
-            </div>
-          )}
-
-          {/* Media Body / Screenshot / Custom Visual */}
+          {/* Media Body / Custom Dynamic Visual */}
           <div
             style={{
               flex: 1,
@@ -447,14 +355,18 @@ export const SceneTemplate: React.FC<SceneTemplateProps> = ({
         >
           {parsedCaptionWords.map((word, j) => {
             const isSpoken = j === resolvedActiveWordIndex && frame >= 38 && frame < durationInFrames - 10;
+            const clean = word.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const isEmphasized = emphasisWords?.some((w) => w.toLowerCase().replace(/[^a-z0-9]/g, '') === clean);
             return (
               <span
                 key={`${word}-${j}`}
                 style={{
-                  color: isSpoken ? accentColor : (palette?.text || '#9fb3c4'),
-                  fontWeight: isSpoken ? 700 : 600,
+                  color: isSpoken || isEmphasized ? accentColor : (palette?.text || '#9fb3c4'),
+                  fontWeight: isSpoken || isEmphasized ? 800 : 600,
                   marginRight: '0.28em',
                   display: 'inline-block',
+                  transform: isEmphasized ? 'scale(1.05)' : 'none',
+                  transformOrigin: 'center bottom',
                 }}
               >
                 {word}

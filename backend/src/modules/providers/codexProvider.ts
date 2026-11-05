@@ -56,19 +56,19 @@ export class CodexProvider extends BasePlanProvider {
   }
 
   private codexTimeoutMs(fastCreative = false): number {
-    const configured = Number(process.env[fastCreative ? 'CODEX_CREATIVE_TIMEOUT_MS' : 'CODEX_TIMEOUT_MS'] || (fastCreative ? 240000 : 360000));
-    if (!Number.isFinite(configured)) return fastCreative ? 240000 : 360000;
+    const configured = Number(process.env[fastCreative ? 'CODEX_CREATIVE_TIMEOUT_MS' : 'CODEX_TIMEOUT_MS'] || (fastCreative ? 180000 : 240000));
+    if (!Number.isFinite(configured)) return fastCreative ? 180000 : 240000;
     return fastCreative
-      ? Math.max(60000, Math.min(360000, Math.round(configured)))
-      : Math.max(120000, Math.min(600000, Math.round(configured)));
+      ? Math.max(60000, Math.min(240000, Math.round(configured)))
+      : Math.max(120000, Math.min(240000, Math.round(configured)));
   }
 
   private codexTotalTimeoutMs(fastCreative = false): number {
-    const configured = Number(process.env[fastCreative ? 'CODEX_CREATIVE_TOTAL_TIMEOUT_MS' : 'CODEX_TOTAL_TIMEOUT_MS'] || (fastCreative ? 480000 : 720000));
-    if (!Number.isFinite(configured)) return fastCreative ? 480000 : 720000;
+    const configured = Number(process.env[fastCreative ? 'CODEX_CREATIVE_TOTAL_TIMEOUT_MS' : 'CODEX_TOTAL_TIMEOUT_MS'] || (fastCreative ? 240000 : 360000));
+    if (!Number.isFinite(configured)) return fastCreative ? 240000 : 360000;
     return fastCreative
-      ? Math.max(120000, Math.min(600000, Math.round(configured)))
-      : Math.max(180000, Math.min(900000, Math.round(configured)));
+      ? Math.max(120000, Math.min(360000, Math.round(configured)))
+      : Math.max(180000, Math.min(360000, Math.round(configured)));
   }
 
   private remainingCodexBudget(deadlineAt: number, requestedMs: number): number {
@@ -144,7 +144,8 @@ export class CodexProvider extends BasePlanProvider {
       if (active && now - lastUsageEvent < 250) return;
       lastUsageEvent = now;
       realtime.publish({
-        type: 'codex_usage_progress',
+        type: 'provider_usage_progress',
+        provider: 'codex',
         projectId,
         available: false,
         active,

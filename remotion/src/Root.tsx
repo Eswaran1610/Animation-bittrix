@@ -84,7 +84,7 @@ export const Root: React.FC = () => {
   const hasValidSceneData = Boolean(
     sceneData.video &&
     Array.isArray(sceneData.scenes) &&
-    sceneData.video.generatedBy === 'codex'
+    sceneData.scenes.length > 0
   );
   if (hasValidSceneData) {
     const mainQaIssues = collectMainCompositionQaIssues(sceneData as SceneDataPayload);

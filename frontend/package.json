@@ -13,6 +13,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@motion-canvas/player": "^3.17.2",
     "@remotion/player": "^4.0.539",
     "lucide-react": "^1.65.0",
     "react": "^19.3.1",

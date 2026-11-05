@@ -5,7 +5,8 @@ import { CaptionWord } from '../data/sceneTypes';
 export const WordCaptions: React.FC<{
   captions?: CaptionWord[];
   color?: string;
-}> = ({ captions, color = '#22d3ee' }) => {
+  emphasisWords?: string[];
+}> = ({ captions, color = '#22d3ee', emphasisWords = [] }) => {
   const frame = useCurrentFrame();
   if (!captions?.length) return null;
 
@@ -16,6 +17,7 @@ export const WordCaptions: React.FC<{
   const visibleStart = Math.max(0, activeIndex - 3);
   const visibleEnd = Math.min(captions.length, activeIndex + 4);
   const visible = captions.slice(visibleStart, visibleEnd);
+  const normSet = new Set(emphasisWords.map((w) => w.toLowerCase().replace(/[^a-z0-9]/g, '')));
 
   return (
     <div
@@ -46,15 +48,19 @@ export const WordCaptions: React.FC<{
       >
         {visible.map((caption, index) => {
           const isActive = visibleStart + index === activeIndex;
+          const clean = caption.word.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const isEmphasized = normSet.has(clean);
           return (
             <span
               key={`${caption.startFrame}-${caption.word}-${index}`}
               style={{
-                color: isActive ? color : '#9fb3c4',
+                color: isActive || isEmphasized ? color : '#9fb3c4',
                 fontSize: 48,
-                fontWeight: isActive ? 800 : 600,
+                fontWeight: isActive || isEmphasized ? 800 : 600,
                 lineHeight: 1.25,
-                textShadow: isActive ? `0 0 16px ${color}88` : 'none',
+                transform: isEmphasized ? 'scale(1.06)' : 'none',
+                display: 'inline-block',
+                textShadow: isActive || isEmphasized ? `0 0 16px ${color}88` : 'none',
               }}
             >
               {caption.word}

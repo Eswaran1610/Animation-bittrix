@@ -7,6 +7,7 @@ interface LiveStatusBarProps {
     input_tokens?: number;
     output_tokens?: number;
     total_tokens?: number;
+    run_count?: number;
     estimated?: boolean;
     available?: boolean;
   } | null;
@@ -20,8 +21,7 @@ interface LiveStatusBarProps {
 export const LiveStatusBar: React.FC<LiveStatusBarProps> = ({ activeProvider, usage, liveUsage, progress, label, stage, connected }) => {
   const safeProgress = Math.max(0, Math.min(100, Math.round(progress)));
   const totalTokens = Number(usage?.total_tokens || 0);
-  const isLoaded = usage !== null && usage !== undefined;
-  const providerName = activeProvider === 'agy' ? 'AGY' : activeProvider === 'codex' ? 'Codex' : 'AI';
+  const providerName = activeProvider === 'agy' ? 'AGY' : activeProvider === 'claude' ? 'Claude Code' : activeProvider === 'codex' ? 'Codex' : 'AI';
 
   const isResearchDone = safeProgress >= 70 || stage === 'script_plan' || stage === 'script_ready' || stage === 'script_review' || stage === 'preview_review' || stage === 'completed';
   const isResearchActive = !isResearchDone && (stage === 'research' || (safeProgress > 0 && safeProgress < 70) || !!liveUsage?.active);
@@ -37,8 +37,8 @@ export const LiveStatusBar: React.FC<LiveStatusBarProps> = ({ activeProvider, us
       <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '8px 24px', display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap', fontSize: '12px' }}>
         <span style={{ display: 'inline-flex', gap: '6px', alignItems: 'center', color: 'var(--text-muted)' }}>
           <Activity size={14} color="#38bdf8" />
-          {providerName} tokens: <strong style={{ color: '#e2e8f0' }}>{isLoaded ? totalTokens.toLocaleString() : '0'}</strong>
-          {usage?.estimated && <span style={{ color: '#fbbf24' }}>(estimated)</span>}
+          {providerName} tokens: <strong style={{ color: '#e2e8f0' }}>{usage?.available || Number(usage?.run_count || 0) === 0 ? totalTokens.toLocaleString() : 'unavailable'}</strong>
+          {usage?.available && usage?.estimated && <span style={{ color: '#fbbf24' }}>(estimated)</span>}
           {liveUsage?.active && <span style={{ color: '#38bdf8' }}>(running)</span>}
         </span>
 

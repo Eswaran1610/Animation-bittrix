@@ -72,8 +72,8 @@ export const preflightRenderProps = async (propsPath: string): Promise<void> => 
     fail(`Props preflight failed: ${propsPath} is not valid JSON (${error?.message || error}).`, 'props-invalid');
   }
 
-  if (!props?.video || props.video.generatedBy !== 'codex' || !Array.isArray(props.scenes) || props.scenes.length === 0) {
-    fail('Props preflight failed: expected a Codex-generated video payload with at least one scene.', 'props-invalid');
+  if (!props?.video || !['codex', 'agy', 'claude'].includes(props.video.generatedBy) || !Array.isArray(props.scenes) || props.scenes.length === 0) {
+    fail('Props preflight failed: expected a supported CLI-generated video payload with at least one scene.', 'props-invalid');
   }
   if (props.video.width !== 1080 || props.video.height !== 1920 || props.video.fps !== 30) {
     fail(`Props preflight failed: expected 1080x1920 at 30 FPS, received ${props.video.width}x${props.video.height} at ${props.video.fps} FPS.`, 'props-invalid');
@@ -85,7 +85,7 @@ export const preflightRenderProps = async (propsPath: string): Promise<void> => 
     if (!scene.narrationAudio) fail(`Props preflight failed: scene ${index + 1} has no approved narration audio.`, 'audio-sync');
     if (!Array.isArray(scene.audioCues) || scene.audioCues.length === 0) fail(`Props preflight failed: scene ${index + 1} has no object sound cues.`, 'audio-sync');
     if (index > 0 && scene.template && props.scenes[index - 1].template === scene.template) {
-      fail(`Props preflight failed: adjacent scenes ${index} and ${index + 1} reuse the same template; Codex must create content-specific visual variety.`, 'props-invalid');
+      fail(`Props preflight failed: adjacent scenes ${index} and ${index + 1} reuse the same template; the active CLI must create content-specific visual variety.`, 'props-invalid');
     }
     for (const object of scene.visualBlueprint.objects) {
       const spec = object?.render_spec;

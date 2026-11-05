@@ -17,7 +17,8 @@ export const DynamicScene: React.FC<{
   totalScenes: number;
   styleProfile?: StyleProfile;
   styleBrief?: StyleBrief;
-}> = ({ scene, index, styleProfile, styleBrief }) => {
+  globalFrame?: number;
+}> = ({ scene, index, styleProfile, styleBrief, globalFrame }) => {
   const color = scene.themeColor || styleProfile?.primary || '#22d3ee';
   const title = scene.on_screen_text || scene.title || 'Dynamic Overview';
   const bullets = scene.key_takeaways?.length ? scene.key_takeaways.slice(0, 3) : undefined;
@@ -44,6 +45,7 @@ export const DynamicScene: React.FC<{
           imageAssets={scene.image_assets}
           durationInFrames={scene.durationInFrames}
           styleBrief={styleBrief}
+          globalFrame={globalFrame}
         />
       );
     }
@@ -92,6 +94,8 @@ export const DynamicScene: React.FC<{
       bullets={bullets}
       accentColor={color}
       styleBrief={styleBrief}
+      globalFrame={globalFrame}
+      emphasisWords={scene.emphasis_words}
     >
       {visualContent}
     </SceneTemplate>

@@ -22,11 +22,13 @@ backend/media/audio/*.mp3
 backend/media/audio/*.wav
 backend/media/audio/**/*.mp3
 backend/media/audio/**/*.wav
+backend/media/audio/*.json
 backend/media/audio/sfx/
 backend/media/render-data/
 backend/media/assets/*
 !backend/media/assets/.gitkeep
 backend/media/projects/
+backend/media/done/
 remotion/public/audio/*
 !remotion/public/audio/.gitkeep
 remotion/public/assets/*

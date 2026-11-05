@@ -14,6 +14,7 @@ interface BlueprintVisualProps {
   imageAssets?: Record<string, string>;
   durationInFrames: number;
   styleBrief?: StyleBrief;
+  globalFrame?: number;
 }
 
 /**
@@ -44,17 +45,26 @@ const ParticleField: React.FC<{ frame: number; color: string }> = ({ frame, colo
 </>;
 
 const objectStyle = (object: BlueprintObject, frame: number, fps: number, index: number, durationInFrames: number, personality: StyleBrief['motionPersonality'] = 'fluid'): React.CSSProperties => {
-  const springConfig = personality === 'snappy' ? springPresets.snappy : personality === 'precise' ? springPresets.smooth : personality === 'fluid' ? springPresets.soft : springPresets.bouncy;
+  const springConfig = springPresets.snappy;
   const motion = object.motion || '';
   const plan = object.motion_plan;
+  const isText = object.render_spec.type === 'text';
+  const smoothstep = (value: number) => {
+    const t = Math.max(0, Math.min(1, value));
+    return t * t * (3 - 2 * t);
+  };
+  const isContinuing = (plan?.enter_frame === 0) || /hold|remain|stay|still|continuous|settle|gentle/i.test(motion);
   const stagger = Math.max(0, Math.min(20, plan?.stagger_frames ?? 5));
   const entranceFrame = frame - (plan?.enter_frame ?? index * stagger) - index * stagger;
-  const entrance = plan?.easing === 'linear'
-    ? interpolate(entranceFrame, [0, 18], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
-    : spring({ frame: entranceFrame, fps, config: springConfig });
-  const movementStart = Math.min(durationInFrames - 1, plan?.hold_start_frame ?? plan?.enter_frame ?? 12 + index * 6);
-  const movementEnd = Math.max(movementStart + 1, plan?.hold_end_frame ?? durationInFrames - 22);
-  const movementProgress = interpolate(frame, [movementStart, movementEnd], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const entrance = isContinuing
+    ? 1
+    : isText
+      ? smoothstep(entranceFrame / 12)
+      : spring({ frame: entranceFrame, fps, config: springConfig });
+  const textSlideY = (isText && !isContinuing) ? interpolate(entrance, [0, 1], [30, 0]) : 0;
+  const movementStart = Math.min(durationInFrames - 1, plan?.hold_start_frame ?? plan?.enter_frame ?? 8 + index * 4);
+  const movementEnd = Math.max(movementStart + 1, plan?.hold_end_frame ?? durationInFrames - 10);
+  const movementProgress = smoothstep((frame - movementStart) / (movementEnd - movementStart));
   const x = interpolate(movementProgress, [0, 1], [object.x, object.to_x ?? object.x]);
   const y = interpolate(movementProgress, [0, 1], [object.y, object.to_y ?? object.y]);
   const idle = plan?.idle || (motion.match(/orbit/i) ? 'orbit' : motion.match(/float|drift/i) ? 'float' : motion.match(/pulse|glow/i) ? 'pulse' : 'drift');
@@ -68,17 +78,14 @@ const objectStyle = (object: BlueprintObject, frame: number, fps: number, index:
   const rotation = (object.rotation || 0) + (spinning ? frame * (0.45 + index * 0.08) : 0);
   const depth = 18 + Math.sin(frame * 0.025 + index) * 12;
   const idleScale = 1 + Math.sin(frame * 0.055 + index * 1.4) * (idle === 'pulse' ? 0.07 : 0.035);
-  // Generated plans may schedule an exit at the scene duration. Frames are
-  // zero-indexed, so that would produce a duplicate interpolate range such as
-  // [150, 150]. Keep the exit within the scene and before its final frame.
-  const exitStart = Math.max(0, Math.min(durationInFrames - 1, plan?.exit_frame ?? durationInFrames - 16));
-  const exit = interpolate(frame, [exitStart, durationInFrames], [1, 0.82], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-  const scale = (object.scale || 1) * idleScale * interpolate(entrance, [0, 1], [0.35, 1]) * exit;
+  // Seamless object continuity: no exit shrinking so objects hold stably across scene transitions
+  const exit = 1;
+  const scale = (object.scale || 1) * idleScale * (isContinuing ? 1 : interpolate(entrance, [0, 1], [0.5, 1])) * exit;
   return {
     position: 'absolute',
     left: `${Math.max(0, Math.min(1, x)) * 100}%`,
     top: `${Math.max(0, Math.min(1, y)) * 100}%`,
-    transform: `translate(-50%, -50%) translate3d(${lateralDrift}px, ${drift}px, ${depth}px) rotateX(${Math.sin(frame * 0.028 + index) * 8}deg) rotateY(${spinning ? frame * 0.55 : Math.sin(frame * 0.032 + index) * 12}deg) rotateZ(${rotation}deg) scale(${scale})`,
+    transform: `translate(-50%, -50%) translate3d(${lateralDrift}px, ${drift + textSlideY}px, ${depth}px) rotateX(${Math.sin(frame * 0.028 + index) * 8}deg) rotateY(${spinning ? frame * 0.55 : Math.sin(frame * 0.032 + index) * 12}deg) rotateZ(${rotation}deg) scale(${scale})`,
     opacity: entrance,
     transformOrigin: 'center',
     transformStyle: 'preserve-3d',
@@ -294,20 +301,21 @@ const BlueprintObjectView: React.FC<{ object: BlueprintObject; frame: number; fp
   return <div style={{ ...style, minWidth: 130, maxWidth: 330, padding: '9px 0', color: '#f8fafc', textAlign: 'center', fontWeight: 900, fontSize: `${18 + (index % 3) * 5}px`, letterSpacing: '0.04em', textShadow: `0 0 18px ${color}, 0 4px 18px #000`, borderBottom: `3px solid ${color}`, background: `linear-gradient(90deg, transparent, ${color}33, transparent)` }}>{text}</div>;
 };
 
-export const BlueprintVisual: React.FC<BlueprintVisualProps> = ({ blueprint, imageAssets = {}, durationInFrames, styleBrief }) => {
+export const BlueprintVisual: React.FC<BlueprintVisualProps> = ({ blueprint, imageAssets = {}, durationInFrames, styleBrief, globalFrame }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const scan = (frame * 9) % 1400 - 180;
+  const ambientFrame = globalFrame ?? frame;
+  const scan = (ambientFrame * 9) % 1400 - 180;
   const coreColor = blueprint.objects[0]?.color || styleBrief?.palette.primary || '#8b5cf6';
   const accentColor = styleBrief?.palette.accent || '#F59E0B';
   const background = styleBrief?.background || 'grid';
   const backgroundStyle = background === 'halftone'
-    ? { backgroundImage: `radial-gradient(${accentColor}66 2px, transparent 2px)`, backgroundSize: '22px 22px', backgroundPosition: `${frame * 0.4}px ${frame * 0.2}px` }
+    ? { backgroundImage: `radial-gradient(${accentColor}66 2px, transparent 2px)`, backgroundSize: '22px 22px', backgroundPosition: `${ambientFrame * 0.4}px ${ambientFrame * 0.2}px` }
     : background === 'lines'
-      ? { backgroundImage: `repeating-linear-gradient(${45 + Math.sin(frame * 0.01) * 10}deg, ${coreColor}22 0 2px, transparent 2px 26px)`, backgroundPosition: `${frame * 1.2}px ${frame * 0.6}px` }
+      ? { backgroundImage: `repeating-linear-gradient(${45 + Math.sin(ambientFrame * 0.01) * 10}deg, ${coreColor}22 0 2px, transparent 2px 26px)`, backgroundPosition: `${ambientFrame * 1.2}px ${ambientFrame * 0.6}px` }
       : background === 'gradient-flow'
-        ? { background: `radial-gradient(circle at ${35 + Math.sin(frame * 0.02) * 20}% ${30 + Math.cos(frame * 0.017) * 15}%, ${coreColor}44, transparent 48%), linear-gradient(135deg, ${styleBrief?.palette.bg || '#05070f'}, ${accentColor}33)` }
-        : { backgroundImage: background === 'particles' ? undefined : `linear-gradient(${coreColor}28 1px, transparent 1px), linear-gradient(90deg, ${coreColor}28 1px, transparent 1px)`, backgroundSize: '72px 72px', backgroundPosition: `${frame * 1.8}px ${frame * 1.1}px` };
+        ? { background: `radial-gradient(circle at ${35 + Math.sin(ambientFrame * 0.02) * 20}% ${30 + Math.cos(ambientFrame * 0.017) * 15}%, ${coreColor}44, transparent 48%), linear-gradient(135deg, ${styleBrief?.palette.bg || '#05070f'}, ${accentColor}33)` }
+        : { backgroundImage: background === 'particles' ? undefined : `linear-gradient(${coreColor}28 1px, transparent 1px), linear-gradient(90deg, ${coreColor}28 1px, transparent 1px)`, backgroundSize: '72px 72px', backgroundPosition: `${ambientFrame * 1.8}px ${ambientFrame * 1.1}px` };
   const archetypeStyle = styleBrief?.archetype === 'neo-brutalist'
     ? { border: `4px solid ${styleBrief.palette.text}`, boxShadow: `12px 12px 0 ${accentColor}` }
     : styleBrief?.archetype === 'glass-ui'
@@ -315,13 +323,13 @@ export const BlueprintVisual: React.FC<BlueprintVisualProps> = ({ blueprint, ima
       : styleBrief?.archetype === 'retro-terminal'
         ? { fontFamily: 'Courier New, monospace', filter: 'contrast(1.12)' }
         : styleBrief?.archetype === 'paper-cutout'
-          ? { filter: 'saturate(0.82)', transform: `rotate(${Math.sin(frame * 0.012) * 0.5}deg)` }
+          ? { filter: 'saturate(0.82)', transform: `rotate(${Math.sin(ambientFrame * 0.012) * 0.5}deg)` }
           : {};
   return <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', perspective: '1200px', transformStyle: 'preserve-3d', ...archetypeStyle }}>
-    <div style={{ position: 'absolute', inset: 0, opacity: 0.22, maskImage: 'linear-gradient(to bottom, transparent, black 18%, black 82%, transparent)', ...backgroundStyle }} />
-    {(background === 'particles' || styleBrief?.archetype === 'isometric-diagram' || styleBrief?.archetype === 'data-story') && <ParticleField frame={frame} color={accentColor} />}
+    <div style={{ position: 'absolute', inset: 0, opacity: 0.18, maskImage: 'linear-gradient(to bottom, transparent, black 18%, black 82%, transparent)', ...backgroundStyle }} />
+    {(background === 'particles' || styleBrief?.archetype === 'isometric-diagram' || styleBrief?.archetype === 'data-story') && <ParticleField frame={ambientFrame} color={accentColor} />}
     {!blueprint.objects.some((obj) => obj.render_spec.type === '3d' || obj.render_spec.type === 'image' || (obj.render_spec.type === 'vector' && ((obj.render_spec.paths?.length ?? 0) > 0 || (obj.render_spec.circles?.length ?? 0) > 0 || (obj.render_spec.rects?.length ?? 0) > 0))) && (
-      <KineticCore frame={frame} color={coreColor} />
+      <KineticCore frame={ambientFrame} color={coreColor} />
     )}
     <BlueprintAssetPreloader blueprint={blueprint} imageAssets={imageAssets} />
     <div style={{ position: 'absolute', top: 0, bottom: 0, width: 96, left: scan, opacity: 0.14, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,.16), transparent)', transform: 'skewX(-16deg)' }} />

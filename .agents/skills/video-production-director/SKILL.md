@@ -173,9 +173,21 @@ Motion vocabulary to choose from: 2D motion graphics, kinetic typography, animat
 Principles:
 - Motion must explain (sequence = causality, size change = quantity, highlight = attention), not merely decorate.
 - Vary animation types across scenes; avoid repeating the same fade-up on everything.
-- Stagger related elements by a consistent interval; ease in and out; avoid linear motion except for loops.
+- Stagger related elements by a consistent interval; ease in and out; do not use linear keyframing.
 - Keep complexity proportional: one hero motion per scene, supporting motion secondary.
 - Remotion constraint: **all animation must be a pure function of the current frame.** No CSS transitions, CSS animations, `setTimeout`, or Three.js `useFrame` for animation; those do not render deterministically.
+
+### Frame physics contract for generated scene plans
+
+The backend consumes its `scenePlan`/`visual_blueprint` format and adapts it into Remotion props. Do not replace that runtime payload with a second `projectId`/`version`/`scenes` schema. The registered composition is currently portrait 1080×1920 at 30 fps; use the renderer's declared dimensions and normalized 0–1 blueprint coordinates instead of pixel-position assumptions. All motion timing is integer frame offsets relative to the start of its scene.
+
+Bind each visible element to one of these deterministic motions:
+
+- `SPRING_BOUNCE` for cards, metrics, images, and 3D objects: spring mass 0.5, stiffness 160 (tension), damping 12 (friction).
+- `FADE_SLIDE_UP` for text: 15-frame cubic smoothstep, relative Y offset +40 px to 0, opacity 0 to 1.
+- `KINETIC_WIPE` for every inter-scene transition: directional horizontal wipe over exactly 10 terminal frames, with quintic ease-out.
+
+Keep narration planned for natural 1.00× playback. Frame coordinates and transition overlaps must be calculated before export; do not use timestamp floats for event placement.
 
 ## Step 10: Audio and narration sync (Section B)
 

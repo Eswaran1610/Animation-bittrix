@@ -45,6 +45,15 @@ export interface Project {
   codex_output_tokens?: number;
   codex_run_count?: number;
   codex_usage_estimated?: boolean;
+  codex_usage_available?: boolean;
+  agy_total_tokens?: number;
+  agy_run_count?: number;
+  agy_usage_estimated?: boolean;
+  agy_usage_available?: boolean;
+  claude_total_tokens?: number;
+  claude_run_count?: number;
+  claude_usage_estimated?: boolean;
+  claude_usage_available?: boolean;
 }
 
 export interface AgentRun {

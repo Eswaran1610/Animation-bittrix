@@ -1,10 +1,8 @@
 import React from 'react';
 import { AbsoluteFill, Audio, Sequence, interpolate, useCurrentFrame } from 'remotion';
-import { TransitionSeries, linearTiming } from '@remotion/transitions';
-import { slide } from '@remotion/transitions/slide';
+import { TransitionSeries } from '@remotion/transitions';
+import type { TransitionTiming } from '@remotion/transitions';
 import { fade } from '@remotion/transitions/fade';
-import { wipe } from '@remotion/transitions/wipe';
-import { flip } from '@remotion/transitions/flip';
 import { SceneRenderer } from './components/SceneRenderer';
 import { WordCaptions } from './components/WordCaptions';
 import { SceneDataPayload, StyleBrief } from './data/sceneTypes';
@@ -13,27 +11,17 @@ import { sceneTimelineDuration } from './short-video/sceneAdapter';
 
 const defaultTransitionFrames = 12;
 
-const getTransitionPresentation = (scene: any, index: number, styleProfile?: any, styleBrief?: StyleBrief) => {
-  const preferred = styleBrief?.transitionSet?.[index % Math.max(1, styleBrief.transitionSet.length)];
-  if (preferred === 'fade') return fade();
-  if (preferred === 'wipe') return wipe({ direction: index % 2 ? 'from-left' : 'from-right' });
-  if (preferred === 'flip') return flip({ direction: index % 2 ? 'from-left' : 'from-right' });
-  if (preferred === 'push' || preferred === 'whip' || preferred === 'slide') return slide({ direction: index % 2 === 0 ? 'from-right' : 'from-left' });
-  const cue = `${scene.continuity_to_next || ''} ${scene.motion_cue || ''} ${styleProfile?.transition_language || ''}`.toLowerCase();
-  if (/fade|dissolve|crossfade|soft/i.test(cue)) {
-    return fade();
-  }
-  if (/wipe/i.test(cue)) {
-    return wipe({ direction: /left/i.test(cue) ? 'from-right' : 'from-left' });
-  }
-  if (/flip/i.test(cue)) {
-    return flip({ direction: 'from-right' });
-  }
-  if (/push|whip|pan|slide|up|down|top|bottom/i.test(cue)) {
-    const direction = /up|top/i.test(cue) ? 'from-bottom' : /down|bottom/i.test(cue) ? 'from-top' : (index % 2 === 0 ? 'from-right' : 'from-left');
-    return slide({ direction });
-  }
-  return slide({ direction: index % 2 === 0 ? 'from-right' : 'from-left' });
+const continuousFadeTiming = (durationInFrames: number): TransitionTiming => ({
+  getDurationInFrames: () => durationInFrames,
+  getProgress: ({ frame }) => {
+    const progress = Math.max(0, Math.min(1, frame / durationInFrames));
+    // Smooth cubic ease-in-out for continuous cross-dissolve
+    return progress * progress * (3 - 2 * progress);
+  },
+});
+
+const getTransitionPresentation = () => {
+  return fade({ shouldFadeOutExitingScene: true });
 };
 
 type TimedCue = {
@@ -87,22 +75,97 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
   scenes.forEach((scene, index) => {
     transitionNodes.push(
       <TransitionSeries.Sequence key={`scene-${scene.id || index}`} durationInFrames={scene.durationInFrames}>
-        <SceneRenderer scene={scene} index={index} totalScenes={scenes.length} styleProfile={styleProfile} styleBrief={styleBrief} />
+        <SceneRenderer scene={scene} index={index} totalScenes={scenes.length} styleProfile={styleProfile} styleBrief={styleBrief} globalFrame={frame} />
       </TransitionSeries.Sequence>,
     );
     if (index < scenes.length - 1) {
       transitionNodes.push(
         <TransitionSeries.Transition
           key={`transition-${scene.id || index}`}
-          timing={linearTiming({ durationInFrames: scene.transitionOutFrames || defaultTransitionFrames })}
-          presentation={getTransitionPresentation(scene, index, styleProfile, styleBrief) as any}
+          timing={continuousFadeTiming(scene.transitionOutFrames || defaultTransitionFrames)}
+          presentation={getTransitionPresentation()}
         />,
       );
     }
   });
 
+  const accentColor = styleBrief?.palette.accent || styleProfile?.secondary || '#38bdf8';
+  const primaryColor = styleBrief?.palette.primary || styleProfile?.primary || '#22d3ee';
+  const bgColor = styleBrief?.palette.bg || styleProfile?.background || '#05070f';
+
+  // Global ambient persistent background that NEVER breaks or wipes across the full video
+  const stageBackground = styleBrief?.background === 'halftone'
+    ? `radial-gradient(${accentColor}33 1px, transparent 1px), ${bgColor}`
+    : styleBrief?.background === 'gradient-flow'
+      ? `radial-gradient(circle at ${35 + Math.sin(frame * 0.012) * 18}% ${25 + Math.cos(frame * 0.009) * 12}%, ${accentColor}44, transparent 55%), ${bgColor}`
+      : styleBrief?.background === 'lines'
+        ? `repeating-linear-gradient(115deg, ${accentColor}15 0 2px, transparent 2px 30px), ${bgColor}`
+        : `radial-gradient(1000px 800px at 25% 10%, ${accentColor}38 0, ${bgColor} 72%)`;
+
+  const gridPosition = `${(frame * 0.8) % 72}px ${(frame * 0.5) % 72}px`;
+
   return (
-    <AbsoluteFill style={{ backgroundColor: styleBrief?.palette.bg || styleProfile?.background || '#05070f' }}>
+    <AbsoluteFill style={{ backgroundColor: bgColor }}>
+      {/* 1. Global continuous ambient background */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: stageBackground,
+          backgroundSize: styleBrief?.background === 'halftone' ? '22px 22px' : undefined,
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* 2. Global continuous ambient grid */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: `linear-gradient(${primaryColor}18 1px, transparent 1px), linear-gradient(90deg, ${primaryColor}18 1px, transparent 1px)`,
+          backgroundSize: '72px 72px',
+          backgroundPosition: gridPosition,
+          opacity: 0.35,
+          maskImage: 'radial-gradient(ellipse 90% 80% at 50% 50%, black 40%, transparent 95%)',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* 3. Global subtle floating particles across the entire continuous video */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          inset: 0,
+          overflow: 'hidden',
+          pointerEvents: 'none',
+        }}
+      >
+        {Array.from({ length: 14 }, (_, i) => {
+          const x = ((i * 61) % 90 + 5 + Math.sin(frame * 0.01 + i) * 6);
+          const y = ((i * 47) % 88 + 6 + Math.cos(frame * 0.012 + i) * 5);
+          const size = 3 + (i % 3);
+          return (
+            <span
+              key={i}
+              style={{
+                position: 'absolute',
+                left: `${x}%`,
+                top: `${y}%`,
+                width: size,
+                height: size,
+                borderRadius: '50%',
+                backgroundColor: i % 2 === 0 ? primaryColor : accentColor,
+                opacity: 0.16 + (i % 4) * 0.08,
+                boxShadow: `0 0 12px ${accentColor}`,
+              }}
+            />
+          );
+        })}
+      </div>
+
       <div
         aria-hidden="true"
         style={{
@@ -139,7 +202,11 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
         </>
       )}
       <TransitionSeries>{transitionNodes}</TransitionSeries>
-      <WordCaptions captions={captions} color={styleProfile?.primary} />
+      <WordCaptions
+        captions={captions}
+        color={styleProfile?.primary}
+        emphasisWords={scenes.flatMap((s) => s.emphasis_words || [])}
+      />
     </AbsoluteFill>
   );
 };

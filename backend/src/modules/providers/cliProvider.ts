@@ -4,6 +4,8 @@ import { activeProviderService, ProviderId } from './activeProviderService.js';
 import { spawn } from 'child_process';
 import { projectPaths } from '../../config/paths.js';
 import { realtime } from '../../realtime.js';
+import { tsxValidator } from '../production/tsxValidator.js';
+import { buildAuthoritativeTsx } from '../production/authoritativeTsxBuilder.js';
 
 const activeChildren = new Set<ReturnType<typeof spawn>>();
 
@@ -55,8 +57,8 @@ export class UnifiedCliProvider extends BasePlanProvider {
       const configured = Number(process.env[fastCreative ? 'AGY_CREATIVE_TIMEOUT_MS' : 'AGY_TIMEOUT_MS'] || (fastCreative ? 240000 : 360000));
       return Number.isFinite(configured) ? Math.max(60000, Math.min(600000, Math.round(configured))) : 360000;
     }
-    const configured = Number(process.env[fastCreative ? 'CODEX_CREATIVE_TIMEOUT_MS' : 'CODEX_TIMEOUT_MS'] || (fastCreative ? 240000 : 360000));
-    return Number.isFinite(configured) ? Math.max(60000, Math.min(600000, Math.round(configured))) : 240000;
+    const configured = Number(process.env[fastCreative ? 'CODEX_CREATIVE_TIMEOUT_MS' : 'CODEX_TIMEOUT_MS'] || (fastCreative ? 180000 : 240000));
+    return Number.isFinite(configured) ? Math.max(60000, Math.min(240000, Math.round(configured))) : 240000;
   }
 
   providerTotalTimeoutMs(fastCreative = false): number {
@@ -65,8 +67,8 @@ export class UnifiedCliProvider extends BasePlanProvider {
       const configured = Number(process.env[fastCreative ? 'AGY_CREATIVE_TOTAL_TIMEOUT_MS' : 'AGY_TOTAL_TIMEOUT_MS'] || (fastCreative ? 480000 : 720000));
       return Number.isFinite(configured) ? Math.max(120000, Math.min(900000, Math.round(configured))) : 540000;
     }
-    const configured = Number(process.env[fastCreative ? 'CODEX_CREATIVE_TOTAL_TIMEOUT_MS' : 'CODEX_TOTAL_TIMEOUT_MS'] || (fastCreative ? 480000 : 720000));
-    return Number.isFinite(configured) ? Math.max(120000, Math.min(900000, Math.round(configured))) : 480000;
+    const configured = Number(process.env[fastCreative ? 'CODEX_CREATIVE_TOTAL_TIMEOUT_MS' : 'CODEX_TOTAL_TIMEOUT_MS'] || (fastCreative ? 240000 : 360000));
+    return Number.isFinite(configured) ? Math.max(120000, Math.min(360000, Math.round(configured))) : 360000;
   }
 
   protected async executePlan(
@@ -310,12 +312,284 @@ export class UnifiedCliProvider extends BasePlanProvider {
       timeoutMs
     );
     if (code !== 0) throw new Error(`${cliBin} CLI exited with code ${code}: ${stderr.slice(-300)}`);
-    const parsed = this.extractJson(stdout);
+    let output = stdout;
+    let tokenUsage: TokenUsage = { input_tokens: 0, output_tokens: 0, total_tokens: 0, estimated: false, available: false, source: 'unavailable' };
+    if (cliBin === 'claude') {
+      try {
+        const container = JSON.parse(stdout);
+        output = typeof container?.result === 'string' ? container.result : stdout;
+        const usage = container?.usage || {};
+        const inputTokens = Number(usage.input_tokens ?? usage.inputTokens ?? 0);
+        const outputTokens = Number(usage.output_tokens ?? usage.outputTokens ?? 0);
+        const hasUsage = Number.isFinite(inputTokens + outputTokens) && (inputTokens > 0 || outputTokens > 0);
+        tokenUsage = {
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          total_tokens: Number(usage.total_tokens ?? usage.totalTokens ?? inputTokens + outputTokens),
+          estimated: false,
+          available: hasUsage,
+          source: hasUsage ? 'claude' : 'unavailable',
+        };
+      } catch { /* Claude may emit plain text depending on CLI version. */ }
+    }
+    const parsed = this.extractJson(output);
     return {
-      output: stdout,
-      tokenUsage: { input_tokens: 0, output_tokens: 0, total_tokens: 0, estimated: true, available: false, source: 'unavailable' },
+      output,
+      tokenUsage,
       parsed
     };
+  }
+
+  /** Plain-text CLI pass used by the dynamic topic + motion trend researcher. */
+  async runText(prompt: string, opts: { timeoutMs: number; projectId?: string }): Promise<string> {
+    const active = activeProviderService.get();
+    if (active === 'none') throw new Error('No CLI is connected. Connect AGY or Codex in Settings first.');
+    const timeoutMs = Math.max(15000, opts.timeoutMs);
+
+    if (active === 'agy') {
+      const model = process.env.AGY_MODEL || 'gemini-3.8-flash-medium';
+      const printTimeoutMin = Math.max(1, Math.ceil(timeoutMs / 60000));
+      const { stdout, stderr, code } = await this.spawnProcess('agy', [
+        '-p', prompt,
+        '--model', model,
+        '--output-format', 'json',
+        '--print-timeout', `${printTimeoutMin}m`,
+        '--disable-slash-commands',
+        '--dangerously-skip-permissions',
+      ], timeoutMs);
+      if (code !== 0) throw new Error(`AGY CLI exited with code ${code}: ${stderr.slice(-300)}`);
+      try {
+        const container = JSON.parse(stdout);
+        if (container?.status && container.status !== 'SUCCESS') {
+          throw new Error(`AGY returned status "${container.status}": ${container.response || ''}`);
+        }
+        return typeof container?.response === 'string' ? container.response : stdout;
+      } catch (err: any) {
+        if (String(err?.message).startsWith('AGY returned')) throw err;
+        return stdout;
+      }
+    }
+
+    if (active === 'codex') {
+      const { stdout, stderr, code } = await this.spawnProcess('codex', [
+        'exec', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', '--json', '--color', 'never', prompt,
+      ], timeoutMs);
+      if (code !== 0) throw new Error(`Codex CLI failed with exit code ${code}: ${stderr.slice(-300)}`);
+      let response = stdout;
+      for (const line of stdout.split(/\r?\n/).filter(Boolean)) {
+        try {
+          const event = JSON.parse(line);
+          if (event.type === 'item.completed' && event.item?.type === 'agent_message' && typeof event.item.text === 'string') {
+            response = event.item.text;
+          }
+        } catch {}
+      }
+      return response;
+    }
+
+    const { stdout, stderr, code } = await this.spawnProcess(active, [
+      '-p', prompt, '--output-format', 'json', '--dangerously-skip-permissions',
+    ], timeoutMs);
+    if (code !== 0) throw new Error(`${active} CLI exited with code ${code}: ${stderr.slice(-300)}`);
+    try {
+      const result = JSON.parse(stdout);
+      return typeof result?.result === 'string' ? result.result : typeof result?.response === 'string' ? result.response : stdout;
+    } catch {
+      return stdout;
+    }
+  }
+
+  async generateApprovedProductionPackage(input: {
+    projectId: string;
+    projectTitle: string;
+    scriptVersion: number;
+    scenePlan: any[];
+    measuredScenes?: any[];
+    styleBrief?: any;
+  }): Promise<{ tsxSource: string; audioDesign: { bedMood: string; voiceDirection: string; scenes: Array<{ scene_number: number; cues: Array<{ hitFrame: number; role: string; object_id?: string; reason: string }> }> } }> {
+    const active = activeProviderService.get();
+    const sourceScenes = (input.measuredScenes && input.measuredScenes.length > 0)
+      ? input.measuredScenes
+      : input.scenePlan;
+
+    const compactScenes = sourceScenes.map((scene: any, idx: number) => {
+      const orig = input.scenePlan[idx] || {};
+      const durationInFrames = Number(scene.durationInFrames || Math.round(Number(orig.duration_sec || 3.5) * 30));
+      return {
+        scene_number: Number(scene.scene_number || idx + 1),
+        role: scene.role || orig.role || (idx === 0 ? 'hook' : idx === sourceScenes.length - 1 ? 'cta' : 'body'),
+        durationInFrames,
+        duration_sec: Number((durationInFrames / 30).toFixed(2)),
+        narration: scene.narration || orig.narration || '',
+        on_screen_text: scene.on_screen_text || orig.on_screen_text || orig.title || '',
+        visual_direction: scene.visual_direction || orig.visual_direction || '',
+        template: scene.template || orig.template || 'hero-center',
+        themeColor: scene.themeColor || orig.theme_color || '#22d3ee',
+        words: Array.isArray(scene.words)
+          ? scene.words.map((w: any) => ({
+              word: String(w.word || ''),
+              startFrame: Math.round(Number(w.startFrame || 0)),
+              endFrame: Math.max(Math.round(Number(w.startFrame || 0)) + 1, Math.round(Number(w.endFrame || 0))),
+            }))
+          : [],
+      };
+    });
+
+    const totalFrames = compactScenes.reduce((sum, s) => sum + s.durationInFrames, 0);
+
+    const prompt = `You are the Lead Creative Director & Remotion Motion Animation Developer for this video.
+Return ONLY ONE valid JSON object with exactly two keys: "tsxSource" and "audioDesign".
+
+PROJECT: "${input.projectTitle}" (ID: ${input.projectId}), Script v${input.scriptVersion}
+OUTPUT FORMAT: 1080 x 1920 (9:16 vertical), 30 FPS, Total Duration: ${totalFrames} frames (${(totalFrames / 30).toFixed(2)}s).
+
+AUTHORITATIVE SCENES & MEASURED AUDIO WORD TIMESTAMPS:
+${JSON.stringify(compactScenes, null, 2)}
+
+REQUIREMENTS FOR tsxSource:
+1. Must be complete, self-contained Remotion TSX code with a default export:
+   export default function GeneratedCliVideo(props: any) { ... }
+2. ALLOWED IMPORTS:
+   - import React from 'react';
+   - import { useCurrentFrame, useVideoConfig, spring, interpolate, Sequence, AbsoluteFill } from 'remotion';
+3. CREATIVE ANIMATION DIRECTION:
+   - Make it feel like an authentic, high-end motion graphics explainer (like a Claude Code, Vercel, or Apple product reel).
+   - Use frame-based animation with useCurrentFrame() and spring() physics.
+   - Synchronize on-screen typography to the measured word timestamps: highlight, colorize, or spring-pop words as they are spoken.
+   - Do NOT use setInterval, setTimeout, or browser-only APIs.
+   - Respect vertical mobile safe zones (padding: 60px).
+
+REQUIREMENTS FOR audioDesign:
+{"bedMood":"content-specific ambient bed description","voiceDirection":"keep natural 1.00x delivery","scenes":[{"scene_number":1,"cues":[{"hitFrame":15,"role":"whoosh","reason":"visual entrance"}]}]}
+Use cues from: pop, click, tick, whoosh, slide, riser, impact, sparkle, chime, draw, count, ding. Max 5 cues per scene.
+`;
+
+    let parsed: any = null;
+    try {
+      const response = await this.runText(prompt, { timeoutMs: 120000, projectId: input.projectId });
+      const first = response.indexOf('{');
+      const last = response.lastIndexOf('}');
+      if (first >= 0 && last > first) {
+        parsed = JSON.parse(response.slice(first, last + 1));
+      } else {
+        const cleaned = response
+          .replace(/```(?:json)?/gi, '')
+          .replace(/```/g, '')
+          .replace(/,\s*([}\]])/g, '$1')
+          .trim();
+        const cFirst = cleaned.indexOf('{');
+        const cLast = cleaned.lastIndexOf('}');
+        if (cFirst >= 0 && cLast > cFirst) {
+          parsed = JSON.parse(cleaned.slice(cFirst, cLast + 1));
+        }
+      }
+    } catch (cliErr: any) {
+      console.warn(`[${active.toUpperCase()}] CLI TSX generation call failed: ${cliErr.message}. Falling back to authoritative TSX engine.`);
+    }
+
+    // Validate CLI generated TSX
+    let validTsxSource: string | null = null;
+    if (parsed && typeof parsed.tsxSource === 'string' && parsed.tsxSource.trim().length > 0) {
+      const val = await tsxValidator.validate(parsed.tsxSource);
+      if (val.valid) {
+        validTsxSource = parsed.tsxSource;
+        console.log(`[${active.toUpperCase()}] CLI-generated TSX passed validation.`);
+      } else {
+        console.warn(`[${active.toUpperCase()}] CLI-generated TSX had validation issues: ${val.errors.join('; ')}.`);
+        // Try one bounded repair pass
+        try {
+          const repairPrompt = `Your previous Remotion TSX had these syntax/validation errors:\n${val.errors.join('\n')}\n\nRepair the code and return ONLY the corrected JSON object with keys "tsxSource" and "audioDesign".`;
+          const repairResponse = await this.runText(repairPrompt, { timeoutMs: 60000, projectId: input.projectId });
+          const first = repairResponse.indexOf('{');
+          const last = repairResponse.lastIndexOf('}');
+          if (first >= 0 && last > first) {
+            const repaired = JSON.parse(repairResponse.slice(first, last + 1));
+            if (typeof repaired.tsxSource === 'string') {
+              const repVal = await tsxValidator.validate(repaired.tsxSource);
+              if (repVal.valid) {
+                validTsxSource = repaired.tsxSource;
+                if (repaired.audioDesign) parsed.audioDesign = repaired.audioDesign;
+                console.log(`[${active.toUpperCase()}] Repaired TSX passed validation!`);
+              }
+            }
+          }
+        } catch {}
+      }
+    }
+
+    if (!validTsxSource) {
+      console.log(`[UnifiedCliProvider] Generating authoritative, audio-aligned Remotion TSX tailored for "${input.projectTitle}"...`);
+      validTsxSource = buildAuthoritativeTsx(input.projectTitle, compactScenes, input.styleBrief);
+    }
+
+    const roles = new Set(['pop', 'click', 'tick', 'whoosh', 'slide', 'riser', 'impact', 'sparkle', 'chime', 'draw', 'count', 'ding']);
+
+    const defaultAudioScenes = compactScenes.map((scene: any, index: number) => {
+      const maxFrame = Math.max(1, scene.durationInFrames - 8);
+      const cues: Array<{ hitFrame: number; role: string; object_id?: string; reason: string }> = [];
+      let lastFrame = -8;
+      const cueHit = Math.min(12, maxFrame);
+      cues.push({ hitFrame: cueHit, role: 'whoosh', reason: 'Scene visual entrance' });
+      if (scene.words && scene.words.length > 2) {
+        const midWord = scene.words[Math.floor(scene.words.length / 2)];
+        if (midWord && midWord.startFrame > cueHit + 10 && midWord.startFrame < maxFrame) {
+          cues.push({ hitFrame: midWord.startFrame, role: 'pop', reason: 'Key emphasis word' });
+        }
+      }
+      return {
+        scene_number: index + 1,
+        cues,
+      };
+    });
+
+    let audioDesign = parsed?.audioDesign;
+    if (!audioDesign || typeof audioDesign.bedMood !== 'string' || typeof audioDesign.voiceDirection !== 'string' || !Array.isArray(audioDesign.scenes) || audioDesign.scenes.length !== compactScenes.length) {
+      audioDesign = {
+        bedMood: 'focused electronic pulse',
+        voiceDirection: 'delivery guidance for the already-approved words; keep natural 1.00x',
+        scenes: defaultAudioScenes,
+      };
+    }
+
+    audioDesign.scenes.forEach((scene: any, index: number) => {
+      const source = compactScenes[index];
+      scene.scene_number = index + 1;
+      if (!Array.isArray(scene.cues)) {
+        scene.cues = [];
+      }
+      const maxFrame = Math.max(1, source.durationInFrames - 8);
+      const rawCues = [...scene.cues]
+        .filter((c: any) => c && typeof c === 'object')
+        .sort((a: any, b: any) => Number(a.hitFrame || 0) - Number(b.hitFrame || 0));
+
+      const sanitizedCues: Array<{ hitFrame: number; role: string; object_id?: string; reason: string }> = [];
+      let previousFrame = -8;
+      for (const cue of rawCues) {
+        let frame = Math.round(Number(cue.hitFrame ?? 0));
+        if (!Number.isFinite(frame)) continue;
+        frame = Math.max(0, Math.min(maxFrame, frame));
+        if (frame - previousFrame < 8) {
+          frame = previousFrame + 8;
+        }
+        if (frame > maxFrame) break;
+        const role = roles.has(cue.role) ? cue.role : 'click';
+        const reason = (typeof cue.reason === 'string' && cue.reason.trim()) ? cue.reason.trim() : 'Scene event cue';
+        sanitizedCues.push({
+          hitFrame: frame,
+          role,
+          object_id: typeof cue.object_id === 'string' ? cue.object_id : '',
+          reason,
+        });
+        previousFrame = frame;
+        if (sanitizedCues.length >= 5) break;
+      }
+      if (sanitizedCues.length === 0) {
+        sanitizedCues.push({ hitFrame: Math.min(10, maxFrame), role: 'whoosh', reason: 'Scene visual entrance' });
+      }
+      scene.cues = sanitizedCues;
+    });
+
+    return { tsxSource: validTsxSource, audioDesign };
   }
 
   // ──────────────────────────────────────────────────

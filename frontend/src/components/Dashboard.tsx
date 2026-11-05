@@ -27,7 +27,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onCreateProject,
   onDeleteProject,
 }) => {
-  const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'codex' ? 'Codex' : 'AI';
+  const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'claude' ? 'Claude Code' : activeProvider === 'codex' ? 'Codex' : 'AI';
   const [inputType, setInputType] = useState<'text' | 'topic' | 'url'>('topic');
   const [selectedThemeId, setSelectedThemeId] = useState<string>('character-explainer');
   const [inputContent, setInputContent] = useState('');
@@ -35,9 +35,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [durationSec, setDurationSec] = useState(30);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const totalCodexTokens = projects.reduce((sum, project) => sum + Number(project.codex_total_tokens || 0), 0);
-  const totalCodexRuns = projects.reduce((sum, project) => sum + Number(project.codex_run_count || 0), 0);
-  const hasEstimatedUsage = projects.some((project) => project.codex_usage_estimated);
+  const providerMetrics = (project: Project) => activeProvider === 'agy'
+    ? { tokens: project.agy_total_tokens, runs: project.agy_run_count, estimated: project.agy_usage_estimated, available: project.agy_usage_available }
+    : activeProvider === 'claude'
+      ? { tokens: project.claude_total_tokens, runs: project.claude_run_count, estimated: project.claude_usage_estimated, available: project.claude_usage_available }
+      : { tokens: project.codex_total_tokens, runs: project.codex_run_count, estimated: project.codex_usage_estimated, available: project.codex_usage_available };
+  const totalProviderTokens = projects.reduce((sum, project) => sum + Number(providerMetrics(project).tokens || 0), 0);
+  const totalProviderRuns = projects.reduce((sum, project) => sum + Number(providerMetrics(project).runs || 0), 0);
+  const hasEstimatedUsage = projects.some((project) => providerMetrics(project).estimated);
+  const hasAvailableUsage = projects.some((project) => providerMetrics(project).available);
   const formatTokens = (value: number) => new Intl.NumberFormat().format(value);
 
   const activeResearchProject = projects.find((p) => p.stage === 'research' || p.status?.toLowerCase().includes('research'));
@@ -408,15 +414,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div style={{ color: 'var(--text-muted)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>{providerLabel} Tokens Used</div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginTop: '8px' }}>
             <Cpu size={20} color="var(--accent-blue)" />
-            <strong style={{ fontSize: '25px' }}>{formatTokens(totalCodexTokens)}</strong>
+            <strong style={{ fontSize: '25px' }}>{formatTokens(totalProviderTokens)}</strong>
           </div>
           <div style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '5px' }}>
-            {liveUsage?.active ? `${providerLabel} run in progress; live count updating` : hasEstimatedUsage ? 'Includes legacy estimated runs' : `Reported by ${providerLabel} runs`}
+            {liveUsage?.active ? `${providerLabel} run in progress; live count updating` : hasEstimatedUsage ? 'Includes estimated runs' : totalProviderRuns === 0 ? 'No runs yet' : hasAvailableUsage ? `Reported by ${providerLabel} runs` : `Token counts are not reported by ${providerLabel}`}
           </div>
         </div>
         <div className="glass-panel" style={{ padding: '18px 20px' }}>
           <div style={{ color: 'var(--text-muted)', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '1px' }}>{providerLabel} Runs</div>
-          <strong style={{ display: 'block', fontSize: '25px', marginTop: '8px' }}>{formatTokens(totalCodexRuns)}</strong>
+            <strong style={{ display: 'block', fontSize: '25px', marginTop: '8px' }}>{formatTokens(totalProviderRuns)}</strong>
           <div style={{ color: 'var(--text-muted)', fontSize: '11px', marginTop: '5px' }}>Script and revision generations</div>
         </div>
       </div>
@@ -551,9 +557,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       <Play size={13} style={{ verticalAlign: '-2px', marginRight: '4px' }} />
                       Preview v{proj.current_preview_version || 0}
                     </span>
-                    <span title={proj.codex_usage_estimated ? 'Estimated from model input/output size' : `Reported by ${providerLabel}`}>
+                    <span title={providerMetrics(proj).estimated ? 'Estimated from model input/output size' : `Reported by ${providerLabel}`}>
                       <Cpu size={13} style={{ verticalAlign: '-2px', marginRight: '4px' }} />
-                      {providerLabel} {formatTokens(Number(proj.codex_total_tokens || 0))} tokens{proj.codex_usage_estimated ? ' ~' : ''}
+                      {providerLabel} {Number(providerMetrics(proj).runs || 0) === 0 || providerMetrics(proj).available ? `${formatTokens(Number(providerMetrics(proj).tokens || 0))} tokens${providerMetrics(proj).estimated ? ' ~' : ''}` : 'token count unavailable'}
                     </span>
                   </div>
                 </div>

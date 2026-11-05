@@ -16,10 +16,12 @@
     "remotion:typecheck": "npm --prefix remotion run typecheck",
     "remotion:compositions": "npm --prefix remotion run compositions:host",
     "remotion:render": "npm --prefix remotion run render:host",
+    "motion-canvas:dev": "npm --prefix motion-canvas run dev",
+    "motion-canvas:build": "npm --prefix motion-canvas run build",
     "render:server": "node scripts/remotion-render-server.mjs",
     "qa:scene-stills": "node scripts/render-scene-stills.mjs",
     "qa:quality-gate": "node scripts/qualityGate.mjs",
-    "build": "npm run backend:build && npm run frontend:build && npm run remotion:typecheck"
+    "build": "npm run backend:build && npm run frontend:build && npm run remotion:typecheck && npm run motion-canvas:build"
   },
   "engines": {
     "node": ">=20.19.0"

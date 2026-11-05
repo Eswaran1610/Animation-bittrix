@@ -86,8 +86,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentTab, setCurrentTab, onRef
           <button
             onClick={() => setCurrentTab('settings')}
             className="btn btn-secondary"
-            title="AI provider login: Codex and Claude Code"
-            aria-label="Open Codex and Claude Code login settings"
+            title="AI provider login settings"
+            aria-label="Open AI provider login settings"
             style={{ padding: '8px', borderRadius: '8px' }}
           >
             <LogIn size={16} />

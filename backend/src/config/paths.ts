@@ -22,6 +22,8 @@ export const projectPaths = {
   backendMedia: configuredMediaDirectory,
   remotionRoot: path.join(configuredRoot, 'remotion'),
   remotionPublic: path.join(configuredRoot, 'remotion', 'public'),
+  motionCanvasRoot: path.join(configuredRoot, 'motion-canvas'),
+  motionCanvasDist: path.join(configuredRoot, 'motion-canvas', 'dist'),
   renderDataDir: path.join(configuredMediaDirectory, 'render-data'),
   renderData(projectId: string, renderType: 'preview' | 'final', version: number) {
     return path.join(this.renderDataDir, `${projectId}_${renderType}_v${version}.json`);

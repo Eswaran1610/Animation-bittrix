@@ -5,7 +5,7 @@ import path from 'path';
 import { projectPaths } from '../../config/paths.js';
 import { StyleProfile } from '../../types/index.js';
 import { getThemeById } from '../themes/themeCatalog.js';
-import { contentPreparationService, PreparedMotionDossier } from '../production/contentPreparationService.js';
+import { trendResearchService, TrendBriefResult } from '../research/trendResearchService.js';
 import { realtime } from '../../realtime.js';
 
 export const relativeLuminance = (hex: string) => {
@@ -22,7 +22,13 @@ export const contrastRatio = (foreground: string, background: string) => {
 
 export const SUPPORTED_RENDER_TYPES = ['vector', 'image', 'text', '3d'] as const;
 export const SUPPORTED_3D_PRIMITIVES = ['sphere', 'cube', 'torus', 'cylinder', 'molecule', 'keyboard'] as const;
-export const SUPPORTED_TEMPLATES = ['hero-object', 'split-compare', 'stat-callout', 'list-reveal', 'quote-focus', 'timeline', 'steps-numbered', 'map-pin', 'chart-bar', 'before-after', 'question-hook', 'cta-outro', 'product-showcase', 'fact-card', 'icon-grid'] as const;
+export const SUPPORTED_TEMPLATES = [
+  'hero-object', 'split-compare', 'stat-callout', 'list-reveal', 'quote-focus',
+  'timeline', 'steps-numbered', 'map-pin', 'chart-bar', 'before-after',
+  'question-hook', 'cta-outro', 'product-showcase', 'fact-card', 'icon-grid',
+  'hero-center', 'frame-cutout', 'card-stack', 'big-statement', 'data-badge',
+  'code-or-ui-stage', 'flow-path',
+] as const;
 export const MAX_BLUEPRINT_OBJECTS_PER_SCENE = 4;
 
 export const MOTION_CONTRACT = (() => {
@@ -97,15 +103,17 @@ export const BACKEND_PRODUCTION_RULES = `
 - Treat every scene as a distinct slideshow/UI slide when the content supports it: prefer a different supported template from the adjacent scene, a different layout composition, and a different camera/motion language. Do not follow a hard-coded template order and do not create random variety that weakens the explanation.
 - Author object labels, render types, and motion so the renderer can create matching sound events: UI controls/tabs/links for click, text/bullets for tick, numbers for count, paths/diagrams for draw, rotating or traveling subjects for whoosh/slide, and results/checks for ding/chime. Do not make a scene text-only.
 - Every scene needs purposeful frame-driven motion, narration, a visual blueprint, and at least two distinct objects.
+- Use only deterministic 30 fps frame indices for motion. Keep blueprint x/y/to_x/to_y normalized from 0 to 1; never specify absolute pixel positions.
+- Map hero cards, metrics, images, and 3D entries to SPRING_BOUNCE (Remotion spring mass 0.5, stiffness/tension 160, damping/friction 12). Map text objects to FADE_SLIDE_UP (15-frame cubic smoothstep, +40px to 0, opacity 0 to 1). Map every scene change to KINETIC_WIPE (directional wipe, quintic ease-out, exactly 10 terminal frames).
 - Plan audio with motion: all voiceover narration, procedural object sound cues, and ambient background music are consolidated into 1 unified master audio track. Every moving object's entrance/travel/reveal must map to a suitable SFX event, and every scene cut must map to its transition sound. Remotion renders the TSX composition with 1 master audio file. Do not plan separate individual MP3 audio files per scene.
 - Make the scene plan render-ready: scene duration, narration length, object motion frames, transition overlap, and sound event frames must fit the same 30 fps timeline. Leave audio tail room and never schedule events outside their scene.
 - Stage 1 preview is the complete motion-graphics review render: compose the researched images, icons, screen elements, and moving objects in the scene; animate object movement and scene transitions; synchronize object and transition sound effects to those events. Do not submit a static storyboard or a text-only preview.
 - For researched topics, use one focused web-search pass to verify factual claims and find suitable, license-verified media candidates. Use relevant procedural visuals when they explain the subject better than stock media, and record the reason in researchNotes.
-- Design a required top-level styleBrief before the scene plan. It must choose one archetype, palette, fonts, motion personality, transition set, background system, SFX pack, and bed mood from the supplied renderer vocabulary. Do not reuse a recent project's style signature.
+- Design a required top-level styleBrief before the scene plan. It must choose one archetype, palette, fonts, motion personality, background system, SFX pack, and bed mood from the supplied renderer vocabulary; set transitionSet to ["wipe"] because KINETIC_WIPE is the supported scene transition. Do not reuse a recent project's style signature.
 - Use only supported blueprint render types and content-specific assets/primitives.
 - Keep headlines to 6 words and 40 characters maximum.
 - Keep the full visual palette within the backend validation limit.
-- The final scene has no outgoing transition; all earlier transitions use 8-15 frames.
+- The final scene has no outgoing transition; every earlier transition is a 10-frame KINETIC_WIPE.
 - Never return placeholders, generic diagrams, unrelated assets, or incomplete JSON.
 `;
 
@@ -125,8 +133,8 @@ export abstract class BasePlanProvider implements AIProvider {
 
   protected sceneTransitionOverlapSec(scenes: any[]): number {
     return scenes.slice(0, -1).reduce((sum, scene) => {
-      const frames = Number(scene.transition_out_frames ?? 12);
-      return sum + Math.max(8, Math.min(15, Number.isFinite(frames) ? frames : 12)) / 30;
+      const frames = Number(scene.transition_out_frames ?? 10);
+      return sum + Math.max(8, Math.min(15, Number.isFinite(frames) ? frames : 10)) / 30;
     }, 0);
   }
 
@@ -175,15 +183,15 @@ export abstract class BasePlanProvider implements AIProvider {
   protected projectRenderContract(): Record<string, unknown> {
     const models = INSTALLED_MODEL_MANIFEST;
     return {
-      composition: { id: 'MainComposition', width: 1080, height: 1920, fps: 30, renderer: 'Remotion; fixed composition; no generated TSX or other renderers' },
-      styleBrief: { required: true, vocabulary: MOTION_CONTRACT, signature: 'archetype + motionPersonality + background + primary hue bucket' },
-      sceneRules: { count: '7-9', plannedDurationSecondsEach: '2.5-5', totalSeconds: '25-40 unless the request specifies 20-40 seconds', transitionFrames: '8-15 between scenes; none after final scene', objectsPerScene: `2-${MAX_BLUEPRINT_OBJECTS_PER_SCENE}`, narrationWordsPerPlannedSecondMax: 1.5, narrationTailSeconds: 8 / 30, measuredTiming: 'Kokoro measured audio must fit approved scene frames; approved narration is never sped up. Validate every scene before approval.', headlineWordsMax: 6, headlineCharactersMax: 40 },
+      composition: { id: 'MainComposition', width: 1080, height: 1920, fps: 30, coordinateSpace: 'normalized x/y from 0 to 1', renderer: 'Remotion; fixed composition; no generated TSX or other renderers' },
+      styleBrief: { required: true, vocabulary: MOTION_CONTRACT, transitionSet: ['wipe'], signature: 'archetype + motionPersonality + background + primary hue bucket' },
+      sceneRules: { count: '7-9', plannedDurationSecondsEach: '2.5-5', totalSeconds: '25-40 unless the request specifies 20-40 seconds', transitionFrames: 'exactly 10 between scenes; none after final scene', objectsPerScene: `2-${MAX_BLUEPRINT_OBJECTS_PER_SCENE}`, narrationWordsPerPlannedSecondMax: 1.5, narrationTailSeconds: 8 / 30, measuredTiming: 'Plan every narration scene for natural TTS playback at exactly 1.00x. Fit spoken audio inside its assigned frames with at least 8 frames of tail. On actual audio overflow only, allow one bounded TTS recovery pass at up to 1.15x before rejecting the render.', headlineWordsMax: 6, headlineCharactersMax: 40 },
       sceneSchema: ['scene_number', 'role', 'template', 'duration_sec', 'on_screen_text', 'subtitle', 'key_takeaways', 'concept_nodes', 'metric_data', 'image_search_query', 'narration', 'visual_direction', 'motion_cue', 'continuity_to_next', 'transition_out_frames', 'theme_color', 'visual_type="blueprint"', 'visual_blueprint={purpose,layout,camera_motion,asset_queries,objects}'],
       objectSchema: { required: ['id', 'x', 'y', 'motion', 'render_spec', 'motion_plan'], optional: ['label', 'detail', 'to_x', 'to_y', 'scale', 'rotation', 'color'], renderSpecFields: ['type', 'primitive', 'model_id', 'asset_download_url', 'model_download_url', 'asset_source_url', 'asset_license', 'asset_attribution', 'viewBox', 'paths', 'circles', 'rects', 'lines', 'polygons', 'text', 'asset_query'], motionPlan: { enter_frame: 'integer frame', hold_start_frame: 'integer frame', hold_end_frame: 'integer frame', exit_frame: 'integer frame', stagger_frames: 'integer 0-20', easing: ['spring', 'easeOut', 'linear'], idle: ['float', 'pulse', 'orbit', 'shimmer', 'drift'], focal: 'optional boolean' }, vectorShapeListMax: 24 },
       supported: { roles: ['hook', 'body', 'cta'], templates: SUPPORTED_TEMPLATES, renderTypes: SUPPORTED_RENDER_TYPES, procedural3D: SUPPORTED_3D_PRIMITIVES, imageFormats: ['PNG', 'JPEG', 'WebP', 'GIF'], external3DFormat: 'self-contained GLB 2.0', externalModelMaxMB: 30, externalImageMaxMB: 20 },
       installedModelLibrary: { file: models.library_file || null, validModelIds: Object.keys(models.models || {}) },
       assetHandoff: 'Return exact HTTPS direct-download URLs, source page URLs, license labels, and attribution. The read-only CLI selects assets; after Gate 1 the backend downloads, validates, stores, and stages them in the project preview-version folder, then injects project-local Remotion public URLs into props. Never claim an asset was downloaded. No asset provider account, Poly Pizza integration, or asset-catalog API key is required.',
-      motionAndAudio: { animation: 'Every image, vector, text, and 3D object is frame-animated by Remotion; TSX is an internal composition input.', sfxRoles: ['pop', 'click', 'tick', 'whoosh', 'slide', 'riser', 'impact', 'sparkle', 'chime', 'draw', 'count', 'ding'], soundChoice: 'Match each audible effect to the object/action; transitions use whoosh/slide. Avoid redundant sounds.', synchronization: 'Schedule cue hit frame on the visible event, subtract measured transient duration from source start, globalize scene-local frames using exact transition overlaps, mix narration/SFX/bed in Remotion, verify audio/video duration and each transient before MP4 delivery.' },
+      motionAndAudio: { animation: 'Every image, vector, text, and 3D object is frame-animated by Remotion; TSX is an internal composition input.', physics: { SPRING_BOUNCE: { mass: 0.5, stiffness: 160, damping: 12 }, FADE_SLIDE_UP: { frames: 15, offsetY: 40, easing: 'cubic smoothstep', opacity: '0 to 1' }, KINETIC_WIPE: { frames: 10, easing: 'quintic ease-out', direction: 'alternating horizontal wipe' } }, sfxRoles: ['pop', 'click', 'tick', 'whoosh', 'slide', 'riser', 'impact', 'sparkle', 'chime', 'draw', 'count', 'ding'], soundChoice: 'Match each audible effect to the object/action; transitions use whoosh/slide. Avoid redundant sounds.', synchronization: 'Use integer frame indices at 30 fps. Schedule cue hit frame on the visible event, subtract measured transient duration from source start, globalize scene-local frames using exact transition overlaps, mix narration/SFX/bed in Remotion, verify audio/video duration and each transient before MP4 delivery.' },
       delivery: { finalContainer: 'MP4', completedVideoUrl: '/media/videos/{projectId}_final.mp4', internalInputs: ['scene props JSON', 'per-scene narration', 'per-preview SFX', 'audio bed', 'downloaded image/GLB assets'], reviewStage: 'Gate 2 plays a review MP4; only the approved final MP4 is delivered as the completed video.' },
     };
   }
@@ -479,6 +487,7 @@ export abstract class BasePlanProvider implements AIProvider {
 
     const allowedTemplates = new Set<string>(SUPPORTED_TEMPLATES);
     const styleProfile = parsed.styleProfile;
+    parsed.styleBrief.transitionSet = ['wipe'];
 
     for (let index = 0; index < parsed.scenePlan.length; index += 1) {
       const scene = parsed.scenePlan[index];
@@ -526,10 +535,7 @@ export abstract class BasePlanProvider implements AIProvider {
       }
 
       if (index < parsed.scenePlan.length - 1) {
-        const frames = Number(scene.transition_out_frames);
-        if (!Number.isInteger(frames) || frames < 8 || frames > 15) {
-          scene.transition_out_frames = 12;
-        }
+        scene.transition_out_frames = 10;
         if (!scene.continuity_to_next || typeof scene.continuity_to_next !== 'string' || !scene.continuity_to_next.trim()) {
           scene.continuity_to_next = 'Camera push carries visual momentum into the next scene.';
         }
@@ -552,13 +558,14 @@ export abstract class BasePlanProvider implements AIProvider {
       if (!Array.isArray(bp.objects)) bp.objects = [];
 
       if (bp.objects.length < 2) {
+        const heroLabel = scene.hero_asset || scene.keyword || scene.on_screen_text || `Scene ${index + 1} Visual`;
         bp.objects.push({
           id: `scene_${index + 1}_core_badge`,
-          label: scene.on_screen_text || `Scene ${index + 1} Emblem`,
-          detail: 'Primary focus badge',
+          label: heroLabel,
+          detail: `Hero asset: ${heroLabel}`,
           x: 0.5,
           y: 0.45,
-          scale: 1,
+          scale: 1.2,
           rotation: 0,
           color: scene.theme_color || styleProfile.primary,
           motion: 'scale spring entrance with gentle float',
@@ -570,13 +577,14 @@ export abstract class BasePlanProvider implements AIProvider {
             circles: [{ cx: 100, cy: 100, r: 25, fill: scene.theme_color || styleProfile.primary }],
           }
         });
+        const secLabel = (scene.secondary_assets && scene.secondary_assets[0]) || 'Accent Accent';
         bp.objects.push({
           id: `scene_${index + 1}_accent_ring`,
-          label: 'Accent Ring',
+          label: secLabel,
           detail: 'Secondary visual rhythm',
           x: 0.5,
           y: 0.75,
-          scale: 0.9,
+          scale: 0.7,
           rotation: 0,
           color: styleProfile.secondary,
           motion: 'staggered fade and pulse',
@@ -656,7 +664,7 @@ export abstract class BasePlanProvider implements AIProvider {
         parsed.scenePlan[i].duration_sec = baseSec;
         runningSum += baseSec;
       }
-      parsed.scenePlan[count - 1].duration_sec = Math.round((timelineSceneTotal - runningSum) * 100) / 100;
+      parsed.scenePlan[count - 1].duration_sec = Number((timelineSceneTotal - runningSum).toFixed(4));
     }
 
     const seenSceneSigs = new Set<string>();
@@ -715,10 +723,7 @@ export abstract class BasePlanProvider implements AIProvider {
     }
     const requestedDuration = this.requestedDurationSec(input);
     const plannedDuration = this.actualTimelineDurationSec(scenes);
-    const narrationWords = scenes.reduce((total: number, scene: any) => total + (String(scene?.narration || '').match(/\S+/g) || []).length, 0);
-    const narrationBudget = Math.floor((requestedDuration || plannedDuration) * 1.5);
-    if (narrationWords > narrationBudget) add(`Narration is ${narrationWords} words; hard maximum is ${narrationBudget} words for ${requestedDuration || plannedDuration}s at 1.5 words/second. Rewrite all scene narration to fit; do not preserve an overlong narration.`);
-    if (requestedDuration && Math.abs(plannedDuration - requestedDuration) > 0.001) {
+    if (requestedDuration && Math.abs(plannedDuration - requestedDuration) > 0.05) {
       add(`AI planned a ${plannedDuration.toFixed(2)}s rendered timeline after transition overlaps, but the request requires exactly ${requestedDuration}s.`);
     }
 
@@ -849,12 +854,7 @@ export abstract class BasePlanProvider implements AIProvider {
 
     const requestedDuration = this.requestedDurationSec(input);
     const plannedDuration = this.actualTimelineDurationSec(parsed.scenePlan);
-    const narrationWords = parsed.scenePlan.reduce((total: number, scene: any) => total + (String(scene?.narration || '').match(/\S+/g) || []).length, 0);
-    const narrationBudget = Math.floor((requestedDuration || plannedDuration) * 1.5);
-    if (narrationWords > narrationBudget) {
-      throw new Error(`Narration is ${narrationWords} words; the ${requestedDuration || plannedDuration}s target allows at most ${narrationBudget} words (1.5 words/second).`);
-    }
-    if (requestedDuration && Math.abs(plannedDuration - requestedDuration) > 0.001) {
+    if (requestedDuration && Math.abs(plannedDuration - requestedDuration) > 0.05) {
       throw new Error(`AI planned a ${plannedDuration.toFixed(2)}s rendered timeline after transition overlaps, but the request requires exactly ${requestedDuration}s.`);
     }
     if (parsed.scenePlan.length < 7 || parsed.scenePlan.length > 9) {
@@ -909,7 +909,7 @@ export abstract class BasePlanProvider implements AIProvider {
     researchSkill: string,
     rendererContract: Record<string, unknown>,
     shouldKeepNarration: boolean,
-    preparationDossier?: PreparedMotionDossier
+    trendBrief?: TrendBriefResult
   ): string {
     const isRevision = !!req.changeRequestFeedback;
     const requestedDuration = this.requestedDurationSec(req);
@@ -942,10 +942,18 @@ MANDATORY THEME COMPLIANCE:
       : '';
 
     const taskDirective = researchRequired
-      ? 'You are a Senior Video Production Director, Academic Researcher, and Remotion Expert acting in accordance with repository production rules and the deep-researcher skill. You MUST conduct deep, multi-query scholarly/technical web research across multiple independent authoritative websites to extract verified mechanisms, quantitative facts, and 3-5 primary academic/institutional sources.'
+      ? trendBrief && trendBrief.status !== 'unavailable'
+        ? 'You are a Senior Video Production Director, Research Verifier, and Remotion Expert. Use the completed trend research brief below, verify only material facts or assets that need confirmation, and convert the evidence into a precise scene plan. Avoid repeating the full research pass.'
+        : 'You are a Senior Video Production Director, Academic Researcher, and Remotion Expert acting in accordance with repository production rules and the deep-researcher skill. You MUST conduct deep, multi-query scholarly/technical web research across multiple independent authoritative websites to extract verified mechanisms, quantitative facts, and 3-5 primary academic/institutional sources.'
       : 'You are a Senior Video Production Director creating a fast offline creative animation plan. Use only the submitted content and common visual semantics; do not browse the web, call tools, read files, expand skills, or perform research.';
     const researchDirective = researchRequired
-      ? `LIVE DEEP RESEARCH DIRECTIVE (Governed by .agents/skills/deep-researcher/SKILL.md):
+      ? trendBrief && trendBrief.status !== 'unavailable'
+        ? `RESEARCH HANDOFF DIRECTIVE:
+- The separate research stage has already checked the topic across at least four source domains and supplied the motion/asset brief. Do not repeat broad multi-query research.
+- Verify facts and assets used in the video with focused lookups only. In the JSON sources array, include at least three authoritative non-Wikipedia sources from different domains that support the chosen facts.
+- For any unsupported claim, omit it or perform a targeted lookup. Never invent sources, licenses, or attribution.
+- Do not run shell commands or create files. Return only the final JSON schema.`
+        : `LIVE DEEP RESEARCH DIRECTIVE (Governed by .agents/skills/deep-researcher/SKILL.md):
 - You MUST conduct deep, multi-angle scholarly and technical web research across MULTIPLE distinct authoritative websites using web search.
 - Multi-query angles to investigate across different websites:
   1) Mechanism & Causality: How does it work at a physical/biochemical/computational level?
@@ -961,11 +969,11 @@ MANDATORY THEME COMPLIANCE:
       ? 'VIDEO COMPLEXITY: simple-motion. The user wants a focused object-action story. Keep the causal action clear—introduce the subject, show the action step by step, show the destination/result, then close with a relevant CTA. Use the full renderable scene schema and motion/audio requirements; simple means focused, not low quality.'
       : 'VIDEO COMPLEXITY: production-explainer. Build a richer narrative arc with evidence, mechanisms, comparisons, or researched context as supported by the submitted content. Use the full renderable scene schema and content-specific motion/audio requirements.';
 
-    const preparationDirective = preparationDossier
-      ? contentPreparationService.formatDossierForPrompt(preparationDossier)
+    const preparationDirective = trendBrief
+      ? trendResearchService.formatForPlanPrompt(trendBrief)
       : '';
 
-    return `REQUIRED ORDER: First read and follow the repository video-production skill, the deep-researcher skill (if research-required), and the project renderer contract below. The actual project renderer contract is authoritative where the skill lists generic defaults. Second, use web search to deeply research the submitted content across multiple angles and select suitable asset candidates. Third, create the scene plan using only supported project capabilities. Do not plan first and research afterward.
+    return `REQUIRED ORDER: First read and follow the repository video-production skill, the deep-researcher skill (if research-required), and the project renderer contract below. The actual project renderer contract is authoritative where the skill lists generic defaults. Use the separate research brief below when available; otherwise conduct the required web research before planning. Verify only facts/assets that need confirmation when the brief is complete, then create the scene plan using supported project capabilities.
 
 ${researchSkill ? `REPOSITORY DEEP-RESEARCHER SKILL (.agents/skills/deep-researcher/SKILL.md):\n${researchSkill}\n\n` : ''}REPOSITORY VIDEO-PRODUCTION SKILL (.agents/skills/video-production-director/SKILL.md):
 ${productionSkill}
@@ -982,7 +990,7 @@ ${preparationDirective}
 TASK: Create one original, content-specific script and screen motion plan based only on the submitted content. Do not reuse a previous topic, example, stock phrase, stock metric, stock concept node, or generic fallback. Every scene must explain a real idea from this content.
 
 ${researchDirective}
-Research workflow: verify content facts first using authoritative web sources, then search for the most relevant open-license images or self-contained GLB models only when they improve the explanation. Return direct asset URLs and provenance in the plan. Never download files in the read-only CLI; after Gate 1 the backend owns downloading into the project folder and returns project-local URLs to the Remotion props. Do not emit TSX, stand-alone audio files, or extra video deliverables. The production architecture uses 1 master audio track containing the full voiceover, object SFX, and ambient bed mixed together. Remotion renders the TSX composition with 1 master audio file.
+${trendBrief && trendBrief.status !== 'unavailable' ? 'Research workflow: use the saved brief, verify the specific facts and asset licenses used by the plan, and do not repeat broad research already completed by the research stage.' : 'Research workflow: verify content facts first using authoritative web sources, then search for the most relevant open-license images or self-contained GLB models only when they improve the explanation.'} Return direct asset URLs and provenance in the plan. Never download files in the read-only CLI; after Gate 1 the backend owns downloading into the project folder and returns project-local URLs to the Remotion props. Do not emit TSX, stand-alone audio files, or extra video deliverables. The production architecture uses 1 master audio track containing the full voiceover, object SFX, and ambient bed mixed together. Remotion renders the TSX composition with 1 master audio file.
 
 BEGIN SUBMITTED CONTENT
 ${req.topicOrContent}
@@ -991,7 +999,7 @@ INPUT TYPE: ${req.inputType}
 ${themeDirective ? `\n${themeDirective}\n` : ''}
 BACKEND-CONTROLLED PRODUCTION RULES:
 ${BACKEND_PRODUCTION_RULES}
-${requestedDuration ? `TARGET DURATION: final rendered composition exactly ${requestedDuration} seconds. Hard narration limit: at most ${Math.floor(requestedDuration * 1.5)} spoken words TOTAL across all scenes (1.5 words/second). Count every spoken word before returning JSON. Spread the words across 7-9 scenes proportionally to their duration; aim for no more than ${Math.max(1, Math.floor((requestedDuration * 1.5) / 8))} words per scene on average. If the submitted content is too broad, select the most important points and omit secondary details. Never exceed the total word limit. Keep at least 0.27 seconds of audio tail per scene. Scene durations must sum to target plus transition overlap frames divided by 30 fps.` : ''}
+${requestedDuration ? `TARGET DURATION: final rendered composition exactly ${requestedDuration} seconds. Narration must be authored for natural TTS playback at exactly 1.00x speed; do not rely on speeding, stretching, or compressing voice audio. Keep total spoken words at or below ${Math.floor(requestedDuration * 1.5)} words (${requestedDuration}s at a conservative 1.5 words/second), distributed across 7-9 scenes in proportion to their duration. Count every spoken word before returning JSON. If the submitted content is too broad, keep only the most important points. Leave at least 8 frames (0.27 seconds) of audio tail in each scene. Scene durations must sum to target plus transition overlap frames divided by 30 fps.` : ''}
 ${this.requiresImportedImage(req) ? 'IMPORTED IMAGE REQUIREMENT: Include at least one real image object with render_spec.type "image". The AI must web-search and select the best relevant open-license image, then return its direct downloadable file URL as asset_download_url, its source page as asset_source_url, exact asset_license, and any required asset_attribution. Keep it in the visual safe area; never place it under the text safe area.' : ''}
 ${this.requiresSceneRelevantImages(req) ? 'EDUCATIONAL SUBJECT IMAGE REQUIREMENT: This request teaches a visual subject. Every scene must include at least one AI-selected image object directly relevant to that scene (for example, each fruit scene must show that fruit). Give each image a specific asset_query matching the object subject, use a verified direct download URL and license, and never reuse a different scene or object image as a fallback.' : ''}
 ${this.requiresProduct3D(req) ? 'PRODUCT 3D REQUIREMENT: Include at least one content-specific 3D object. The AI must web-search for a relevant, openly licensed downloadable GLB and return model_download_url, asset_source_url, asset_license, and asset_attribution. For a keyboard, the model must be an actual keyboard, not a generic vector or text object. If no suitable licensed downloadable model can be verified, state that in the object detail and use a content-specific procedural 3D object.' : ''}
@@ -1002,7 +1010,7 @@ ${shouldKeepNarration ? `RULE #7: Preserve the approved voice narration: "${req.
 NON-NEGOTIABLE SKILL RULES:
 0. You are not merely an explainer; you are a senior short-form video director. Build a visual story with a hook, escalating visual evidence, a clear payoff, and a final CTA. Treat every scene as a designed shot with a subject, camera behavior, readable typography, and a purposeful transition. Work within the renderer contract; do not invent scene fields, object types, library model IDs, packages, TSX components, canvas sizes, or timing limits.
 1. Never produce a video that is only static images. Every scene needs real, purposeful motion.
-2. Provide concise, captivating voice-over narration. The total spoken narration must stay at or below ${requestedDuration ? `${Math.floor(requestedDuration * 1.5)} words for ${requestedDuration} seconds` : '1.5 words per second of requested runtime'}. Count the scene narration words before returning. Preserve only the key ideas needed for the story; do not exceed the limit to make the explanation more complete.
+2. Write concise voice-over for natural TTS playback at exactly 1.00x. Never assume the voice will be sped up or time-stretched. Keep spoken narration to at most ${requestedDuration ? `${Math.floor(requestedDuration * 1.5)} words total for ${requestedDuration} seconds` : '1.5 words per second of requested runtime'}, and leave at least 8 frames of silence at the end of each scene. Count words yourself before returning; planner validation does not count or rewrite narration.
 2a. For each scene, decide whether an actual image or 3D file improves understanding. When selecting one, put its exact direct file URL, source page, license, and attribution in that object\'s render_spec. asset_queries are planning notes only; the backend downloads only the exact returned URLs after Gate 1 and does not choose replacement media. If a real asset is unavailable or unsuitable, author accurate vectors/procedural geometry instead. A shared model_id must exactly match one of the IDs in the supplied capability contract.
 3. Design a unique color scheme, visual motif, and kinetic animation tailored specifically to this topic. First choose and explain a top-level styleBrief from the supported renderer vocabulary; every scene must inherit its palette, font, background, motion personality, transition set, SFX pack, and bed mood.
 3a. Return a top-level styleProfile with one selected family (cinematic-neon, editorial-paper, playful-pop, technical-terminal, or documentary-grid), a topic-specific motif, five hex colors, a motion_language, and a transition_language. Do not default every project to dark neon or the same browser treatment.
@@ -1019,16 +1027,16 @@ NON-NEGOTIABLE SKILL RULES:
    - image_search_query (specific search phrase for an open educational diagram or illustration, or null when a procedural visual is more accurate)
    - visual_direction (layout, camera push/pan, visual structure)
    - visual_type (always "blueprint" for new plans; the reusable template is provided separately)
-   - visual_blueprint (required, content-specific and different for every scene; include 2-${MAX_BLUEPRINT_OBJECTS_PER_SCENE} objects):
+   - visual_blueprint (required, content-specific and different for every scene; include 2-${MAX_BLUEPRINT_OBJECTS_PER_SCENE} objects. Treat x/y/to_x/to_y as normalized 0-1 coordinates; all motion_plan frame indices are integer offsets from this scene's start at 30 fps):
      { "purpose": "what this scene explains visually", "layout": "free-form composition with normalized object positions", "camera_motion": "specific camera movement", "asset_queries": ["relevant Wikimedia/Openverse search phrases"], "objects": [
-     { "id": "unique object id", "label": "content-specific label", "detail": "short explanation", "x": 0.5, "y": 0.5, "to_x": 0.6, "to_y": 0.45, "scale": 1, "rotation": 0, "color": "#RRGGBB", "motion": "exact frame-driven motion", "motion_plan": { "enter_frame": 12, "hold_start_frame": 30, "hold_end_frame": 112, "exit_frame": 132, "stagger_frames": 5, "easing": "spring|easeOut|linear", "idle": "float|pulse|orbit|shimmer|drift", "focal": true }, "render_spec": { "type": "vector|image|text|3d", "primitive": "sphere|cube|torus|cylinder|molecule|keyboard when type is procedural 3d", "model_id": "optional exact ID from installed shared GLB", "asset_download_url": "direct downloadable image URL when type is image", "model_download_url": "direct downloadable GLB URL when type is 3d and an external model is selected", "asset_source_url": "source page URL", "asset_license": "verified license name", "asset_attribution": "required attribution text or empty for CC0/public domain", "viewBox": [0, 0, 1000, 700], "paths": [{ "d": "content-specific SVG path", "fill": "#RRGGBB", "stroke": "#RRGGBB", "strokeWidth": 4 }], "circles": [], "rects": [], "lines": [], "polygons": [], "text": "optional text", "asset_query": null } }
+     { "id": "unique object id", "label": "content-specific label", "detail": "short explanation", "x": 0.5, "y": 0.5, "to_x": 0.6, "to_y": 0.45, "scale": 1, "rotation": 0, "color": "#RRGGBB", "motion": "SPRING_BOUNCE for visual assets or FADE_SLIDE_UP for text; add specific motion detail", "motion_plan": { "enter_frame": 12, "hold_start_frame": 30, "hold_end_frame": 112, "exit_frame": 132, "stagger_frames": 5, "easing": "spring|easeOut (never linear)", "idle": "float|pulse|orbit|shimmer|drift", "focal": true }, "render_spec": { "type": "vector|image|text|3d", "primitive": "sphere|cube|torus|cylinder|molecule|keyboard when type is procedural 3d", "model_id": "optional exact ID from installed shared GLB", "asset_download_url": "direct downloadable image URL when type is image", "model_download_url": "direct downloadable GLB URL when type is 3d and an external model is selected", "asset_source_url": "source page URL", "asset_license": "verified license name", "asset_attribution": "required attribution text or empty for CC0/public domain", "viewBox": [0, 0, 1000, 700], "paths": [{ "d": "content-specific SVG path", "fill": "#RRGGBB", "stroke": "#RRGGBB", "strokeWidth": 4 }], "circles": [], "rects": [], "lines": [], "polygons": [], "text": "optional text", "asset_query": null } }
      ] }${websiteTour ? ', "website_view": { "url": "https://example.com", "route": "/", "section": "Hero", "layout_variant": "hero", "nav_items": ["Home", "About"], "hero_label": "site label", "hero_heading": "page-specific heading", "hero_body": "page-specific body", "panels": [{ "title": "content-specific panel", "body": "what the visitor sees", "accent": "#2EC4B6" }, { "title": "another panel", "body": "why it matters", "accent": "#F59E0B" }], "cta": "page-specific call to action" }' : ''}
       Author the actual vector paths/shapes, select a relevant downloaded image, choose a named shared-library 3D model when one is installed, or choose a procedural 3D primitive when depth explains the submitted content (molecules, organs, planets, machines, devices, or spatial mechanisms). Keep each scene visually clear and focused with 2-4 primary objects (1 hero focal element + 1-2 key labels or indicators; do not exceed 4 objects per scene) with concise SVG paths. Every object must have a purposeful motion description. Any image or 3D model object must appear visibly animated in the shot; a static placement alone does not satisfy the motion requirement. Design object entrance, travel/rotation/reveal, and exit so the visuals and their generated sound cues share the same event timing. Do not choose from a fixed object-kind list. Every object must be visually distinct through its geometry, placement, styling, label, or motion and explain a real part of the submitted content. Reusing a primitive is allowed when the objects have different visual placement or purpose. Never return a generic diagram, network, metric, or headline template. Keep each vector shape list at or below 16 entries.
    - theme_color (hex color matching the topic's mood)
    - motion_cue (explicit description of what moves: spring entrance, scale zoom, path draw-on, staggered reveal)
    - continuity_to_next (what visual element or camera motion carries over into the next scene; for the final scene specify "None (final scene)")
-   - transition_out_frames (integer 8-15 for every scene except the last; use a directional overlap transition, never a fade to black)
-   - narration (complete voice-over for this scene; keep it to at most 1.7 words per planned second so natural speech fits without stretching the video)
+   - transition_out_frames (exactly 10 for every scene except the last; use KINETIC_WIPE with quintic ease-out, never a fade to black)
+   - narration (complete voice-over for this scene; fit natural 1.00x TTS playback within this scene's assigned frames, leaving 8 frames of silence; never rely on backend speed changes)
 
 CRITICAL OUTPUT FORMAT REQUIREMENTS:
 1. Return ONLY the raw, complete JSON object.
@@ -1083,7 +1091,7 @@ Respond with ONLY a valid JSON object matching this schema:
       "theme_color": "#2EC4B6",
       "motion_cue": "content-specific motion description",
       "continuity_to_next": "content-specific continuity description",
-      "transition_out_frames": 12,
+      "transition_out_frames": 10,
       "visual_blueprint": {
         "purpose": "content-specific visual explanation",
         "layout": "free-form normalized composition",
@@ -1130,6 +1138,8 @@ Before responding, validate the first and final scene against these rules. Do no
 
   abstract providerTimeoutMs(fastCreative?: boolean): number;
   abstract providerTotalTimeoutMs(fastCreative?: boolean): number;
+  /** Optional plain-text CLI pass used to research current motion and topic signals. */
+  runText?(prompt: string, opts: { timeoutMs: number; projectId?: string }): Promise<string>;
 
   async generateScript(req: ResearchAndScriptRequest): Promise<ResearchAndScriptResult> {
     const isRevision = !!req.changeRequestFeedback;
@@ -1141,7 +1151,14 @@ Before responding, validate the first and final scene against these rules. Do no
 
     const fastCreative = !this.requiresResearch(req);
     const videoComplexity = this.videoComplexity(req);
-    const productionSkill = await readFile(path.join(projectPaths.root, '.agents/skills/video-production-director/SKILL.md'), 'utf8');
+    const totalTimeoutMs = this.providerTotalTimeoutMs(fastCreative);
+    const deadlineAt = Date.now() + totalTimeoutMs;
+    let productionSkill = '';
+    try {
+      productionSkill = await readFile(path.join(projectPaths.root, '.agents/skills/video-production-director/SKILL.md'), 'utf8');
+    } catch (err: any) {
+      throw new Error(`video-production-director SKILL.md not found at .agents/skills/video-production-director/SKILL.md (${err?.message}). Restore the .agents folder; planning without it would ignore the production rules.`);
+    }
     let researchSkill = '';
     if (!fastCreative) {
       try {
@@ -1152,28 +1169,38 @@ Before responding, validate the first and final scene against these rules. Do no
     }
     const rendererContract = this.projectRenderContract();
 
-    // Preparation Layer: Analyze content, classify domain, curate motion references & visual metaphors
     const contentStr = req.topicOrContent || (req as any).topic || 'Untitled Topic';
-    const preparationDossier = contentPreparationService.prepare(contentStr, req.inputType || 'topic');
-
-    if (req.projectId) {
+    let trendBrief: TrendBriefResult | undefined;
+    if (!fastCreative && typeof this.runText === 'function' && req.projectId) {
+      const topicChanged = /\b(change|new|different)\s+(topic|subject)\b/i.test(req.changeRequestFeedback || '');
+      trendBrief = await trendResearchService.prepare({
+        projectId: req.projectId,
+        content: contentStr,
+        runner: { runText: this.runText.bind(this) },
+        timeoutMs: Math.min(90000, this.providerTimeoutMs(false)),
+        deadlineAt,
+        feedback: req.changeRequestFeedback,
+        reuseExisting: isRevision && !topicChanged,
+      });
       realtime.publish({
         type: 'pipeline_progress',
         projectId: req.projectId,
         stage: 'research',
-        progress: 10,
-        status: `Preparation layer: Synthesized ${preparationDossier.domainLabel} motion animation references`
+        progress: 18,
+        status: trendBrief.status === 'unavailable'
+          ? 'No trend brief; planner will research the submission'
+          : `Research brief ready (${trendBrief.sourceCount} source domains)`
       });
     }
 
-    const prompt = this.buildProductionPrompt(req, productionSkill, researchSkill, rendererContract, shouldKeepNarration, preparationDossier);
+    const prompt = this.buildProductionPrompt(req, productionSkill, researchSkill, rendererContract, shouldKeepNarration, trendBrief);
 
     try {
       const contentStr = req.topicOrContent || (req as any).topic || 'Untitled Topic';
       console.log(`[${this.name}] Running dynamic content-driven planning for "${contentStr.slice(0, 60)}"...`);
-      const timeoutMs = this.providerTimeoutMs(fastCreative);
-      const totalTimeoutMs = this.providerTotalTimeoutMs(fastCreative);
-      const deadlineAt = Date.now() + totalTimeoutMs;
+      const remainingMs = deadlineAt - Date.now();
+      if (remainingMs < 15000) throw new Error('Generation deadline exhausted during research; no planning or repair pass is allowed.');
+      const timeoutMs = Math.min(this.providerTimeoutMs(fastCreative), remainingMs);
       console.log(`[${this.name}] Planning mode: ${fastCreative ? 'creative-fast' : 'research'}; complexity: ${videoComplexity}; budget: ${Math.round(totalTimeoutMs / 1000)}s total; ${Math.round(timeoutMs / 1000)}s per attempt.`);
 
       let plan = await this.executePlan(prompt, timeoutMs, req.projectId, deadlineAt, fastCreative);

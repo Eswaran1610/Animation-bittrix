@@ -16,6 +16,8 @@ import { promisify } from 'util';
 import { preflightRenderProps } from './preflight.js';
 import { formatRenderFailure } from './renderDiagnostics.js';
 import { productionPackageService } from '../production/productionPackageService.js';
+import { unifiedCliProvider } from '../providers/cliProvider.js';
+import { activeProviderService } from '../providers/activeProviderService.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -94,7 +96,7 @@ export class RendersService {
   }
 
   /**
-   * Convert the approved Codex scene plan into isolated Remotion input props.
+   * Convert the approved CLI scene plan into isolated Remotion input props.
    */
   private async writeRemotionSceneData(
     projectId: string,
@@ -113,15 +115,14 @@ export class RendersService {
     const styleBrief = scenePlan.find((scene: any) => scene.style_brief)?.style_brief;
     const sfxPack = styleBrief?.sfxPack || 'digital';
 
-    // 1. Generate one Kokoro clip per scene. FFprobe measures each clip and the
-    // measured duration drives that scene's visual duration; speech is never
-    // time-stretched to fit an estimated full-script duration.
-    const sceneNarration = new Map<number, { audioPath: string; staticUrl: string; durationSec: number }>();
+    // 1. Generate one clip per scene with authoritative word-level alignment.
+    // FFprobe measures each clip and the measured duration drives that scene's visual duration.
+    const sceneNarration = new Map<number, any>();
     const projectAssets: Array<Record<string, unknown>> = [];
     let narrationCompleted = 0;
     try {
       for (const scene of scenePlan) {
-        const result = await ttsService.generateSceneNarration(projectId, Number(scene.scene_number), scene.narration, renderVersion);
+        const result = await ttsService.generateSceneNarrationWithAlignment(projectId, Number(scene.scene_number), scene.narration, renderVersion);
         sceneNarration.set(Number(scene.scene_number), result);
         narrationCompleted += 1;
         if (progressCallback) {
@@ -132,11 +133,10 @@ export class RendersService {
       throw new Error(`Per-scene narration audio generation failed: ${err.message}`);
     }
     const narrationDurationSec = Array.from(sceneNarration.values()).reduce((total, audio) => total + audio.durationSec, 0);
-    // TTS duration can differ slightly from the text estimate used during
-    // planning. Keep the approved narration and total video length intact by
-    // borrowing scene frames from beats with slack. If all scenes together still
-    // overflow, preserve the approved words and regenerate them at a modestly
-    // faster Kokoro rate before rejecting the preview.
+    // TTS duration can differ slightly from the planning estimate. First borrow
+    // available scene frames while keeping the approved total runtime. If exact
+    // 1.00x speech still overflows, make one bounded 1.15x recovery pass, then
+    // remeasure every clip before deciding whether the plan can render.
     const plannedSceneFrames = scenePlan.map((scene: any) => Math.max(1, Math.round(Number(scene.duration_sec) * fps)));
     const targetSceneFrameTotal = plannedSceneFrames.reduce((sum: number, frames: number) => sum + frames, 0);
     const requiredSceneFrames = () => scenePlan.map((scene: any) => {
@@ -146,7 +146,25 @@ export class RendersService {
     let minSceneFrames = requiredSceneFrames();
     let requiredFrames = minSceneFrames.reduce((sum: number, frames: number) => sum + frames, 0);
     if (requiredFrames > targetSceneFrameTotal) {
-      throw new Error(`Approved narration needs ${(requiredFrames / fps).toFixed(2)}s, but the approved plan provides ${(targetSceneFrameTotal / fps).toFixed(2)}s. Narration is never speed-changed after approval; shorten the narration and approve a new script.`);
+      const recoverySpeed = Math.min(1.15, ttsService.getMaxSceneSpeedMultiplier());
+      if (recoverySpeed > 1) {
+        if (progressCallback) await progressCallback(25, 'Voiceover exceeds the scene allocation; retrying once at up to 1.15x');
+        for (const scene of scenePlan) {
+          const result = await ttsService.generateSceneNarrationWithAlignment(
+            projectId,
+            Number(scene.scene_number),
+            scene.narration,
+            renderVersion,
+            recoverySpeed,
+          );
+          sceneNarration.set(Number(scene.scene_number), result);
+        }
+        minSceneFrames = requiredSceneFrames();
+        requiredFrames = minSceneFrames.reduce((sum: number, frames: number) => sum + frames, 0);
+      }
+      if (requiredFrames > targetSceneFrameTotal) {
+        throw new Error(`Voiceover still needs ${(requiredFrames / fps).toFixed(2)}s at the bounded recovery rate, but the approved plan provides ${(targetSceneFrameTotal / fps).toFixed(2)}s. Shorten the narration or approve a longer runtime.`);
+      }
     }
     const allocatedSceneFrames = [...minSceneFrames];
     let framesToAllocate = targetSceneFrameTotal - requiredFrames;
@@ -180,8 +198,8 @@ export class RendersService {
     let scenesPrepared = 0;
     const formattedScenes = await Promise.all(scenePlan.map(async (s: any, idx: number) => {
       const visualType = String(s.visual_type || '').toLowerCase();
-      if (visualType !== 'blueprint') throw new Error(`Scene ${idx + 1} must use an Codex visual blueprint; regenerate the script before rendering.`);
-      if (!s.visual_blueprint) throw new Error(`Scene ${idx + 1} has no Codex visual blueprint; render refused.`);
+      if (visualType !== 'blueprint') throw new Error(`Scene ${idx + 1} must use a CLI visual blueprint; regenerate the script before rendering.`);
+      if (!s.visual_blueprint) throw new Error(`Scene ${idx + 1} has no CLI visual blueprint; render refused.`);
       if (!Number.isFinite(Number(s.duration_sec)) || Number(s.duration_sec) < 2.5 || Number(s.duration_sec) > 5) {
         throw new Error(`Scene ${idx + 1} must be between 2.5 and 5 seconds.`);
       }
@@ -200,7 +218,7 @@ export class RendersService {
         ? Math.max(8, Math.min(15, Math.round(Number(s.transition_out_frames ?? blueprint.transition_out_frames ?? 12))))
         : 0;
 
-      // Download the exact assets selected by Codex research. The CLI chooses
+      // Download the exact assets selected by CLI research. The CLI chooses
       // the source; the backend owns storage, licensing metadata, and staging.
       let imageUrl: string | undefined = undefined;
       const imageAssets: Record<string, string> = {};
@@ -250,6 +268,19 @@ export class RendersService {
       // Generate object sound cues using the already-ensured procedural library
       const lastHitTime: number[] = [];
       const cueRequests: Array<{ hitFrame: number; role: SfxRole; sourceId: string; seedKey: string; pan?: number }> = [];
+      const productionCues = Array.isArray(s.production_audio_design?.cues) ? s.production_audio_design.cues : [];
+      productionCues.slice(0, 5).forEach((cue: any, cueIndex: number) => {
+        const object = blueprint.objects.find((candidate: any) => candidate.id === cue.object_id);
+        const hitFrame = Math.max(0, Math.min(durationInFrames - 8, Math.round(Number(cue.hitFrame))));
+        cueRequests.push({
+          hitFrame,
+          role: cue.role as SfxRole,
+          sourceId: `${s.scene_number}.cli-cue-${cueIndex + 1}`,
+          seedKey: `${projectId}:${s.scene_number}:cli:${cueIndex}`,
+          pan: object ? Math.max(-1, Math.min(1, (Number(object.x) - 0.5) * 1.6)) : 0,
+        });
+        lastHitTime.push(hitFrame);
+      });
       const movingObjectIndexes = blueprint.objects.map((object: any, objectIndex: number) => {
         const hasDestination = Number.isFinite(object.to_x) || Number.isFinite(object.to_y);
         const motion = String(object.motion || '');
@@ -407,7 +438,15 @@ export class RendersService {
         id: `S${String(s.scene_number).padStart(2, '0')}`,
         scene_number: s.scene_number,
         role: s.role,
-        template: s.template,
+        template: s.template || s.layout,
+        keyword: s.keyword,
+        emphasis_words: s.emphasis_words,
+        hero_asset: s.hero_asset,
+        secondary_assets: s.secondary_assets,
+        decoration: s.decoration,
+        motion_in: s.motion_in,
+        motion_loop: s.motion_loop,
+        camera: s.camera,
         title: s.on_screen_text.slice(0, 35),
         on_screen_text: s.on_screen_text,
         subtitle: s.subtitle,
@@ -423,6 +462,7 @@ export class RendersService {
         narration: s.narration,
         narrationAudio: narration?.staticUrl,
         narrationDurationSec: narration?.durationSec,
+        words: narration?.words || [],
         audioCues,
         image_url: imageUrl,
         image_assets: imageAssets,
@@ -432,7 +472,7 @@ export class RendersService {
         continuity_to_next: s.continuity_to_next,
         motion: s.motion || [],
         continuity: {
-          fromPrevious: s.continuity_from_previous || (idx === 0 ? 'opening' : 'carried from previous scene as specified by Codex'),
+          fromPrevious: s.continuity_from_previous || (idx === 0 ? 'opening' : 'carried from previous scene as specified by the active CLI'),
           toNext: s.continuity_to_next
         }
       };
@@ -472,12 +512,20 @@ export class RendersService {
     if (progressCallback) await progressCallback(46, 'Synchronizing word-level captions to exact audio frames...');
     console.log('[RendersService] Synchronizing word-level captions...');
     let captionOffset = 0;
-    const sceneCaptions = await Promise.all(formattedScenes.map(async (scene: any) => this.buildMeasuredCaptions(
-      scene.narration,
-      sceneNarration.get(Number(scene.scene_number))?.audioPath,
-      scene.narrationDurationSec || scene.durationInFrames / fps,
-      fps,
-    )));
+    const sceneCaptions = formattedScenes.map((scene: any) => {
+      if (Array.isArray(scene.words) && scene.words.length > 0) {
+        return scene.words.map((w: any) => ({
+          word: String(w.word || ''),
+          startFrame: Math.round(Number(w.startFrame || 0)),
+          endFrame: Math.max(Math.round(Number(w.startFrame || 0)) + 1, Math.round(Number(w.endFrame || 0))),
+        }));
+      }
+      return this.buildWordCaptions(
+        scene.narration,
+        scene.narrationDurationSec || scene.durationInFrames / fps,
+        fps
+      );
+    });
     const captions = formattedScenes.flatMap((scene: any, index: number) => {
       const captionsForScene = sceneCaptions[index];
       const sceneCaptionsWithOffset = captionsForScene
@@ -496,8 +544,8 @@ export class RendersService {
         fps,
         durationInFrames: totalFrames,
         targetDurationSec: totalFrames / fps,
-        style: 'Codex-authored content-specific motion plan rendered by Remotion',
-        generatedBy: 'codex',
+        style: 'CLI-authored content-specific motion plan rendered by Remotion',
+        generatedBy: activeProviderService.get(),
         sourceProjectId: projectId,
         previewVersion: renderVersion,
         scriptVersion: script.version,
@@ -531,7 +579,7 @@ export class RendersService {
       return cues;
     });
     await fs.writeFile(`${renderDataPath}.cues.json`, JSON.stringify(cueManifest, null, 2), 'utf-8');
-    console.log(`[RendersService] Prepared isolated Codex render props at ${renderDataPath} with ${formattedScenes.length} scenes (${totalFrames} frames) and per-scene narration audio.`);
+    console.log(`[RendersService] Prepared isolated ${activeProviderService.get()} render props at ${renderDataPath} with ${formattedScenes.length} scenes (${totalFrames} frames) and per-scene narration audio.`);
     return renderDataPath;
   }
 
@@ -572,10 +620,10 @@ export class RendersService {
     const packageRow = await productionPackageService.latest(projectId, scriptVersion);
     if (packageRow && packageRow.status !== 'ready') {
       if (process.env.REMOTE_PRODUCTION_WORKER !== '1') {
-        void this.prepareCodexProductionPackage(projectId, scriptVersion)
+        void this.prepareCliProductionPackage(projectId, scriptVersion)
           .catch((error: any) => productionPackageService.fail(projectId, packageRow.package_version, String(error?.message || error)));
       }
-      throw new Error('Codex production package is still being prepared. Wait until images, characters, audio, Whisper timings, FFmpeg metadata, and Remotion props are ready.');
+      throw new Error('The CLI production package is still being prepared. Wait until its media, audio, timing metadata, and Remotion props are ready.');
     }
 
     const currentPreviewVersion = (projectRes.rows[0].current_preview_version || 0) + 1;
@@ -608,15 +656,15 @@ export class RendersService {
     return renderJobRes.rows[0];
   }
 
-  private async useCodexProductionPackage(projectId: string, scriptVersion: number, previewVersion: number): Promise<string> {
+  private async useCliProductionPackage(projectId: string, scriptVersion: number, previewVersion: number): Promise<string> {
     const packageRow = await productionPackageService.latestReady(projectId, scriptVersion);
     if (!packageRow?.package_path) {
-      throw new Error('Codex production package is not ready. Wait for Codex to finish images, characters, Kokoro audio, Whisper timings, FFmpeg metadata, and Remotion props.');
+      throw new Error('The CLI production package is not ready. Wait for the active CLI to finish its production design and for the backend to stage audio, timing metadata, and Remotion props.');
     }
     const packagePayload = JSON.parse(await fs.readFile(packageRow.package_path, 'utf8'));
     const props = JSON.parse(JSON.stringify(packagePayload.remotionProps));
     if (!props || typeof props !== 'object' || !Array.isArray((props as any).scenes) || !(props as any).video) {
-      throw new Error('Codex production package contains invalid Remotion props.');
+      throw new Error('The CLI production package contains invalid Remotion props.');
     }
     props.video.previewVersion = previewVersion;
     const renderDataPath = projectPaths.renderData(projectId, 'preview', previewVersion);
@@ -625,7 +673,7 @@ export class RendersService {
 
     // Stage the TSX source code generated by the CLI into Remotion src
     if (packagePayload.tsxSource) {
-      const generatedTsxPath = path.join(projectPaths.remotionRoot, 'src', 'GeneratedCodexVideo.tsx');
+      const generatedTsxPath = path.join(projectPaths.remotionRoot, 'src', 'GeneratedCliVideo.tsx');
       await fs.writeFile(generatedTsxPath, packagePayload.tsxSource, 'utf8');
     }
 
@@ -633,7 +681,7 @@ export class RendersService {
     // packages stored local frames in `audio`; trusting them shifts later
     // scenes and produces missing/late hits during verification.
     const cueManifest = this.buildCueManifestFromProps(props);
-    if (!cueManifest.length) throw new Error('Codex production package has no valid object-sound cues for audio-sync verification.');
+    if (!cueManifest.length) throw new Error('The CLI production package has no valid object-sound cues for audio-sync verification.');
     await fs.writeFile(`${renderDataPath}.cues.json`, JSON.stringify(cueManifest, null, 2), 'utf8');
     return renderDataPath;
   }
@@ -654,25 +702,15 @@ export class RendersService {
     });
   }
 
-  private buildGeneratedTsx() {
-    return `import React from 'react';
-import { MainVideo } from './MainVideo';
-
-// Generated by Codex. Scene motion, narration, captions, and object sound
-// effects are supplied through sceneData props and remain frame-deterministic.
-export default function GeneratedCodexVideo(props: any) {
-  return <MainVideo sceneData={props} />;
-}
-`;
-  }
-
-  async prepareCodexProductionPackage(projectId: string, scriptVersion: number): Promise<void> {
+  async prepareCliProductionPackage(projectId: string, scriptVersion: number): Promise<void> {
     const packageRow = await productionPackageService.latest(projectId, scriptVersion);
     if (!packageRow || packageRow.status === 'ready' || packageRow.status === 'building') return;
     await query(`UPDATE production_packages SET status = 'building', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [packageRow.id]);
     const projectResult = await query(`SELECT * FROM projects WHERE id = $1`, [projectId]);
     const scriptResult = await query(`SELECT * FROM scripts WHERE project_id = $1 AND version = $2`, [projectId, scriptVersion]);
     if (!projectResult.rows[0] || !scriptResult.rows[0]) throw new Error('Project or approved script not found for production preparation.');
+    const approvedScript = scriptResult.rows[0];
+
     const previewVersion = Number(projectResult.rows[0].current_preview_version || 0) + 1;
     const publishPackageProgress = async (progress: number, status: string) => {
       realtime.publish({
@@ -691,22 +729,55 @@ export default function GeneratedCodexVideo(props: any) {
         status,
       });
     };
-    await publishPackageProgress(10, 'Preparing animation: Synthesizing voiceover & procedural audio...');
-    const propsPath = await this.writeRemotionSceneData(projectId, projectResult.rows[0].title, scriptResult.rows[0], previewVersion, 'preview', publishPackageProgress);
-    await publishPackageProgress(50, 'Staging 1-track master audio & Remotion composition...');
+
+    // 1. Synthesize approved narration audio & extract authoritative word-level alignment
+    await publishPackageProgress(15, 'Synthesizing narration speech & extracting word alignment timestamps...');
+    const audioProgress = async (progress: number, status: string) => publishPackageProgress(15 + Math.round(progress * 0.35), status);
+    const propsPath = await this.writeRemotionSceneData(projectId, projectResult.rows[0].title, approvedScript, previewVersion, 'preview', audioProgress);
     const remotionProps = JSON.parse(await fs.readFile(propsPath, 'utf8'));
+
+    // 2. CLI generates content-specific Remotion TSX code aligned to the measured audio timestamps
+    await publishPackageProgress(52, 'CLI authoring scene-specific Remotion TSX code aligned to audio...');
+    const productionBundle = await unifiedCliProvider.generateApprovedProductionPackage({
+      projectId,
+      projectTitle: projectResult.rows[0].title,
+      scriptVersion,
+      scenePlan: approvedScript.scene_plan,
+      measuredScenes: remotionProps.scenes,
+      styleBrief: remotionProps.video?.styleBrief,
+    });
+
+    // 3. Merge audio design cues if provided
+    if (productionBundle.audioDesign?.scenes?.length) {
+      productionBundle.audioDesign.scenes.forEach((adScene: any, idx: number) => {
+        if (remotionProps.scenes[idx]) {
+          remotionProps.scenes[idx].production_audio_design = adScene;
+          if (Array.isArray(adScene.cues) && adScene.cues.length > 0) {
+            remotionProps.scenes[idx].audioCues = adScene.cues;
+          }
+        }
+      });
+      await fs.writeFile(propsPath, JSON.stringify(remotionProps, null, 2), 'utf8');
+      const cueManifest = this.buildCueManifestFromProps(remotionProps);
+      await fs.writeFile(`${propsPath}.cues.json`, JSON.stringify(cueManifest, null, 2), 'utf8');
+    }
+
     const manifestPath = path.join(projectPaths.backendMedia, 'projects', projectId, 'previews', `v${previewVersion}`, 'asset-manifest.json');
     let manifest: any = {};
     try { manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8')); } catch { /* procedural-only projects have no manifest */ }
+
+    // 4. Validate & stage production package
     await productionPackageService.receive(projectId, Number(packageRow.package_version), {
-      generatedBy: 'codex',
-      tsxSource: this.buildGeneratedTsx(),
+      generatedBy: unifiedCliProvider.name,
+      tsxSource: productionBundle.tsxSource,
       remotionProps,
       assets: manifest.assets || [],
       audio: this.buildCueManifestFromProps(remotionProps),
       captions: remotionProps.video.captions || [],
+      productionDesign: productionBundle.audioDesign,
     });
-    await publishPackageProgress(52, 'Animation package prepared; launching preview render...');
+
+    await publishPackageProgress(58, 'Animation package prepared; launching preview render...');
     await this.createPreviewRender(projectId, scriptVersion);
   }
 
@@ -722,7 +793,7 @@ export default function GeneratedCodexVideo(props: any) {
         `UPDATE render_jobs SET status = 'rendering', progress = 5, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
         [renderJobId]
       );
-      realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress: 5, status: 'Preparing dynamic Codex render' });
+      realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress: 5, status: 'Preparing dynamic CLI render' });
 
       // Prepare and render the exact Remotion composition that Gate 2 reviews.
       const publishPreviewProgress = async (progress: number, status: string) => {
@@ -734,7 +805,7 @@ export default function GeneratedCodexVideo(props: any) {
         realtime.publish({ type: 'pipeline_progress', projectId, stage: 'preview_render', progress, status });
       };
       const propsPath = (await productionPackageService.latestReady(projectId, script.version))
-        ? await this.useCodexProductionPackage(projectId, script.version, previewVersion)
+        ? await this.useCliProductionPackage(projectId, script.version, previewVersion)
         : await this.writeRemotionSceneData(projectId, projectTitle, script, previewVersion, 'preview', publishPreviewProgress);
       const previewProps = JSON.parse(await fs.readFile(propsPath, 'utf8'));
       const previewDiskPath = path.join(projectPaths.backendMedia, 'previews', `${projectId}_preview_v${previewVersion}.mp4`);
@@ -833,6 +904,13 @@ export default function GeneratedCodexVideo(props: any) {
       if (error?.code !== 'ENOENT') throw error;
     });
     await preflightRenderProps(renderPropsPath);
+
+    const approvedPackage = await productionPackageService.latestReady(projectId, scriptVersion);
+    if (approvedPackage?.package_path) {
+      const bundle = JSON.parse(await fs.readFile(approvedPackage.package_path, 'utf8'));
+      if (typeof bundle.tsxSource !== 'string') throw new Error('The approved production package is missing its Remotion entry component.');
+      await fs.writeFile(path.join(projectPaths.remotionRoot, 'src', 'GeneratedCliVideo.tsx'), bundle.tsxSource, 'utf8');
+    }
 
     // Real output path on disk
     const diskPath = path.join(projectPaths.backendMedia, 'videos', `${projectId}_final.mp4`);

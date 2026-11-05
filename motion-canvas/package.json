@@ -1,0 +1,22 @@
+{
+  "name": "animation-pipeline-motion-canvas",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "serve": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@motion-canvas/2d": "^3.17.2",
+    "@motion-canvas/core": "^3.17.2",
+    "@motion-canvas/ffmpeg": "^3.17.2",
+    "@motion-canvas/ui": "^3.17.2"
+  },
+  "devDependencies": {
+    "@motion-canvas/vite-plugin": "^3.17.2",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11"
+  }
+}

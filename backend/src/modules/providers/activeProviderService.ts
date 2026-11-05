@@ -2,17 +2,17 @@
  * Active AI Provider Management
  *
  * Ensures strictly ONE CLI is connected / active at any time.
- * Choices: 'codex' | 'agy' | 'none'
+ * Choices: 'codex' | 'agy' | 'claude' | 'none'
  */
 
-export type ProviderId = 'codex' | 'agy' | 'none';
+export type ProviderId = 'codex' | 'agy' | 'claude' | 'none';
 
 class ActiveProviderService {
   private current: ProviderId;
 
   constructor() {
     const fromEnv = (process.env.ACTIVE_PROVIDER || '').toLowerCase().trim() as ProviderId;
-    this.current = (fromEnv === 'agy' || fromEnv === 'none') ? fromEnv : 'codex';
+    this.current = (fromEnv === 'agy' || fromEnv === 'claude' || fromEnv === 'none') ? fromEnv : 'codex';
   }
 
   get(): ProviderId {
@@ -21,12 +21,13 @@ class ActiveProviderService {
 
   set(id: string): { activeProvider: ProviderId; message: string } {
     const next = id.toLowerCase().trim() as ProviderId;
-    if (next !== 'codex' && next !== 'agy' && next !== 'none') {
-      throw new Error(`Unknown provider "${id}". Valid choices: codex, agy, none.`);
+    if (next !== 'codex' && next !== 'agy' && next !== 'claude' && next !== 'none') {
+      throw new Error(`Unknown provider "${id}". Valid choices: codex, agy, claude, none.`);
     }
     this.current = next;
     process.env.ACTIVE_PROVIDER = next;
-    const label = next === 'none' ? 'All CLIs disconnected' : `${next.toUpperCase()} is now the active connected CLI`;
+    const labels: Record<ProviderId, string> = { codex: 'Codex', agy: 'AGY', claude: 'Claude Code', none: 'No CLI' };
+    const label = next === 'none' ? 'All CLIs disconnected' : `${labels[next]} is now the active CLI`;
     return {
       activeProvider: this.current,
       message: label,
@@ -40,7 +41,7 @@ class ActiveProviderService {
   status() {
     return {
       activeProvider: this.current,
-      available: ['codex', 'agy', 'none'] as ProviderId[],
+      available: ['codex', 'agy', 'claude', 'none'] as ProviderId[],
     };
   }
 }

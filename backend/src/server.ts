@@ -15,9 +15,11 @@ import { codexAuthService } from './modules/auth/codexAuthService.js';
 import { agyAuthService } from './modules/auth/agyAuthService.js';
 import { claudeAuthService } from './modules/auth/claudeAuthService.js';
 import { shutdownCodexProcesses } from './modules/providers/codexProvider.js';
+import { shutdownAllCliProcesses } from './modules/providers/cliProvider.js';
 import { productionPackageService } from './modules/production/productionPackageService.js';
 import { activeProviderService } from './modules/providers/activeProviderService.js';
 import { THEME_CATALOG } from './modules/themes/themeCatalog.js';
+import { motionCanvasService } from './modules/motionCanvas/motionCanvasService.js';
 
 dotenv.config();
 
@@ -31,6 +33,7 @@ app.use(express.json());
 // Serve static media files (previews and final videos)
 app.use('/media', express.static(projectPaths.backendMedia));
 app.use('/sfx', express.static(path.join(projectPaths.remotionPublic, 'sfx')));
+app.use('/motion-canvas-dist', express.static(projectPaths.motionCanvasDist));
 
 // Health & System Info
 app.get('/api/health', (req, res) => {
@@ -43,9 +46,35 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     aiProvider: activeProviderService.get(),
-    animationEngine: 'remotion (integrated by default)',
+    animationEngines: ['remotion', 'motion-canvas'],
     database: databaseLabel
   });
+});
+
+// Motion Canvas Endpoints
+app.get('/api/motion-canvas/status', (_req, res) => {
+  res.json({
+    status: 'ready',
+    engine: 'Motion Canvas (TypeScript generators + 2D vectors)',
+    version: '3.17.2',
+    bundleDist: '/motion-canvas-dist',
+  });
+});
+
+app.post('/api/motion-canvas/build', async (req, res) => {
+  try {
+    const { name, title, subtitle, themeColor, nodes } = req.body;
+    const result = await motionCanvasService.buildProject({
+      name: name || 'dynamicScene',
+      title: title || 'Motion Canvas Visual',
+      subtitle,
+      themeColor,
+      nodes,
+    });
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Active provider selection — GET to read, PUT to switch.
@@ -56,7 +85,7 @@ app.get('/api/providers/active', (req, res) => {
 app.put('/api/providers/active', (req, res) => {
   try {
     const { provider } = req.body;
-    if (!provider) return res.status(400).json({ error: '"provider" field is required (codex | agy)' });
+    if (!provider) return res.status(400).json({ error: '"provider" field is required (codex | agy | claude | none)' });
     res.json(activeProviderService.set(provider));
   } catch (err: any) {
     res.status(400).json({ error: err.message });
@@ -133,7 +162,7 @@ app.get(['/api/usage', '/api/usage/active'], async (req, res) => {
         COALESCE(SUM(CASE WHEN execution_metadata->>'total_tokens' ~ '^[0-9]+$' THEN (execution_metadata->>'total_tokens')::bigint ELSE 0 END), 0)::bigint AS total_tokens,
         COUNT(*)::int AS run_count,
         COALESCE(BOOL_OR(COALESCE((execution_metadata->>'estimated')::boolean, false)), false) AS estimated,
-        true AS available
+        COALESCE(BOOL_OR(COALESCE((execution_metadata->>'available')::boolean, false)), false) AS available
       FROM agent_runs WHERE ($1 = 'all' OR provider = $1)
     `, [targetProvider]);
     res.json({ ...usage.rows[0], provider: targetProvider });
@@ -151,7 +180,7 @@ app.get('/api/usage/codex', async (req, res) => {
         COALESCE(SUM(CASE WHEN execution_metadata->>'total_tokens' ~ '^[0-9]+$' THEN (execution_metadata->>'total_tokens')::bigint ELSE 0 END), 0)::bigint AS total_tokens,
         COUNT(*)::int AS run_count,
         COALESCE(BOOL_OR(COALESCE((execution_metadata->>'estimated')::boolean, false)), false) AS estimated,
-        true AS available
+        COALESCE(BOOL_OR(COALESCE((execution_metadata->>'available')::boolean, false)), false) AS available
       FROM agent_runs WHERE provider = 'codex'
     `);
     res.json(usage.rows[0]);
@@ -169,8 +198,26 @@ app.get('/api/usage/agy', async (req, res) => {
         COALESCE(SUM(CASE WHEN execution_metadata->>'total_tokens' ~ '^[0-9]+$' THEN (execution_metadata->>'total_tokens')::bigint ELSE 0 END), 0)::bigint AS total_tokens,
         COUNT(*)::int AS run_count,
         COALESCE(BOOL_OR(COALESCE((execution_metadata->>'estimated')::boolean, false)), false) AS estimated,
-        true AS available
+        COALESCE(BOOL_OR(COALESCE((execution_metadata->>'available')::boolean, false)), false) AS available
       FROM agent_runs WHERE provider = 'agy'
+    `);
+    res.json(usage.rows[0]);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/usage/claude', async (req, res) => {
+  try {
+    const usage = await query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN execution_metadata->>'input_tokens' ~ '^[0-9]+$' THEN (execution_metadata->>'input_tokens')::bigint ELSE 0 END), 0)::bigint AS input_tokens,
+        COALESCE(SUM(CASE WHEN execution_metadata->>'output_tokens' ~ '^[0-9]+$' THEN (execution_metadata->>'output_tokens')::bigint ELSE 0 END), 0)::bigint AS output_tokens,
+        COALESCE(SUM(CASE WHEN execution_metadata->>'total_tokens' ~ '^[0-9]+$' THEN (execution_metadata->>'total_tokens')::bigint ELSE 0 END), 0)::bigint AS total_tokens,
+        COUNT(*)::int AS run_count,
+        COALESCE(BOOL_OR(COALESCE((execution_metadata->>'estimated')::boolean, false)), false) AS estimated,
+        COALESCE(BOOL_OR(COALESCE((execution_metadata->>'available')::boolean, false)), false) AS available
+      FROM agent_runs WHERE provider = 'claude'
     `);
     res.json(usage.rows[0]);
   } catch (err: any) {
@@ -226,12 +273,20 @@ app.post('/api/auth/claude', async (req, res) => {
   res.json(await claudeAuthService.start());
 });
 
+app.post('/api/auth/claude/disconnect', async (req, res) => {
+  res.json(await claudeAuthService.disconnect());
+});
+
 app.get('/api/providers/claude/status', async (req, res) => {
   res.json(await claudeAuthService.status());
 });
 
 app.post('/api/providers/claude/connect', async (req, res) => {
   res.json(await claudeAuthService.start());
+});
+
+app.post('/api/providers/claude/disconnect', async (req, res) => {
+  res.json(await claudeAuthService.disconnect());
 });
 
 app.delete('/api/projects/:id', async (req, res) => {
@@ -246,9 +301,13 @@ app.delete('/api/projects/:id', async (req, res) => {
 // Scripts & Gate 1 Endpoints
 app.post('/api/projects/:id/scripts/revise', async (req, res) => {
   try {
-    const { feedback, change_narration = false } = req.body;
+    const { feedback, change_narration = false, theme_id, theme } = req.body;
     if (!feedback) {
       return res.status(400).json({ error: 'feedback is required for script revision' });
+    }
+    const newTheme = typeof (theme_id || theme) === 'string' ? String(theme_id || theme).trim() : undefined;
+    if (newTheme) {
+      await query(`UPDATE projects SET theme_id = $2 WHERE id = $1`, [req.params.id, newTheme]);
     }
     const script = await scriptsService.reviseScript(req.params.id, feedback, change_narration);
     res.json(script);
@@ -272,7 +331,7 @@ app.post('/api/projects/:id/scripts/approve', async (req, res) => {
     );
     const packageRequest = await productionPackageService.queue(req.params.id, version_number);
     if (process.env.REMOTE_PRODUCTION_WORKER !== '1') {
-      void rendersService.prepareCodexProductionPackage(req.params.id, version_number)
+      void rendersService.prepareCliProductionPackage(req.params.id, version_number)
         .catch((error: any) => productionPackageService.fail(req.params.id, packageRequest.package_version, String(error?.message || error)));
     }
     res.json({ ...approval, production_package: packageRequest });
@@ -281,9 +340,8 @@ app.post('/api/projects/:id/scripts/approve', async (req, res) => {
   }
 });
 
-// Called by the Codex CLI/remote production worker after it has generated and
-// staged every image, character, Kokoro track, Whisper timing, FFmpeg output
-// metadata, and Remotion props. The browser/local machine does not do that work.
+// Receives the approved production package from the local pipeline worker.
+// The backend stores its assets and props, then owns preview and final rendering.
 app.post('/api/projects/:id/production-packages/:version', async (req, res) => {
   try {
     const packageVersion = Number(req.params.version);
@@ -350,11 +408,15 @@ app.post('/api/projects/:id/previews/render', async (req, res) => {
 
 app.post('/api/projects/:id/previews/revise', async (req, res) => {
   try {
-    const { feedback } = req.body;
+    const { feedback, theme_id, theme } = req.body;
     if (!feedback) {
       return res.status(400).json({ error: 'feedback is required for preview revision' });
     }
-    // A visual correction is regenerated by Codex as a new plan version. It must
+    const newTheme = typeof (theme_id || theme) === 'string' ? String(theme_id || theme).trim() : undefined;
+    if (newTheme) {
+      await query(`UPDATE projects SET theme_id = $2 WHERE id = $1`, [req.params.id, newTheme]);
+    }
+    // A visual correction is regenerated by the active CLI as a new plan version. It must
     // pass Gate 1 again before any new preview can be rendered.
     const script = await scriptsService.reviseScript(req.params.id, feedback, false);
     res.json(script);
@@ -451,6 +513,7 @@ const shutdown = async (signal: string) => {
   }, 4000);
 
   shutdownCodexProcesses();
+  shutdownAllCliProcesses();
 
   for (const socket of websocketServer.clients) {
     socket.close(1001, 'Server shutting down');

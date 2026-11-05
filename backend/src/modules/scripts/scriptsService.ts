@@ -29,46 +29,17 @@ const styleSignature = (styleBrief: any): string => [
   hueBucket(styleBrief?.palette?.primary || ''),
 ].join('|');
 
-const styleParts = (signature: string) => signature.split('|');
-const styleOverlap = (left: string, right: string) => styleParts(left).reduce((count, value, index) => count + (value && value === styleParts(right)[index] ? 1 : 0), 0);
-
 export class ScriptsService {
-  private async generateDistinctInitialScript(projectId: string, inputContent: string, inputType: 'text' | 'topic' | 'url', requestedDurationSec?: number, themeId?: string) {
+  private async generateInitialPlan(projectId: string, inputContent: string, inputType: 'text' | 'topic' | 'url', requestedDurationSec?: number, themeId?: string) {
     const provider = getActiveAIProvider();
-    if (themeId) {
-      const result = await provider.generateScript({
-        projectId,
-        topicOrContent: inputContent,
-        inputType,
-        requestedDurationSec,
-        selectedTheme: themeId,
-      });
-      return { result, signature: styleSignature(result.styleBrief) };
-    }
-
-    const recent = await query(`SELECT style_signature FROM projects WHERE style_signature IS NOT NULL ORDER BY updated_at DESC LIMIT 5`);
-    const recentSignatures = recent.rows.map((row) => String(row.style_signature));
-    let lastResult: any;
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      lastResult = await provider.generateScript({
-        projectId,
-        topicOrContent: inputContent,
-        inputType,
-        requestedDurationSec,
-        changeRequestFeedback: attempt === 0 ? undefined : 'Choose a materially different styleBrief from recent projects. Keep the content and narration requirements unchanged.',
-      });
-      const signature = styleSignature(lastResult.styleBrief);
-      const conflict = recentSignatures.find((candidate) => styleOverlap(signature, candidate) >= 2);
-      if (!conflict) return { result: lastResult, signature };
-      if (attempt === 1) {
-        if (lastResult.styleBrief) {
-          lastResult.styleBrief.archetype = lastResult.styleBrief.archetype === 'kinetic-type' ? 'blueprint-technical' : 'kinetic-type';
-          lastResult.styleBrief.background = lastResult.styleBrief.background === 'grid' ? 'particles' : 'grid';
-        }
-        return { result: lastResult, signature: styleSignature(lastResult.styleBrief) };
-      }
-    }
-    throw new Error('Style variety validation failed without a usable plan.');
+    const result = await provider.generateScript({
+      projectId,
+      topicOrContent: inputContent,
+      inputType,
+      requestedDurationSec,
+      selectedTheme: themeId,
+    });
+    return { result, signature: styleSignature(result.styleBrief) };
   }
 
   /**
@@ -76,9 +47,9 @@ export class ScriptsService {
    */
   async generateInitialScript(projectId: string, inputContent: string, inputType: 'text' | 'topic' | 'url', requestedDurationSec?: number, themeId?: string): Promise<Script> {
     const activeProvider = activeProviderService.get();
-    const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'codex' ? 'Codex' : 'AI';
+    const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'claude' ? 'Claude Code' : activeProvider === 'codex' ? 'Codex' : 'AI';
     realtime.publish({ type: 'pipeline_progress', projectId, stage: 'research', progress: 15, status: `${providerLabel} deep research across multiple web sources` });
-    const { result: researchResult, signature } = await this.generateDistinctInitialScript(projectId, inputContent, inputType, requestedDurationSec, themeId);
+    const { result: researchResult, signature } = await this.generateInitialPlan(projectId, inputContent, inputType, requestedDurationSec, themeId);
 
     const version = 1;
     realtime.publish({ type: 'pipeline_progress', projectId, stage: 'script_plan', progress: 85, status: `${providerLabel} plan ready: scenes, blueprints & narration` });
@@ -148,11 +119,11 @@ export class ScriptsService {
     const previousScript = latestRes.rows[0];
     const newVersion = previousScript.version + 1;
 
-    const projectRes = await query(`SELECT input_content, input_type FROM projects WHERE id = $1`, [projectId]);
+    const projectRes = await query(`SELECT input_content, input_type, requested_duration_sec, theme_id FROM projects WHERE id = $1`, [projectId]);
     if (projectRes.rows.length === 0) throw new Error('Project not found while revising script.');
 
     const activeProvider = activeProviderService.get();
-    const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'codex' ? 'Codex' : 'AI';
+    const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'claude' ? 'Claude Code' : activeProvider === 'codex' ? 'Codex' : 'AI';
     const provider = getActiveAIProvider();
 
     const researchResult = await provider.generateScript({
@@ -160,6 +131,7 @@ export class ScriptsService {
       topicOrContent: projectRes.rows[0].input_content,
       inputType: projectRes.rows[0].input_type,
       requestedDurationSec: projectRes.rows[0].requested_duration_sec || undefined,
+      selectedTheme: projectRes.rows[0].theme_id || undefined,
       previousScriptVersion: previousScript.version,
       changeRequestFeedback: feedbackNotes,
       existingNarration: changeNarration ? undefined : previousScript.narration // Rule: preserve narration unless explicitly asked

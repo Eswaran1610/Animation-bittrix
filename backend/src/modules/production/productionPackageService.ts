@@ -1,6 +1,8 @@
 import { query } from '../../config/db.js';
 import { projectPaths } from '../../config/paths.js';
 import { realtime } from '../../realtime.js';
+import { activeProviderService } from '../providers/activeProviderService.js';
+import { tsxValidator } from './tsxValidator.js';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -10,6 +12,7 @@ type ProductionPackage = {
   assets: Array<Record<string, unknown>>;
   audio: Array<Record<string, unknown>>;
   captions: Array<Record<string, unknown>>;
+  productionDesign?: Record<string, unknown>;
   generatedBy?: string;
 };
 
@@ -47,7 +50,7 @@ export class ProductionPackageService {
       [projectId, scriptVersion, version],
     );
     await query(`UPDATE projects SET stage = 'animation_prep', status = 'Preparing animation', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [projectId]);
-    realtime.publish({ type: 'pipeline_progress', projectId, progress: 10, status: 'Codex production package requested' });
+    realtime.publish({ type: 'pipeline_progress', projectId, progress: 10, status: 'Active CLI production package requested' });
     return result.rows[0];
   }
 
@@ -58,19 +61,37 @@ export class ProductionPackageService {
     const missing = requiredKeys.filter((key) => !(key in candidate));
     if (missing.length) throw new Error(`Production package is missing: ${missing.join(', ')}`);
     if (!candidate.remotionProps || typeof candidate.remotionProps !== 'object') throw new Error('Production package remotionProps must be an object.');
-    if (typeof candidate.tsxSource !== 'string' || !candidate.tsxSource.includes('MainVideo')) throw new Error('Production package tsxSource must contain the Remotion MainVideo composition.');
+    if (typeof candidate.tsxSource !== 'string' || candidate.tsxSource.trim().length === 0) {
+      throw new Error('Production package tsxSource must contain the Remotion composition code.');
+    }
+
+    const validation = await tsxValidator.validate(candidate.tsxSource);
+    if (!validation.valid) {
+      throw new Error(`Production package TSX validation failed: ${validation.errors.join('; ')}`);
+    }
+
     if (!Array.isArray(candidate.assets) || !Array.isArray(candidate.audio) || !Array.isArray(candidate.captions)) throw new Error('Production package assets, audio, and captions must be arrays.');
 
     const packageDir = path.join(projectPaths.renderDataDir, 'production-packages', projectId);
     await fs.mkdir(packageDir, { recursive: true });
     const packagePath = path.join(packageDir, `v${packageVersion}.json`);
     const tsxPath = path.join(packageDir, `v${packageVersion}.tsx`);
-    await fs.writeFile(packagePath, JSON.stringify({ ...candidate, receivedAt: new Date().toISOString(), generatedBy: candidate.generatedBy || 'codex' }, null, 2), 'utf8');
+    const generatedBy = candidate.generatedBy || activeProviderService.get();
+    await fs.writeFile(packagePath, JSON.stringify({ ...candidate, receivedAt: new Date().toISOString(), generatedBy }, null, 2), 'utf8');
     await fs.writeFile(tsxPath, candidate.tsxSource, 'utf8');
+
+    // Also persist into dedicated project source and metadata folders
+    const projectDir = path.join(projectPaths.backendMedia, 'projects', projectId);
+    await fs.mkdir(path.join(projectDir, 'source'), { recursive: true });
+    await fs.mkdir(path.join(projectDir, 'metadata'), { recursive: true });
+    await fs.writeFile(path.join(projectDir, 'source', 'VideoComposition.tsx'), candidate.tsxSource, 'utf8');
+    await fs.writeFile(path.join(projectDir, 'metadata', 'package.json'), JSON.stringify(candidate, null, 2), 'utf8');
+    await fs.writeFile(path.join(projectDir, 'metadata', 'props.json'), JSON.stringify(candidate.remotionProps, null, 2), 'utf8');
+
     const result = await query(
       `UPDATE production_packages SET status = 'ready', manifest = $3, package_path = $4, updated_at = CURRENT_TIMESTAMP
        WHERE project_id = $1 AND package_version = $2 RETURNING *`,
-      [projectId, packageVersion, { tsxPath, assets: candidate.assets, audio: candidate.audio, captions: candidate.captions, generatedBy: candidate.generatedBy || 'codex' }, packagePath],
+      [projectId, packageVersion, { tsxPath, assets: candidate.assets, audio: candidate.audio, captions: candidate.captions, productionDesign: candidate.productionDesign || {}, generatedBy }, packagePath],
     );
     const doneManifest = await this.saveDonePackage(projectId, packageVersion, candidate);
 
@@ -133,7 +154,7 @@ export class ProductionPackageService {
       projectId,
       packageVersion,
       status: 'ready',
-      generatedBy: candidate.generatedBy || 'codex',
+      generatedBy: candidate.generatedBy || activeProviderService.get(),
       completedAt: new Date().toISOString(),
       paths: {
         doneDir,
@@ -181,7 +202,7 @@ export class ProductionPackageService {
   async fail(projectId: string, packageVersion: number, errorMessage: string) {
     await this.ensureTable();
     await query(`UPDATE production_packages SET status = 'failed', error_message = $3, updated_at = CURRENT_TIMESTAMP WHERE project_id = $1 AND package_version = $2`, [projectId, packageVersion, errorMessage]);
-    realtime.publish({ type: 'pipeline_progress', projectId, progress: 100, status: 'Codex production package failed' });
+    realtime.publish({ type: 'pipeline_progress', projectId, progress: 100, status: 'Active CLI production package failed' });
   }
 }
 

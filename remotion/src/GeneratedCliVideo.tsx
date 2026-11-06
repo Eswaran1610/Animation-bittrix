@@ -52,12 +52,12 @@ const BAKED_SCENES: ScenePayload[] = [
     "role": "hook",
     "template": "question-hook",
     "visual_type": "concept-diagram",
-    "themeColor": "#22d3ee",
+    "themeColor": "#1a6fd4",
     "durationInFrames": 102,
-    "narration": "How does Decentralized Autonomous Organizations actually function?",
-    "title": "How does Decentralized Autonomous",
-    "on_screen_text": "How does Decentralized Autonomous Organizations actually function?",
-    "emphasis_word": "Autonomous",
+    "narration": "How does How OpenVPN Works and Packet Journey actually function?",
+    "title": "How does How OpenVPN",
+    "on_screen_text": "How does How OpenVPN Works and Packet Journey actually function?",
+    "emphasis_word": "and",
     "audioCues": [
       {
         "frame": 10,
@@ -78,54 +78,69 @@ const BAKED_SCENES: ScenePayload[] = [
     ],
     "nodes": [
       {
-        "label": "How does Decentralized Autonomous",
+        "label": "How does How OpenVPN Works",
         "sub": "Layer 1"
       },
       {
-        "label": "Organizations actually function",
+        "label": "and Packet Journey actually function",
         "sub": "Layer 2"
       }
     ],
     "labels": [
       "How",
       "does",
-      "Decentralized"
+      "How"
     ],
     "words": [
       {
         "word": "How",
         "startFrame": 0,
-        "endFrame": 13
+        "endFrame": 9
       },
       {
         "word": "does",
-        "startFrame": 13,
-        "endFrame": 26
+        "startFrame": 9,
+        "endFrame": 19
       },
       {
-        "word": "Decentralized",
-        "startFrame": 26,
-        "endFrame": 38
+        "word": "How",
+        "startFrame": 19,
+        "endFrame": 28
       },
       {
-        "word": "Autonomous",
-        "startFrame": 38,
-        "endFrame": 51
+        "word": "OpenVPN",
+        "startFrame": 28,
+        "endFrame": 37
       },
       {
-        "word": "Organizations",
-        "startFrame": 51,
-        "endFrame": 64
+        "word": "Works",
+        "startFrame": 37,
+        "endFrame": 46
+      },
+      {
+        "word": "and",
+        "startFrame": 46,
+        "endFrame": 56
+      },
+      {
+        "word": "Packet",
+        "startFrame": 56,
+        "endFrame": 65
+      },
+      {
+        "word": "Journey",
+        "startFrame": 65,
+        "endFrame": 74
       },
       {
         "word": "actually",
-        "startFrame": 64,
-        "endFrame": 77
+        "startFrame": 74,
+        "endFrame": 83
       },
       {
         "word": "function",
-        "startFrame": 77,
-        "endFrame": 89
+        "startFrame": 83,
+        "endFrame": 93
       }
     ]
   },
@@ -135,7 +150,7 @@ const BAKED_SCENES: ScenePayload[] = [
     "role": "body",
     "template": "steps-numbered",
     "visual_type": "process-flow",
-    "themeColor": "#22d3ee",
+    "themeColor": "#1a6fd4",
     "durationInFrames": 102,
     "narration": "First, core components initialize state and process inbound requests.",
     "title": "First core components initialize",
@@ -228,7 +243,7 @@ const BAKED_SCENES: ScenePayload[] = [
     "role": "body",
     "template": "steps-numbered",
     "visual_type": "concept-diagram",
-    "themeColor": "#22d3ee",
+    "themeColor": "#1a6fd4",
     "durationInFrames": 102,
     "narration": "Next, the architecture coordinates workflows across modular distributed layers.",
     "title": "Next the architecture coordinates",
@@ -321,7 +336,7 @@ const BAKED_SCENES: ScenePayload[] = [
     "role": "body",
     "template": "steps-numbered",
     "visual_type": "process-flow",
-    "themeColor": "#22d3ee",
+    "themeColor": "#1a6fd4",
     "durationInFrames": 102,
     "narration": "Data flows deterministically through verified cryptographic pipelines.",
     "title": "Data flows deterministically through",
@@ -404,7 +419,7 @@ const BAKED_SCENES: ScenePayload[] = [
     "role": "body",
     "template": "steps-numbered",
     "visual_type": "concept-diagram",
-    "themeColor": "#22d3ee",
+    "themeColor": "#1a6fd4",
     "durationInFrames": 102,
     "narration": "The overall structure delivers unprecedented performance and guaranteed reliability.",
     "title": "The overall structure delivers",
@@ -497,7 +512,7 @@ const BAKED_SCENES: ScenePayload[] = [
     "role": "cta",
     "template": "cta-outro",
     "visual_type": "outro",
-    "themeColor": "#22d3ee",
+    "themeColor": "#1a6fd4",
     "durationInFrames": 90,
     "narration": "Accelerate your engineering with Bittrix Technologies.",
     "title": "Accelerate your engineering with",
@@ -632,7 +647,7 @@ const ThreeDShowcaseView: React.FC<{
   frame: number;
   fps: number;
 }> = ({ scene, frame, fps }) => {
-  const color = scene.themeColor || '#22d3ee';
+  const color = scene.themeColor || '#1a6fd4';
   const entrance = spring({ frame, fps, config: { damping: 18, stiffness: 120, mass: 0.9 } });
   const opacity = interpolate(frame, [0, Math.round(fps * 0.2)], [0, 1], { extrapolateRight: 'clamp' });
   
@@ -776,7 +791,7 @@ const ImageHeroView: React.FC<{
   frame: number;
   fps: number;
 }> = ({ scene, frame, fps }) => {
-  const color = scene.themeColor || '#22d3ee';
+  const color = scene.themeColor || '#1a6fd4';
   const entrance = spring({ frame, fps, config: { damping: 18, stiffness: 120, mass: 0.9 } });
   const zoom = interpolate(frame, [0, scene.durationInFrames || Math.round(fps * 3.5)], [1.0, 1.12], { extrapolateRight: 'clamp' });
   const panX = Math.sin(frame * 0.02) * 12;
@@ -896,7 +911,7 @@ const ConceptDiagramView: React.FC<{
   frame: number;
   fps: number;
 }> = ({ scene, frame, fps }) => {
-  const color = scene.themeColor || '#22d3ee';
+  const color = scene.themeColor || '#1a6fd4';
   const springCfg = { damping: 12, stiffness: 120 };
 
   // Rule 11: Parallax camera drift (Background 2%, Foreground 6%)
@@ -1013,7 +1028,7 @@ const ConceptDiagramView: React.FC<{
             transform: `scale(${enterB}) translateY(${pullB + idleFloatB}px) rotate(${idleRotB}deg)`,
           }}
         >
-          <div style={{ fontSize: 36, fontWeight: 900, color: '#f59e0b' }}>{nodeB.label}</div>
+          <div style={{ fontSize: 36, fontWeight: 900, color: '#6c3fb5' }}>{nodeB.label}</div>
           {nodeB.sub && <div style={{ fontSize: 22, color: '#94a3b8', marginTop: 10, fontWeight: 500 }}>{nodeB.sub}</div>}
         </div>
       </div>
@@ -1029,7 +1044,7 @@ const ProcessFlowView: React.FC<{
   frame: number;
   fps: number;
 }> = ({ scene, frame, fps }) => {
-  const color = scene.themeColor || '#22d3ee';
+  const color = scene.themeColor || '#1a6fd4';
   const steps = scene.labels && scene.labels.length ? scene.labels : (scene.nodes?.map(n => n.label) || [scene.on_screen_text || '']);
   const activeStep = Math.floor(interpolate(frame, [8, scene.durationInFrames - 15], [0, Math.max(0.1, steps.length - 0.01)], {
     extrapolateLeft: 'clamp',
@@ -1077,7 +1092,7 @@ const ProcessFlowView: React.FC<{
                   width: 48,
                   height: 48,
                   borderRadius: '50%',
-                  background: isCurrent ? color : isPassed ? '#f59e0b' : '#334155',
+                  background: isCurrent ? color : isPassed ? '#6c3fb5' : '#334155',
                   color: isCurrent ? '#020617' : '#ffffff',
                   display: 'flex',
                   alignItems: 'center',
@@ -1107,7 +1122,7 @@ const SplitCompareView: React.FC<{
   frame: number;
   fps: number;
 }> = ({ scene, frame, fps }) => {
-  const color = scene.themeColor || '#22d3ee';
+  const color = scene.themeColor || '#1a6fd4';
   const entrance = spring({ frame, fps, config: { damping: 14, mass: 0.8 } });
   const laserPos = Math.sin(frame * 0.08) * 100;
   const nodes = scene.nodes && scene.nodes.length >= 2 ? scene.nodes : [
@@ -1163,7 +1178,7 @@ const SplitCompareView: React.FC<{
               padding: 36,
               borderRadius: 24,
               background: 'rgba(245, 158, 11, 0.12)',
-              border: '2px solid #f59e0b',
+              border: '2px solid #6c3fb5',
               boxShadow: '0 10px 30px rgba(245, 158, 11, 0.25)',
               transform: `translateY(${-Math.sin(frame * 0.06) * 8}px)`,
             }}
@@ -1199,7 +1214,7 @@ const CalloutView: React.FC<{
   frame: number;
   fps: number;
 }> = ({ scene, frame, fps }) => {
-  const color = scene.themeColor || '#22d3ee';
+  const color = scene.themeColor || '#1a6fd4';
   const entrance = spring({ frame, fps, config: { damping: 14, mass: 0.8 } });
   const pulse = Math.sin(frame * 0.08) * 8;
   const cameraZoom = 1.0 + (frame / (scene.durationInFrames || 90)) * 0.06;
@@ -1293,7 +1308,7 @@ const StatCounterView: React.FC<{
   frame: number;
   fps: number;
 }> = ({ scene, frame, fps }) => {
-  const color = scene.themeColor || '#22d3ee';
+  const color = scene.themeColor || '#1a6fd4';
   const entrance = spring({ frame, fps, config: { damping: 14, mass: 0.8 } });
   const dialRotation = frame * 2.2;
   const pulse = Math.sin(frame * 0.1) * 6;
@@ -1471,23 +1486,31 @@ export default function GeneratedCliVideo(props: any) {
   const bgShiftX = 50 + Math.sin(globalFrame * 0.015) * 18;
   const bgShiftY = 35 + Math.cos(globalFrame * 0.02) * 14;
 
+  const isLastOutroScene = scenes.length > 0 && scenes[scenes.length - 1].visual_type === 'outro';
+  const contentFramesTotal = isLastOutroScene
+    ? scenes.slice(0, -1).reduce((acc, s) => acc + (s.durationInFrames || Math.round(fps * 3.5)), 0)
+    : 999999;
+
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: '#090d16',
+        backgroundColor: '#f5f5f0',
         color: '#ffffff',
         fontFamily: 'system-ui, -apple-system, sans-serif',
         overflow: 'hidden',
       }}
     >
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: `radial-gradient(circle at ${bgShiftX}% ${bgShiftY}%, rgba(34, 211, 238, 0.18) 0%, transparent 65%)`,
-          pointerEvents: 'none',
-        }}
-      />
+      {/* Themed ambient glow: strictly active during content scenes only, never touches or occludes Outro */}
+      {globalFrame < contentFramesTotal && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: `radial-gradient(circle at ${bgShiftX}% ${bgShiftY}%, #1a6fd42e 0%, transparent 65%)`,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
 
       {scenes.map((scene, index) => {
         const fromFrame = accumulatedFrame;

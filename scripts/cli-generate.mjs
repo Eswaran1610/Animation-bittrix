@@ -12,11 +12,15 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const topic = process.argv[2];
 const targetDuration = Number(process.argv[3] || 20);
 const fps = Number(process.argv[4] || 30);
+const requestedThemeId = process.argv[5];
 
 if (!topic) {
-  console.error('Usage: node scripts/cli-generate.mjs "<Topic>" [durationSeconds] [fps]');
+  console.error('Usage: node scripts/cli-generate.mjs "<Topic>" [durationSeconds] [fps] [themeId]');
   process.exit(1);
 }
+
+const { THEME_CATALOG, getThemeById } = await import('../backend/dist/modules/themes/themeCatalog.js');
+const activeTheme = getThemeById(requestedThemeId);
 
 const projectId = crypto.randomUUID();
 const outDir = path.join(root, 'backend', 'media', 'done', projectId);
@@ -26,6 +30,8 @@ console.log('====================================================');
 console.log('🚀 STANDALONE CLI MOTION PIPELINE');
 console.log(`Topic       : "${topic}"`);
 console.log(`Duration    : ${targetDuration}s @ ${fps} FPS`);
+console.log(`Theme       : "${activeTheme.name}" (${activeTheme.id})`);
+console.log(`Archetype   : ${activeTheme.archetype}`);
 console.log(`Project ID  : ${projectId}`);
 console.log(`Output Dir  : ${outDir}`);
 console.log('====================================================\n');
@@ -116,7 +122,7 @@ const scenes = sentences.map((narration, idx) => {
     role: isHook ? 'hook' : isOutro ? 'cta' : 'body',
     template: isHook ? 'question-hook' : isOutro ? 'cta-outro' : 'steps-numbered',
     visual_type: visualType,
-    themeColor: '#22d3ee',
+    themeColor: activeTheme.palette.primary,
     durationInFrames,
     narration,
     title: words.slice(0, 4).join(' '),
@@ -146,6 +152,7 @@ const props = {
     targetDurationSec: totalAudioSec,
     audioUrl: `audio/${audioFileName}`,
   },
+  theme: activeTheme,
   scenes
 };
 
@@ -155,7 +162,13 @@ await fs.writeFile(propsPath, JSON.stringify(props, null, 2), 'utf8');
 // 3. Generate authoritative TSX
 console.log('⚛️ [3/4] Generating Authoritative Remotion TSX File...');
 const { buildAuthoritativeTsx } = await import('../backend/dist/modules/production/authoritativeTsxBuilder.js');
-const tsxSource = buildAuthoritativeTsx(topic, scenes, { palette: { primary: '#22d3ee', accent: '#f59e0b', bg: '#090d16' } });
+const tsxSource = buildAuthoritativeTsx(topic, scenes, {
+  palette: activeTheme.palette,
+  fonts: activeTheme.fonts,
+  archetype: activeTheme.archetype,
+  motionPersonality: activeTheme.motionPersonality,
+  background: activeTheme.background
+});
 
 const tsxPath = path.join(outDir, 'composition.tsx');
 await fs.writeFile(tsxPath, tsxSource, 'utf8');

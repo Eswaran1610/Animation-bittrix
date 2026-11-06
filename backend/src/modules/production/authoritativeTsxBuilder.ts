@@ -997,7 +997,7 @@ const OutroView: React.FC<{
       <div
         style={{
           position: 'absolute',
-          bottom: 240,
+          bottom: 260,
           left: 60,
           right: 60,
           display: 'flex',
@@ -1007,9 +1007,9 @@ const OutroView: React.FC<{
           zIndex: 10,
         }}
       >
-        <h2 style={{ fontSize: 38, fontWeight: 900, textAlign: 'center', color: brandPurple, textShadow: '0 2px 10px rgba(253,243,208,0.8)', maxWidth: 880, margin: 0 }}>
-          {scene.on_screen_text || scene.narration}
-        </h2>
+        <span style={{ fontSize: 24, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 4, color: brandPurpleLight }}>
+          Engineering Innovation
+        </span>
       </div>
 
       <KineticCaptions words={scene.words || []} currentFrame={frame} accentColor={brandPurple} />
@@ -1065,6 +1065,11 @@ export default function GeneratedCliVideo(props: any) {
   const bgShiftX = 50 + Math.sin(globalFrame * 0.015) * 18;
   const bgShiftY = 35 + Math.cos(globalFrame * 0.02) * 14;
 
+  const isLastOutroScene = scenes.length > 0 && scenes[scenes.length - 1].visual_type === 'outro';
+  const contentFramesTotal = isLastOutroScene
+    ? scenes.slice(0, -1).reduce((acc, s) => acc + (s.durationInFrames || Math.round(fps * 3.5)), 0)
+    : 999999;
+
   return (
     <AbsoluteFill
       style={{
@@ -1074,14 +1079,17 @@ export default function GeneratedCliVideo(props: any) {
         overflow: 'hidden',
       }}
     >
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: \`radial-gradient(circle at \${bgShiftX}% \${bgShiftY}%, rgba(34, 211, 238, 0.18) 0%, transparent 65%)\`,
-          pointerEvents: 'none',
-        }}
-      />
+      {/* Themed ambient glow: strictly active during content scenes only, never touches or occludes Outro */}
+      {globalFrame < contentFramesTotal && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: \`radial-gradient(circle at \${bgShiftX}% \${bgShiftY}%, ${primaryColor}2e 0%, transparent 65%)\`,
+            pointerEvents: 'none',
+          }}
+        />
+      )}
 
       {scenes.map((scene, index) => {
         const fromFrame = accumulatedFrame;

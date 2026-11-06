@@ -137,6 +137,19 @@ async function runQualityGate() {
     }
   }
 
+  // 3. Scene differentiation check: compare test frames to ensure each scene is visually distinct
+  if (testFrames.length >= 2) {
+    try {
+      const f1 = path.join(outDir, `frame-${testFrames[0]}.png`);
+      const f2 = path.join(outDir, `frame-${testFrames[1]}.png`);
+      const b1 = await fs.readFile(f1);
+      const b2 = await fs.readFile(f2);
+      if (b1.equals(b2)) {
+        qualityIssues.push(`Scenes lack visual differentiation: Frame ${testFrames[0]} and Frame ${testFrames[1]} are identical.`);
+      }
+    } catch {}
+  }
+
   // Combine browser-measured layout issues
   if (browserQaIssues.length > 0) {
     qualityIssues.push(...browserQaIssues.map((msg) => `Browser DOM Measurement: ${msg}`));

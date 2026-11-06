@@ -95,12 +95,19 @@ export class TTSService {
     outputAlignment: string,
     speedMultiplier = 1
   ): Promise<WordAlignment[]> {
-    const currentDir = path.dirname(fileURLToPath(import.meta.url));
-    const alignScript = path.join(currentDir, 'edgeTtsAlign.py');
+    const alignScript = path.join(projectPaths.root, 'backend', 'src', 'modules', 'audio', 'edgeTtsAlign.py');
+    const isWindows = process.platform === 'win32';
+    const venvPython = path.join(
+      projectPaths.root,
+      '.venv-motion-checks',
+      isWindows ? 'Scripts' : 'bin',
+      isWindows ? 'python.exe' : 'python'
+    );
+    const pythonBin = existsSync(venvPython) ? venvPython : 'python3';
     const cleanText = text.replace(/[\r\n]+/g, ' ').trim();
 
-    console.log(`[TTSService] Synthesizing speech with native word alignment (${EDGE_TTS_VOICE})...`);
-    await execFileAsync('python3', [
+    console.log(`[TTSService] Synthesizing speech with native word alignment (${EDGE_TTS_VOICE}) using ${pythonBin}...`);
+    await execFileAsync(pythonBin, [
       alignScript,
       '--text', cleanText,
       '--audio', outputAudio,

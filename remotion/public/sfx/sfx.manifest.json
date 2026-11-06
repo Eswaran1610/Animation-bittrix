@@ -1,10 +1,12 @@
 {
- "seed": "starter-library",
+ "seed": "2026-sfx-pack1",
+ "pack": "digital",
  "sampleRate": 48000,
  "items": [
   {
    "file": "sfx/pop_01.wav",
    "role": "pop",
+   "pack": "digital",
    "transientMs": 2.7,
    "durationMs": 200,
    "gain": 0.9,
@@ -13,22 +15,7 @@
   {
    "file": "sfx/pop_02.wav",
    "role": "pop",
-   "transientMs": 2.7,
-   "durationMs": 200,
-   "gain": 0.9,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/pop_03.wav",
-   "role": "pop",
-   "transientMs": 2.7,
-   "durationMs": 200,
-   "gain": 0.9,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/pop_04.wav",
-   "role": "pop",
+   "pack": "digital",
    "transientMs": 2.7,
    "durationMs": 200,
    "gain": 0.9,
@@ -37,6 +24,7 @@
   {
    "file": "sfx/click_01.wav",
    "role": "click",
+   "pack": "digital",
    "transientMs": 2.7,
    "durationMs": 90,
    "gain": 0.6,
@@ -45,22 +33,7 @@
   {
    "file": "sfx/click_02.wav",
    "role": "click",
-   "transientMs": 2.7,
-   "durationMs": 90,
-   "gain": 0.6,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/click_03.wav",
-   "role": "click",
-   "transientMs": 2.7,
-   "durationMs": 90,
-   "gain": 0.6,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/click_04.wav",
-   "role": "click",
+   "pack": "digital",
    "transientMs": 2.7,
    "durationMs": 90,
    "gain": 0.6,
@@ -69,6 +42,7 @@
   {
    "file": "sfx/tick_01.wav",
    "role": "tick",
+   "pack": "digital",
    "transientMs": 2.7,
    "durationMs": 60,
    "gain": 0.45,
@@ -77,22 +51,7 @@
   {
    "file": "sfx/tick_02.wav",
    "role": "tick",
-   "transientMs": 2.7,
-   "durationMs": 60,
-   "gain": 0.45,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/tick_03.wav",
-   "role": "tick",
-   "transientMs": 2.7,
-   "durationMs": 60,
-   "gain": 0.45,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/tick_04.wav",
-   "role": "tick",
+   "pack": "digital",
    "transientMs": 2.7,
    "durationMs": 60,
    "gain": 0.45,
@@ -101,102 +60,61 @@
   {
    "file": "sfx/whoosh_01.wav",
    "role": "whoosh",
-   "transientMs": 442.7,
-   "durationMs": 737,
+   "pack": "digital",
+   "transientMs": 538.7,
+   "durationMs": 686,
    "gain": 0.7,
    "peakDb": -1.0
   },
   {
    "file": "sfx/whoosh_02.wav",
    "role": "whoosh",
-   "transientMs": 536.0,
-   "durationMs": 704,
-   "gain": 0.7,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/whoosh_03.wav",
-   "role": "whoosh",
-   "transientMs": 605.3,
-   "durationMs": 766,
-   "gain": 0.7,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/whoosh_04.wav",
-   "role": "whoosh",
-   "transientMs": 520.0,
-   "durationMs": 728,
+   "pack": "digital",
+   "transientMs": 445.3,
+   "durationMs": 652,
    "gain": 0.7,
    "peakDb": -1.0
   },
   {
    "file": "sfx/slide_01.wav",
    "role": "slide",
-   "transientMs": 165.3,
-   "durationMs": 253,
+   "pack": "digital",
+   "transientMs": 138.7,
+   "durationMs": 279,
    "gain": 0.5,
    "peakDb": -1.0
   },
   {
    "file": "sfx/slide_02.wav",
    "role": "slide",
-   "transientMs": 149.3,
-   "durationMs": 264,
-   "gain": 0.5,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/slide_03.wav",
-   "role": "slide",
-   "transientMs": 146.7,
-   "durationMs": 243,
-   "gain": 0.5,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/slide_04.wav",
-   "role": "slide",
-   "transientMs": 186.7,
-   "durationMs": 319,
+   "pack": "digital",
+   "transientMs": 152.0,
+   "durationMs": 281,
    "gain": 0.5,
    "peakDb": -1.0
   },
   {
    "file": "sfx/riser_01.wav",
    "role": "riser",
-   "transientMs": 1162.7,
-   "durationMs": 1177,
+   "pack": "digital",
+   "transientMs": 938.7,
+   "durationMs": 961,
    "gain": 0.55,
    "peakDb": -1.0
   },
   {
    "file": "sfx/riser_02.wav",
    "role": "riser",
-   "transientMs": 1138.7,
-   "durationMs": 1162,
-   "gain": 0.55,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/riser_03.wav",
-   "role": "riser",
-   "transientMs": 1085.3,
-   "durationMs": 1117,
-   "gain": 0.55,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/riser_04.wav",
-   "role": "riser",
-   "transientMs": 925.3,
-   "durationMs": 994,
+   "pack": "digital",
+   "transientMs": 880.0,
+   "durationMs": 919,
    "gain": 0.55,
    "peakDb": -1.0
   },
   {
    "file": "sfx/impact_01.wav",
    "role": "impact",
+   "pack": "digital",
    "transientMs": 2.7,
    "durationMs": 900,
    "gain": 0.9,
@@ -205,22 +123,7 @@
   {
    "file": "sfx/impact_02.wav",
    "role": "impact",
-   "transientMs": 2.7,
-   "durationMs": 900,
-   "gain": 0.9,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/impact_03.wav",
-   "role": "impact",
-   "transientMs": 2.7,
-   "durationMs": 900,
-   "gain": 0.9,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/impact_04.wav",
-   "role": "impact",
+   "pack": "digital",
    "transientMs": 2.7,
    "durationMs": 900,
    "gain": 0.9,
@@ -229,7 +132,8 @@
   {
    "file": "sfx/sparkle_01.wav",
    "role": "sparkle",
-   "transientMs": 88.0,
+   "pack": "digital",
+   "transientMs": 128.0,
    "durationMs": 600,
    "gain": 0.5,
    "peakDb": -1.0
@@ -237,23 +141,8 @@
   {
    "file": "sfx/sparkle_02.wav",
    "role": "sparkle",
-   "transientMs": 221.3,
-   "durationMs": 600,
-   "gain": 0.5,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/sparkle_03.wav",
-   "role": "sparkle",
-   "transientMs": 56.0,
-   "durationMs": 600,
-   "gain": 0.5,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/sparkle_04.wav",
-   "role": "sparkle",
-   "transientMs": 146.7,
+   "pack": "digital",
+   "transientMs": 48.0,
    "durationMs": 600,
    "gain": 0.5,
    "peakDb": -1.0
@@ -261,6 +150,7 @@
   {
    "file": "sfx/chime_01.wav",
    "role": "chime",
+   "pack": "digital",
    "transientMs": 2.7,
    "durationMs": 1000,
    "gain": 0.55,
@@ -269,22 +159,7 @@
   {
    "file": "sfx/chime_02.wav",
    "role": "chime",
-   "transientMs": 2.7,
-   "durationMs": 1000,
-   "gain": 0.55,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/chime_03.wav",
-   "role": "chime",
-   "transientMs": 2.7,
-   "durationMs": 1000,
-   "gain": 0.55,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/chime_04.wav",
-   "role": "chime",
+   "pack": "digital",
    "transientMs": 2.7,
    "durationMs": 1000,
    "gain": 0.55,
@@ -293,38 +168,25 @@
   {
    "file": "sfx/draw_01.wav",
    "role": "draw",
-   "transientMs": 234.7,
-   "durationMs": 384,
+   "pack": "digital",
+   "transientMs": 272.0,
+   "durationMs": 421,
    "gain": 0.4,
    "peakDb": -1.0
   },
   {
    "file": "sfx/draw_02.wav",
    "role": "draw",
-   "transientMs": 226.7,
-   "durationMs": 464,
-   "gain": 0.4,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/draw_03.wav",
-   "role": "draw",
-   "transientMs": 200.0,
-   "durationMs": 365,
-   "gain": 0.4,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/draw_04.wav",
-   "role": "draw",
-   "transientMs": 248.0,
-   "durationMs": 457,
+   "pack": "digital",
+   "transientMs": 229.3,
+   "durationMs": 386,
    "gain": 0.4,
    "peakDb": -1.0
   },
   {
    "file": "sfx/count_01.wav",
    "role": "count",
+   "pack": "digital",
    "transientMs": 269.3,
    "durationMs": 600,
    "gain": 0.45,
@@ -333,22 +195,7 @@
   {
    "file": "sfx/count_02.wav",
    "role": "count",
-   "transientMs": 360.0,
-   "durationMs": 600,
-   "gain": 0.45,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/count_03.wav",
-   "role": "count",
-   "transientMs": 360.0,
-   "durationMs": 600,
-   "gain": 0.45,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/count_04.wav",
-   "role": "count",
+   "pack": "digital",
    "transientMs": 269.3,
    "durationMs": 600,
    "gain": 0.45,
@@ -357,6 +204,7 @@
   {
    "file": "sfx/ding_01.wav",
    "role": "ding",
+   "pack": "digital",
    "transientMs": 69.3,
    "durationMs": 500,
    "gain": 0.55,
@@ -365,22 +213,7 @@
   {
    "file": "sfx/ding_02.wav",
    "role": "ding",
-   "transientMs": 69.3,
-   "durationMs": 500,
-   "gain": 0.55,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/ding_03.wav",
-   "role": "ding",
-   "transientMs": 69.3,
-   "durationMs": 500,
-   "gain": 0.55,
-   "peakDb": -1.0
-  },
-  {
-   "file": "sfx/ding_04.wav",
-   "role": "ding",
+   "pack": "digital",
    "transientMs": 69.3,
    "durationMs": 500,
    "gain": 0.55,

@@ -101,11 +101,69 @@ export class TsxValidator {
       warnings.push('TSX does not directly call useCurrentFrame(). Ensure animation is deterministic.');
     }
 
+    // 6. Anti-Placeholder and Anti-Meta-Clutter check (Corrections 2 & 8)
+    const FORBIDDEN_TEXT_PATTERNS = [
+      /\bplaceholder\b/i,
+      /\blorem\s+ipsum\b/i,
+      /\bready\s+to\s+render\b/i,
+      /\bscene\s+\d+\s+placeholder\b/i,
+      /\bRemotion\.init\b/i,
+      /~\/pipeline\//i,
+      /\bengine\.render\b/i,
+      /\bCORE\s+ARCHITECTURE\b/i,
+      /\bCORE\s+EXPLAINER\b/i,
+    ];
+
+    for (const pattern of FORBIDDEN_TEXT_PATTERNS) {
+      if (pattern.test(tsxSource)) {
+        errors.push(`TSX contains forbidden placeholder or pipeline meta-clutter text matching: ${pattern.toString()}`);
+      }
+    }
+
     return {
       valid: errors.length === 0,
       errors,
       warnings,
     };
+  }
+
+  validateScenePlan(scenes: any[]): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+    if (!Array.isArray(scenes) || scenes.length === 0) {
+      return { valid: false, errors: ['Scene plan must be a non-empty array of scenes.'] };
+    }
+
+    let repeatCount = 1;
+    let lastVisualType = '';
+
+    scenes.forEach((scene, index) => {
+      const vType = scene.visual_type || scene.template || 'callout';
+      if (vType === lastVisualType) {
+        repeatCount++;
+        if (repeatCount >= 3) {
+          errors.push(`Visual type "${vType}" is repeated across 3 consecutive scenes (scenes ${index - 1}, ${index}, ${index + 1}). Vary the visual idea per sentence.`);
+        }
+      } else {
+        repeatCount = 1;
+        lastVisualType = vType;
+      }
+
+      // Check for placeholder or tool words
+      const text = `${scene.narration || ''} ${scene.on_screen_text || ''} ${JSON.stringify(scene.nodes || [])}`;
+      if (/\b(?:placeholder|lorem\s+ipsum|ready\s+to\s+render|todo:)\b/i.test(text)) {
+        errors.push(`Scene ${index + 1} contains placeholder text.`);
+      }
+      if (/\b(?:Remotion\.init|~\/pipeline\/|engine\.render)\b/i.test(text)) {
+        errors.push(`Scene ${index + 1} contains pipeline or tool meta-clutter.`);
+      }
+
+      // Check that stat-counter has a source url
+      if (vType === 'stat-counter' && scene.stat_value && !scene.source_url) {
+        errors.push(`Scene ${index + 1} has a numerical statistic "${scene.stat_value}" without a verified source_url.`);
+      }
+    });
+
+    return { valid: errors.length === 0, errors };
   }
 }
 

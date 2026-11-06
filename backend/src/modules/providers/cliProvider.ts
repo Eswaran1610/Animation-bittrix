@@ -406,7 +406,7 @@ export class UnifiedCliProvider extends BasePlanProvider {
     scenePlan: any[];
     measuredScenes?: any[];
     styleBrief?: any;
-  }): Promise<{ tsxSource: string; audioDesign: { bedMood: string; voiceDirection: string; scenes: Array<{ scene_number: number; cues: Array<{ hitFrame: number; role: string; object_id?: string; reason: string }> }> } }> {
+  }): Promise<{ tsxSource: string; audioDesign: { bedMood: string; voiceDirection: string; scenes: Array<{ scene_number: number; cues: Array<{ hitFrame: number; role: string; object_id?: string; reason: string }> }> }; scenes?: any[] }> {
     const active = activeProviderService.get();
     const sourceScenes = (input.measuredScenes && input.measuredScenes.length > 0)
       ? input.measuredScenes
@@ -414,12 +414,13 @@ export class UnifiedCliProvider extends BasePlanProvider {
 
     const compactScenes = sourceScenes.map((scene: any, idx: number) => {
       const orig = input.scenePlan[idx] || {};
-      const durationInFrames = Number(scene.durationInFrames || Math.round(Number(orig.duration_sec || 3.5) * 30));
+      const fps = Number(scene.fps || orig.fps || 60);
+      const durationInFrames = Number(scene.durationInFrames || Math.round(Number(orig.duration_sec || 3.5) * fps));
       return {
         scene_number: Number(scene.scene_number || idx + 1),
         role: scene.role || orig.role || (idx === 0 ? 'hook' : idx === sourceScenes.length - 1 ? 'cta' : 'body'),
         durationInFrames,
-        duration_sec: Number((durationInFrames / 30).toFixed(2)),
+        duration_sec: Number((scene.duration_sec || (durationInFrames / fps)).toFixed(2)),
         narration: scene.narration || orig.narration || '',
         on_screen_text: scene.on_screen_text || orig.on_screen_text || orig.title || '',
         visual_direction: scene.visual_direction || orig.visual_direction || '',
@@ -437,31 +438,40 @@ export class UnifiedCliProvider extends BasePlanProvider {
 
     const totalFrames = compactScenes.reduce((sum, s) => sum + s.durationInFrames, 0);
 
-    const prompt = `You are the Lead Creative Director & Remotion Motion Animation Developer for this video.
-Return ONLY ONE valid JSON object with exactly two keys: "tsxSource" and "audioDesign".
+    const prompt = `You are the Lead Creative Director & Motion Animation Designer for this video.
+Return ONLY ONE valid JSON object with exactly two keys: "scenePlan" and "audioDesign".
 
 PROJECT: "${input.projectTitle}" (ID: ${input.projectId}), Script v${input.scriptVersion}
-OUTPUT FORMAT: 1080 x 1920 (9:16 vertical), 30 FPS, Total Duration: ${totalFrames} frames (${(totalFrames / 30).toFixed(2)}s).
+OUTPUT FORMAT: 1080 x 1920 (9:16 vertical), 60 FPS Professional Motion Graphics, Total Duration: ${totalFrames} frames (${(totalFrames / 60).toFixed(2)}s).
 
 AUTHORITATIVE SCENES & MEASURED AUDIO WORD TIMESTAMPS:
 ${JSON.stringify(compactScenes, null, 2)}
 
-REQUIREMENTS FOR tsxSource:
-1. Must be complete, self-contained Remotion TSX code with a default export:
-   export default function GeneratedCliVideo(props: any) { ... }
-2. ALLOWED IMPORTS:
-   - import React from 'react';
-   - import { useCurrentFrame, useVideoConfig, spring, interpolate, Sequence, AbsoluteFill } from 'remotion';
-3. CREATIVE ANIMATION DIRECTION:
-   - Make it feel like an authentic, high-end motion graphics explainer (like a Claude Code, Vercel, or Apple product reel).
-   - Use frame-based animation with useCurrentFrame() and spring() physics.
-   - Synchronize on-screen typography to the measured word timestamps: highlight, colorize, or spring-pop words as they are spoken.
-   - Do NOT use setInterval, setTimeout, or browser-only APIs.
-   - Respect vertical mobile safe zones (padding: 60px).
+MANDATORY MOTION DESIGN REQUIREMENTS FOR scenePlan:
+Return an array of ${compactScenes.length} scene objects matching the input scenes. Each scene object MUST contain:
+1. "scene_number": integer (1 to ${compactScenes.length})
+2. "visual_type": Choose one of: "3d-showcase" | "image-hero" | "concept-diagram" | "process-flow" | "split-compare" | "timeline" | "callout" | "stat-counter" | "outro".
+   - RULE: Use "3d-showcase" for core technology, mechanisms, or spatial architecture to render an isometric 3D floating stage.
+   - RULE: Use "image-hero" with "image_url" when a photographic or illustration asset explains the concept.
+   - RULE: NEVER use the same visual_type in 3 consecutive scenes.
+   - RULE: Use "stat-counter" ONLY if the narration contains a specific quantitative number and provide "source_url".
+   - RULE: Last scene (final ~3s) MUST be "outro" (which loads the mandatory 3-second Bittrix Technologies logo video piece).
+3. "icon": Relevant 3D glyph/emoji for 3D showcase scenes (e.g. 🌐, ⚡, 🔐, 🧠, 💻, 🚀).
+4. "image_url": (Optional) Direct open-license HTTPS image URL or static asset path.
+5. "emphasis_word": The key spoken word from this scene's narration that triggers the primary motion hit.
+6. "nodes": Array of 1-3 visual nodes/concepts directly mentioned in the narration: [{ "label": "Short Spoken Concept", "sub": "Detail from narration" }]
+7. "edges": Array of connections between nodes: [{ "from": 0, "to": 1, "label": "action/relation", "dashed": false }]
+8. "labels": Array of 2-4 keywords or step titles directly from this scene's sentence.
+9. "stat_value": (Optional) If visual_type is stat-counter, the exact number.
+10. "source_url": (Optional) Source URL verifying the number.
+
+NO META-CLUTTER OR PLACEHOLDERS:
+- FORBIDDEN: "Ready to render", "placeholder", "lorem", "HOOK", "BODY", "SUBSCRIBE", "CORE ARCHITECTURE", tool names, Remotion APIs.
+- Every node and label word MUST come from the narration.
 
 REQUIREMENTS FOR audioDesign:
 {"bedMood":"content-specific ambient bed description","voiceDirection":"keep natural 1.00x delivery","scenes":[{"scene_number":1,"cues":[{"hitFrame":15,"role":"whoosh","reason":"visual entrance"}]}]}
-Use cues from: pop, click, tick, whoosh, slide, riser, impact, sparkle, chime, draw, count, ding. Max 5 cues per scene.
+Allowed cue roles: pop, click, tick, whoosh, slide, riser, impact, sparkle, chime, draw, count, ding. Max 5 cues per scene.
 `;
 
     let parsed: any = null;
@@ -484,42 +494,37 @@ Use cues from: pop, click, tick, whoosh, slide, riser, impact, sparkle, chime, d
         }
       }
     } catch (cliErr: any) {
-      console.warn(`[${active.toUpperCase()}] CLI TSX generation call failed: ${cliErr.message}. Falling back to authoritative TSX engine.`);
+      console.warn(`[${active.toUpperCase()}] CLI generation call failed: ${cliErr.message}. Falling back to authoritative plan generator.`);
     }
 
-    // Validate CLI generated TSX
+    let finalScenes = compactScenes;
+    if (parsed && Array.isArray(parsed.scenePlan) && parsed.scenePlan.length === compactScenes.length) {
+      const planValidation = tsxValidator.validateScenePlan(parsed.scenePlan);
+      if (planValidation.valid) {
+        console.log(`[${active.toUpperCase()}] CLI-generated scene plan passed validation!`);
+        finalScenes = compactScenes.map((s, idx) => ({
+          ...s,
+          ...parsed.scenePlan[idx],
+          durationInFrames: s.durationInFrames,
+          words: s.words,
+        }));
+      } else {
+        console.warn(`[${active.toUpperCase()}] CLI scene plan validation warnings: ${planValidation.errors.join('; ')}`);
+      }
+    }
+
     let validTsxSource: string | null = null;
     if (parsed && typeof parsed.tsxSource === 'string' && parsed.tsxSource.trim().length > 0) {
       const val = await tsxValidator.validate(parsed.tsxSource);
       if (val.valid) {
         validTsxSource = parsed.tsxSource;
-        console.log(`[${active.toUpperCase()}] CLI-generated TSX passed validation.`);
-      } else {
-        console.warn(`[${active.toUpperCase()}] CLI-generated TSX had validation issues: ${val.errors.join('; ')}.`);
-        // Try one bounded repair pass
-        try {
-          const repairPrompt = `Your previous Remotion TSX had these syntax/validation errors:\n${val.errors.join('\n')}\n\nRepair the code and return ONLY the corrected JSON object with keys "tsxSource" and "audioDesign".`;
-          const repairResponse = await this.runText(repairPrompt, { timeoutMs: 60000, projectId: input.projectId });
-          const first = repairResponse.indexOf('{');
-          const last = repairResponse.lastIndexOf('}');
-          if (first >= 0 && last > first) {
-            const repaired = JSON.parse(repairResponse.slice(first, last + 1));
-            if (typeof repaired.tsxSource === 'string') {
-              const repVal = await tsxValidator.validate(repaired.tsxSource);
-              if (repVal.valid) {
-                validTsxSource = repaired.tsxSource;
-                if (repaired.audioDesign) parsed.audioDesign = repaired.audioDesign;
-                console.log(`[${active.toUpperCase()}] Repaired TSX passed validation!`);
-              }
-            }
-          }
-        } catch {}
+        console.log(`[${active.toUpperCase()}] Direct TSX passed validation.`);
       }
     }
 
     if (!validTsxSource) {
-      console.log(`[UnifiedCliProvider] Generating authoritative, audio-aligned Remotion TSX tailored for "${input.projectTitle}"...`);
-      validTsxSource = buildAuthoritativeTsx(input.projectTitle, compactScenes, input.styleBrief);
+      console.log(`[UnifiedCliProvider] Building authoritative data-driven Remotion TSX for "${input.projectTitle}"...`);
+      validTsxSource = buildAuthoritativeTsx(input.projectTitle, finalScenes, input.styleBrief);
     }
 
     const roles = new Set(['pop', 'click', 'tick', 'whoosh', 'slide', 'riser', 'impact', 'sparkle', 'chime', 'draw', 'count', 'ding']);
@@ -589,7 +594,7 @@ Use cues from: pop, click, tick, whoosh, slide, riser, impact, sparkle, chime, d
       scene.cues = sanitizedCues;
     });
 
-    return { tsxSource: validTsxSource, audioDesign };
+    return { tsxSource: validTsxSource, audioDesign, scenes: finalScenes };
   }
 
   // ──────────────────────────────────────────────────

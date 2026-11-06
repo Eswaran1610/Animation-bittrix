@@ -1118,7 +1118,7 @@ Return a completely corrected raw JSON object directly in your response only. Do
 The following rules are hard requirements, not suggestions:
 - scenePlan has 7-9 scenes numbered consecutively from 1
 - scene 1 has role "hook", template "question-hook", and on_screen_text ending in ? or ؟
-- the final scene has role "cta", template "cta-outro", and on_screen_text or subtitle includes one of: follow, save, share, like, subscribe, learn, try, comment, visit, watch, join
+- the final scene has role "cta", template "cta-outro", visual_type "outro", duration_sec: 3.0, on_screen_text: "Bittrix Technologies", and visual_direction: "Authentic Bittrix Technologies 3-second animated logo video with purple and cream branding"
 - every middle scene has role "body"
 - every visual_blueprint has non-empty purpose, layout, camera_motion, an asset_queries array, and at least two distinct objects
 - every object has a unique id, x/y values from 0 to 1, and a valid render_spec.type

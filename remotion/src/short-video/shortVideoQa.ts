@@ -40,7 +40,7 @@ export const collectMainCompositionQaIssues = (props: SceneDataPayload): string[
   const last = props.scenes.at(-1);
   if (first && first.role !== 'hook' && !['question-hook', 'hero-object'].includes(first.template || '')) issues.push('MainComposition must open with a hook.');
   if (last && last.role !== 'cta' && last.template !== 'cta-outro') issues.push('MainComposition must end with a CTA.');
-  const themeColors = new Set(props.scenes.map((scene) => scene.themeColor.toLowerCase()));
+  const themeColors = new Set(props.scenes.map((scene) => (scene.themeColor || '#22d3ee').toLowerCase()));
   if (themeColors.size > 4) issues.push('MainComposition uses more than four scene accent colors.');
   props.scenes.forEach((scene, index) => {
     // MainComposition scene frames follow measured narration. Do not reject a

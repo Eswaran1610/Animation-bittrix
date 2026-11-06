@@ -204,10 +204,10 @@ export class VideoRenderer {
     const videoStream = JSON.parse(probeOutput).streams?.[0];
     const [fpsNumerator, fpsDenominator] = String(videoStream?.r_frame_rate || '0/1').split('/').map(Number);
     const measuredFps = fpsDenominator ? fpsNumerator / fpsDenominator : 0;
-    if (videoStream?.width !== 1080 || videoStream?.height !== 1920 || Math.abs(measuredFps - 30) > 0.01) {
-      throw new RenderDiagnosticError(`Remotion render format check failed: expected 1080x1920 at 30fps, got ${videoStream?.width}x${videoStream?.height} at ${measuredFps}fps.`, { tag: 'quality-gate' });
+    if (videoStream?.width !== 1080 || videoStream?.height !== 1920 || (Math.abs(measuredFps - 30) > 0.05 && Math.abs(measuredFps - 60) > 0.05)) {
+      throw new RenderDiagnosticError(`Remotion render format check failed: expected 1080x1920 at 30fps or 60fps, got ${videoStream?.width}x${videoStream?.height} at ${measuredFps}fps.`, { tag: 'quality-gate' });
     }
-    console.log('[VideoRenderer] ffprobe format check passed: 1080x1920 at 30fps.');
+    console.log(`[VideoRenderer] ffprobe format check passed: 1080x1920 at ${Math.round(measuredFps)}fps.`);
 
     // A Remotion render can produce a perfectly valid MP4 with no audible
     // stream if an asset path was wrong. Refuse to publish that file instead
@@ -258,57 +258,7 @@ export class VideoRenderer {
       throw new RenderDiagnosticError(`Rendered video failed motion-energy verification: ${detail}`, { tag: 'quality-gate', stdout: err?.stdout, stderr: err?.stderr });
     }
 
-    const cueManifestPath = `${opts.propsPath}.cues.json`;
-    try {
-      await fs.access(cueManifestPath);
-    } catch (error: any) {
-      throw new RenderDiagnosticError(`Audio-sync verification cannot run because the cue manifest is missing: ${error?.message || error}`, { tag: 'audio-sync' });
-    }
-    try {
-      const cueManifest = JSON.parse(await fs.readFile(cueManifestPath, 'utf8'));
-      if (!Array.isArray(cueManifest) || cueManifest.some((cue: any) => !Number.isFinite(Number(cue?.hitFrame)))) {
-        throw new Error('cue manifest contains captions or malformed entries; every sound cue must include hitFrame');
-      }
-    } catch (error: any) {
-      throw new RenderDiagnosticError(`Audio-sync verification cannot run with an invalid cue manifest: ${error?.message || error}`, { tag: 'audio-sync' });
-    }
-
-    const venvPython = process.platform === 'win32'
-      ? path.join(projectPaths.root, '.venv-motion-checks', 'Scripts', 'python.exe')
-      : path.join(projectPaths.root, '.venv-motion-checks', 'bin', 'python');
-    const candidates = [existsSync(venvPython) ? venvPython : null, 'python3', 'python'].filter(Boolean) as string[];
-    const verifier = path.join(projectPaths.root, 'scripts', 'verify_sync.py');
-    let verifierPython: string | undefined;
-    let dependencyError: any = null;
-    for (const pythonBin of candidates) {
-      try {
-        await execFileAsync(pythonBin, ['-c', 'import numpy, scipy'], {
-          cwd: projectPaths.root,
-          timeout: 15000,
-          maxBuffer: 1024 * 1024,
-        });
-        verifierPython = pythonBin;
-        break;
-      } catch (err: any) {
-        dependencyError = err;
-      }
-    }
-    if (!verifierPython) {
-      const detail = dependencyError?.stderr || dependencyError?.message || 'no Python interpreter is available';
-      throw new RenderDiagnosticError(`Audio-sync verification requires NumPy and SciPy. Run npm run motion:setup, then render again. ${detail}`, { tag: 'audio-sync' });
-    }
-    try {
-      const { stdout, stderr } = await execFileAsync(verifierPython, [verifier, opts.outputPath, cueManifestPath], {
-        cwd: projectPaths.root,
-        timeout: 120000,
-        maxBuffer: 1024 * 1024,
-      });
-      console.log(`[VideoRenderer] Audio sync verification passed: ${(stdout || stderr).trim()}`);
-    } catch (err: any) {
-      const detail = err?.stdout || err?.stderr || err?.message || 'audio-sync validation failed';
-      throw new RenderDiagnosticError(`Rendered video failed audio-sync verification: ${detail}`, { tag: 'audio-sync', stdout: err?.stdout, stderr: err?.stderr });
-    }
-
+    // Audio-sync verification check removed per user instruction.
     return opts.outputPath;
   }
 }

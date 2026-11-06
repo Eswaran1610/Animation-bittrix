@@ -75,8 +75,8 @@ export const preflightRenderProps = async (propsPath: string): Promise<void> => 
   if (!props?.video || !['codex', 'agy', 'claude'].includes(props.video.generatedBy) || !Array.isArray(props.scenes) || props.scenes.length === 0) {
     fail('Props preflight failed: expected a supported CLI-generated video payload with at least one scene.', 'props-invalid');
   }
-  if (props.video.width !== 1080 || props.video.height !== 1920 || props.video.fps !== 30) {
-    fail(`Props preflight failed: expected 1080x1920 at 30 FPS, received ${props.video.width}x${props.video.height} at ${props.video.fps} FPS.`, 'props-invalid');
+  if (props.video.width !== 1080 || props.video.height !== 1920 || (props.video.fps !== 30 && props.video.fps !== 60)) {
+    fail(`Props preflight failed: expected 1080x1920 at 30 or 60 FPS, received ${props.video.width}x${props.video.height} at ${props.video.fps} FPS.`, 'props-invalid');
   }
   for (const [index, scene] of props.scenes.entries()) {
     if (!Number.isInteger(scene.durationInFrames) || scene.durationInFrames < 1 || !scene.visualBlueprint?.objects?.length) {

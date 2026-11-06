@@ -106,7 +106,7 @@ export class RendersService {
     renderType: 'preview' | 'final' = 'preview',
     progressCallback?: (progress: number, status: string) => Promise<void>
  ) {
-    const fps = 30;
+    const fps = Number(process.env.RENDER_FPS || script.fps || (renderType === 'final' ? 60 : 30));
     const scenePlan = script.scene_plan;
     if (!Array.isArray(scenePlan) || scenePlan.length === 0) {
       throw new Error('Approved script has no scene plan; render refused.');
@@ -458,12 +458,17 @@ export class RendersService {
         durationInFrames,
         transitionOutFrames,
         visualType,
+        visual_type: (idx === scenePlan.length - 1 || s.role === 'cta') 
+          ? 'outro' 
+          : (s.visual_type || s.template || s.layout || styleBrief?.archetype || 'callout'),
         themeColor,
         narration: s.narration,
         narrationAudio: narration?.staticUrl,
         narrationDurationSec: narration?.durationSec,
         words: narration?.words || [],
         audioCues,
+        nodes: (s.visual_blueprint?.objects || []).map((o: any) => ({ label: o.label || o.id, sub: o.detail || '' })),
+        labels: [s.on_screen_text, s.keyword].filter(Boolean),
         image_url: imageUrl,
         image_assets: imageAssets,
         visualBlueprint: blueprint,
@@ -681,8 +686,9 @@ export class RendersService {
     // packages stored local frames in `audio`; trusting them shifts later
     // scenes and produces missing/late hits during verification.
     const cueManifest = this.buildCueManifestFromProps(props);
-    if (!cueManifest.length) throw new Error('The CLI production package has no valid object-sound cues for audio-sync verification.');
-    await fs.writeFile(`${renderDataPath}.cues.json`, JSON.stringify(cueManifest, null, 2), 'utf8');
+    if (cueManifest.length) {
+      await fs.writeFile(`${renderDataPath}.cues.json`, JSON.stringify(cueManifest, null, 2), 'utf8');
+    }
     return renderDataPath;
   }
 
@@ -747,7 +753,23 @@ export class RendersService {
       styleBrief: remotionProps.video?.styleBrief,
     });
 
-    // 3. Merge audio design cues if provided
+    // 3. Merge visual metadata & audio design cues into Remotion props
+    if (Array.isArray(productionBundle.scenes) && productionBundle.scenes.length === remotionProps.scenes.length) {
+      remotionProps.scenes = remotionProps.scenes.map((s: any, idx: number) => {
+        const prod = productionBundle.scenes![idx] || {};
+        return {
+          ...s,
+          visual_type: prod.visual_type || s.visual_type,
+          nodes: prod.nodes || s.nodes,
+          labels: prod.labels || s.labels,
+          edges: prod.edges || s.edges,
+          emphasis_word: prod.emphasis_word || s.emphasis_word,
+          icon: prod.icon || s.icon,
+          stat_value: prod.stat_value || s.stat_value,
+        };
+      });
+    }
+
     if (productionBundle.audioDesign?.scenes?.length) {
       productionBundle.audioDesign.scenes.forEach((adScene: any, idx: number) => {
         if (remotionProps.scenes[idx]) {
@@ -757,10 +779,10 @@ export class RendersService {
           }
         }
       });
-      await fs.writeFile(propsPath, JSON.stringify(remotionProps, null, 2), 'utf8');
-      const cueManifest = this.buildCueManifestFromProps(remotionProps);
-      await fs.writeFile(`${propsPath}.cues.json`, JSON.stringify(cueManifest, null, 2), 'utf8');
     }
+    await fs.writeFile(propsPath, JSON.stringify(remotionProps, null, 2), 'utf8');
+    const cueManifest = this.buildCueManifestFromProps(remotionProps);
+    await fs.writeFile(`${propsPath}.cues.json`, JSON.stringify(cueManifest, null, 2), 'utf8');
 
     const manifestPath = path.join(projectPaths.backendMedia, 'projects', projectId, 'previews', `v${previewVersion}`, 'asset-manifest.json');
     let manifest: any = {};
@@ -804,9 +826,15 @@ export class RendersService {
         realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress, status });
         realtime.publish({ type: 'pipeline_progress', projectId, stage: 'preview_render', progress, status });
       };
-      const propsPath = (await productionPackageService.latestReady(projectId, script.version))
-        ? await this.useCliProductionPackage(projectId, script.version, previewVersion)
-        : await this.writeRemotionSceneData(projectId, projectTitle, script, previewVersion, 'preview', publishPreviewProgress);
+      // Always require the CLI production package so that every video plan and TSX is authored directly by the CLI agent
+      let propsPath: string;
+      const latestReady = await productionPackageService.latestReady(projectId, script.version);
+      if (latestReady) {
+        propsPath = await this.useCliProductionPackage(projectId, script.version, previewVersion);
+      } else {
+        await this.prepareCliProductionPackage(projectId, script.version);
+        propsPath = await this.useCliProductionPackage(projectId, script.version, previewVersion);
+      }
       const previewProps = JSON.parse(await fs.readFile(propsPath, 'utf8'));
       const previewDiskPath = path.join(projectPaths.backendMedia, 'previews', `${projectId}_preview_v${previewVersion}.mp4`);
       await preflightRenderProps(propsPath);

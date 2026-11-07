@@ -79,12 +79,21 @@ export const DynamicScene: React.FC<{
       return <NetworkNodes color={color} nodes={scene.concept_nodes} />;
     }
 
-    // 6. Orbital rings
-    if (scene.visualType === 'orbital' || index % 3 === 1) {
+    // 6. Build a real flow diagram from the scene's own takeaways
+    const takeawayNodes = (scene.key_takeaways || [])
+      .filter((t) => t && t.trim().length > 0)
+      .slice(0, 4)
+      .map((t) => ({ label: t.length > 42 ? `${t.slice(0, 40).trim()}…` : t }));
+    if (takeawayNodes.length >= 2) {
+      return <NetworkNodes color={color} nodes={takeawayNodes} />;
+    }
+
+    // 7. Orbital rings only when the plan explicitly asks for them
+    if (scene.visualType === 'orbital') {
       return <OrbitalRings color={color} />;
     }
 
-    // 7. Dynamic technical diagram
+    // 8. Title-derived flow diagram
     return <DynamicDiagram color={color} title={title} />;
   })();
 

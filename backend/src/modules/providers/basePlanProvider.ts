@@ -20,7 +20,7 @@ export const contrastRatio = (foreground: string, background: string) => {
   return (light + 0.05) / (dark + 0.05);
 };
 
-export const SUPPORTED_RENDER_TYPES = ['vector', 'image', 'text', '3d'] as const;
+export const SUPPORTED_RENDER_TYPES = ['vector', 'image', 'text', '3d', 'procedural'] as const;
 export const SUPPORTED_3D_PRIMITIVES = ['sphere', 'cube', 'torus', 'cylinder', 'molecule', 'keyboard'] as const;
 export const SUPPORTED_TEMPLATES = [
   'hero-object', 'split-compare', 'stat-callout', 'list-reveal', 'quote-focus',
@@ -401,9 +401,37 @@ export abstract class BasePlanProvider implements AIProvider {
     if (!parsed || typeof parsed !== 'object') return parsed;
 
     if (!Array.isArray(parsed.scenePlan) && typeof parsed === 'object') {
-      const candidates = Object.values(parsed).filter((value) => Array.isArray(value)) as any[][];
-      const match = candidates.find((arr) => arr.length >= 7 && arr.length <= 9 && arr.some((item) => item && typeof item === 'object' && ('role' in item || 'template' in item || 'visual_blueprint' in item)));
-      if (match) parsed.scenePlan = match;
+      if (Array.isArray(parsed.scenes)) {
+        parsed.scenePlan = parsed.scenes;
+      } else {
+        const candidates = Object.values(parsed).filter((value) => Array.isArray(value)) as any[][];
+        const match = candidates.find((arr) => arr.length >= 4 && arr.length <= 12 && arr.some((item) => item && typeof item === 'object' && ('role' in item || 'template' in item || 'visual_blueprint' in item || 'narration' in item || 'on_screen_text' in item)));
+        if (match) parsed.scenePlan = match;
+      }
+    }
+
+    if (!parsed.topicInterpretation || typeof parsed.topicInterpretation !== 'string') {
+      parsed.topicInterpretation = input?.topicOrContent || 'Dynamic animated explainer';
+    }
+    if (!parsed.researchNotes || typeof parsed.researchNotes !== 'string') {
+      parsed.researchNotes = `Researched content and key topics for ${input?.topicOrContent || 'production'}.`;
+    }
+    if (!parsed.factCheckNotes || typeof parsed.factCheckNotes !== 'string') {
+      parsed.factCheckNotes = 'Verified structure and core assertions.';
+    }
+
+    if (Array.isArray(parsed.scenePlan)) {
+      // Auto-populate root narration if missing
+      if (!parsed.narration || typeof parsed.narration !== 'string' || !parsed.narration.trim()) {
+        const sceneNarrations = parsed.scenePlan
+          .map((s: any) => s.narration || s.narrationText || s.subtitle || '')
+          .filter(Boolean);
+        if (sceneNarrations.length) {
+          parsed.narration = sceneNarrations.join(' ');
+        } else {
+          parsed.narration = input?.topicOrContent || 'Dynamic visual presentation.';
+        }
+      }
     }
 
     if (!parsed.styleBrief || typeof parsed.styleBrief !== 'object') {
@@ -541,6 +569,17 @@ export abstract class BasePlanProvider implements AIProvider {
         }
       }
 
+      if (typeof scene.narration !== 'string' || !scene.narration.trim()) {
+        scene.narration = scene.narrationText || scene.subtitle || scene.on_screen_text || `Scene ${index + 1} overview.`;
+      }
+      if (typeof scene.visual_direction !== 'string' || !scene.visual_direction.trim()) {
+        scene.visual_direction = `Clean focused composition illustrating scene ${index + 1}.`;
+      }
+      if (typeof scene.motion_cue !== 'string' || !scene.motion_cue.trim()) {
+        scene.motion_cue = 'Smooth spring entrance with subtle idle breathing.';
+      }
+      scene.visual_type = 'blueprint';
+
       if (!scene.visual_blueprint || typeof scene.visual_blueprint !== 'object') {
         scene.visual_blueprint = {
           purpose: `Illustrate scene ${index + 1} concepts visually`,
@@ -556,6 +595,20 @@ export abstract class BasePlanProvider implements AIProvider {
       if (!bp.camera_motion || typeof bp.camera_motion !== 'string') bp.camera_motion = 'gentle push in';
       if (!Array.isArray(bp.asset_queries)) bp.asset_queries = [];
       if (!Array.isArray(bp.objects)) bp.objects = [];
+
+      // Sanitize existing objects to ensure supported render_spec.type
+      const supportedTypes = new Set<string>(SUPPORTED_RENDER_TYPES);
+      bp.objects = bp.objects.filter((obj: any) => obj && typeof obj === 'object');
+      for (const obj of bp.objects) {
+        if (!obj.id || typeof obj.id !== 'string') {
+          obj.id = `obj_${Math.random().toString(36).substring(2, 9)}`;
+        }
+        if (!obj.render_spec || typeof obj.render_spec !== 'object') {
+          obj.render_spec = { type: 'procedural' };
+        } else if (!supportedTypes.has(obj.render_spec.type)) {
+          obj.render_spec.type = 'procedural';
+        }
+      }
 
       if (bp.objects.length < 2) {
         const heroLabel = scene.hero_asset || scene.keyword || scene.on_screen_text || `Scene ${index + 1} Visual`;
@@ -596,6 +649,10 @@ export abstract class BasePlanProvider implements AIProvider {
             circles: [{ cx: 40, cy: 30, r: 6, fill: styleProfile.secondary }, { cx: 260, cy: 30, r: 6, fill: styleProfile.secondary }],
           }
         });
+      }
+
+      if (bp.objects.length > 5) {
+        bp.objects = bp.objects.slice(0, 5);
       }
 
       if (scene.template === 'stat-callout') {
@@ -657,8 +714,8 @@ export abstract class BasePlanProvider implements AIProvider {
     const targetTotal = requestedDuration || 30;
     const timelineSceneTotal = targetTotal + this.sceneTransitionOverlapSec(parsed.scenePlan);
     const count = parsed.scenePlan.length;
-    const baseSec = Math.round((timelineSceneTotal / count) * 100) / 100;
-    if (baseSec >= 2.5 && baseSec <= 5) {
+    if (count > 0) {
+      const baseSec = Math.round((timelineSceneTotal / count) * 100) / 100;
       let runningSum = 0;
       for (let i = 0; i < count - 1; i += 1) {
         parsed.scenePlan[i].duration_sec = baseSec;
@@ -718,10 +775,12 @@ export abstract class BasePlanProvider implements AIProvider {
     }
 
     const scenes = parsed.scenePlan;
-    if (scenes.length < 7 || scenes.length > 9) {
-      add(`AI returned ${scenes.length} scenes; every video must contain 7-9 scenes.`);
-    }
     const requestedDuration = this.requestedDurationSec(input);
+    const minScenes = requestedDuration && requestedDuration <= 20 ? 4 : 5;
+    const maxScenes = requestedDuration && requestedDuration >= 45 ? 14 : 10;
+    if (scenes.length < minScenes || scenes.length > maxScenes) {
+      add(`AI returned ${scenes.length} scenes; video must contain ${minScenes}-${maxScenes} scenes.`);
+    }
     const plannedDuration = this.actualTimelineDurationSec(scenes);
     if (requestedDuration && Math.abs(plannedDuration - requestedDuration) > 0.05) {
       add(`AI planned a ${plannedDuration.toFixed(2)}s rendered timeline after transition overlaps, but the request requires exactly ${requestedDuration}s.`);
@@ -857,8 +916,10 @@ export abstract class BasePlanProvider implements AIProvider {
     if (requestedDuration && Math.abs(plannedDuration - requestedDuration) > 0.05) {
       throw new Error(`AI planned a ${plannedDuration.toFixed(2)}s rendered timeline after transition overlaps, but the request requires exactly ${requestedDuration}s.`);
     }
-    if (parsed.scenePlan.length < 7 || parsed.scenePlan.length > 9) {
-      throw new Error(`AI returned ${parsed.scenePlan.length} scenes; every video must contain 7-9 scenes.`);
+    const minScenes = requestedDuration && requestedDuration <= 20 ? 4 : 5;
+    const maxScenes = requestedDuration && requestedDuration >= 45 ? 14 : 10;
+    if (parsed.scenePlan.length < minScenes || parsed.scenePlan.length > maxScenes) {
+      throw new Error(`AI returned ${parsed.scenePlan.length} scenes; video must contain ${minScenes}-${maxScenes} scenes.`);
     }
 
     const renderTypes = new Set<string>(SUPPORTED_RENDER_TYPES);

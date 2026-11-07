@@ -47,541 +47,459 @@ export interface ScenePayload {
 
 const BAKED_SCENES: ScenePayload[] = [
   {
-    "id": "scene-1",
     "scene_number": 1,
     "role": "hook",
+    "durationInFrames": 137,
+    "duration_sec": 4.57,
+    "narration": "How does code become your website?",
+    "on_screen_text": "How Do Browsers Build Websites?",
+    "visual_direction": "Centered neo-brutalist viewport window with bold 4px black borders and an active glowing URL bar.",
     "template": "question-hook",
-    "visual_type": "concept-diagram",
-    "themeColor": "#1a6fd4",
-    "durationInFrames": 102,
-    "narration": "How does How OpenVPN Works and Packet Journey actually function?",
-    "title": "How does How OpenVPN",
-    "on_screen_text": "How does How OpenVPN Works and Packet Journey actually function?",
-    "emphasis_word": "and",
-    "audioCues": [
-      {
-        "frame": 10,
-        "hitFrame": 12,
-        "src": "sfx/whoosh_01.wav",
-        "role": "whoosh",
-        "volume": 0.5,
-        "durationFrames": 25
-      },
-      {
-        "frame": 25,
-        "hitFrame": 26,
-        "src": "sfx/pop_01.wav",
-        "role": "pop",
-        "volume": 0.6,
-        "durationFrames": 20
-      }
-    ],
-    "nodes": [
-      {
-        "label": "How does How OpenVPN Works",
-        "sub": "Layer 1"
-      },
-      {
-        "label": "and Packet Journey actually function",
-        "sub": "Layer 2"
-      }
-    ],
-    "labels": [
-      "How",
-      "does",
-      "How"
-    ],
+    "themeColor": "#ffe600",
     "words": [
       {
         "word": "How",
-        "startFrame": 0,
-        "endFrame": 9
+        "startFrame": 3,
+        "endFrame": 8
       },
       {
         "word": "does",
         "startFrame": 9,
-        "endFrame": 19
+        "endFrame": 14
       },
       {
-        "word": "How",
-        "startFrame": 19,
-        "endFrame": 28
+        "word": "code",
+        "startFrame": 14,
+        "endFrame": 22
       },
       {
-        "word": "OpenVPN",
-        "startFrame": 28,
-        "endFrame": 37
-      },
-      {
-        "word": "Works",
-        "startFrame": 37,
-        "endFrame": 46
-      },
-      {
-        "word": "and",
-        "startFrame": 46,
-        "endFrame": 56
-      },
-      {
-        "word": "Packet",
-        "startFrame": 56,
-        "endFrame": 65
-      },
-      {
-        "word": "Journey",
-        "startFrame": 65,
-        "endFrame": 74
-      },
-      {
-        "word": "actually",
-        "startFrame": 74,
-        "endFrame": 83
-      },
-      {
-        "word": "function",
-        "startFrame": 83,
-        "endFrame": 93
-      }
-    ]
-  },
-  {
-    "id": "scene-2",
-    "scene_number": 2,
-    "role": "body",
-    "template": "steps-numbered",
-    "visual_type": "process-flow",
-    "themeColor": "#1a6fd4",
-    "durationInFrames": 102,
-    "narration": "First, core components initialize state and process inbound requests.",
-    "title": "First core components initialize",
-    "on_screen_text": "First, core components initialize state and process inbound requests.",
-    "emphasis_word": "state",
-    "audioCues": [
-      {
-        "frame": 10,
-        "hitFrame": 12,
-        "src": "sfx/whoosh_01.wav",
-        "role": "whoosh",
-        "volume": 0.5,
-        "durationFrames": 25
-      },
-      {
-        "frame": 25,
-        "hitFrame": 26,
-        "src": "sfx/pop_01.wav",
-        "role": "pop",
-        "volume": 0.6,
-        "durationFrames": 20
-      }
-    ],
-    "nodes": [
-      {
-        "label": "First core components initialize state",
-        "sub": "Layer 1"
-      },
-      {
-        "label": "and process inbound requests",
-        "sub": "Layer 2"
-      }
-    ],
-    "labels": [
-      "First",
-      "core",
-      "components"
-    ],
-    "words": [
-      {
-        "word": "First",
-        "startFrame": 0,
-        "endFrame": 10
-      },
-      {
-        "word": "core",
-        "startFrame": 10,
-        "endFrame": 20
-      },
-      {
-        "word": "components",
-        "startFrame": 20,
-        "endFrame": 31
-      },
-      {
-        "word": "initialize",
-        "startFrame": 31,
-        "endFrame": 41
-      },
-      {
-        "word": "state",
-        "startFrame": 41,
-        "endFrame": 51
-      },
-      {
-        "word": "and",
-        "startFrame": 51,
-        "endFrame": 61
-      },
-      {
-        "word": "process",
-        "startFrame": 61,
-        "endFrame": 71
-      },
-      {
-        "word": "inbound",
-        "startFrame": 71,
-        "endFrame": 82
-      },
-      {
-        "word": "requests",
-        "startFrame": 82,
-        "endFrame": 92
-      }
-    ]
-  },
-  {
-    "id": "scene-3",
-    "scene_number": 3,
-    "role": "body",
-    "template": "steps-numbered",
-    "visual_type": "concept-diagram",
-    "themeColor": "#1a6fd4",
-    "durationInFrames": 102,
-    "narration": "Next, the architecture coordinates workflows across modular distributed layers.",
-    "title": "Next the architecture coordinates",
-    "on_screen_text": "Next, the architecture coordinates workflows across modular distributed layers.",
-    "emphasis_word": "workflows",
-    "audioCues": [
-      {
-        "frame": 10,
-        "hitFrame": 12,
-        "src": "sfx/whoosh_01.wav",
-        "role": "whoosh",
-        "volume": 0.5,
-        "durationFrames": 25
-      },
-      {
-        "frame": 25,
-        "hitFrame": 26,
-        "src": "sfx/pop_01.wav",
-        "role": "pop",
-        "volume": 0.6,
-        "durationFrames": 20
-      }
-    ],
-    "nodes": [
-      {
-        "label": "Next the architecture coordinates workflows",
-        "sub": "Layer 1"
-      },
-      {
-        "label": "across modular distributed layers",
-        "sub": "Layer 2"
-      }
-    ],
-    "labels": [
-      "Next",
-      "the",
-      "architecture"
-    ],
-    "words": [
-      {
-        "word": "Next",
-        "startFrame": 0,
-        "endFrame": 10
-      },
-      {
-        "word": "the",
-        "startFrame": 10,
-        "endFrame": 20
-      },
-      {
-        "word": "architecture",
-        "startFrame": 20,
-        "endFrame": 31
-      },
-      {
-        "word": "coordinates",
-        "startFrame": 31,
-        "endFrame": 41
-      },
-      {
-        "word": "workflows",
-        "startFrame": 41,
-        "endFrame": 51
-      },
-      {
-        "word": "across",
-        "startFrame": 51,
-        "endFrame": 61
-      },
-      {
-        "word": "modular",
-        "startFrame": 61,
-        "endFrame": 71
-      },
-      {
-        "word": "distributed",
-        "startFrame": 71,
-        "endFrame": 82
-      },
-      {
-        "word": "layers",
-        "startFrame": 82,
-        "endFrame": 92
-      }
-    ]
-  },
-  {
-    "id": "scene-4",
-    "scene_number": 4,
-    "role": "body",
-    "template": "steps-numbered",
-    "visual_type": "process-flow",
-    "themeColor": "#1a6fd4",
-    "durationInFrames": 102,
-    "narration": "Data flows deterministically through verified cryptographic pipelines.",
-    "title": "Data flows deterministically through",
-    "on_screen_text": "Data flows deterministically through verified cryptographic pipelines.",
-    "emphasis_word": "through",
-    "audioCues": [
-      {
-        "frame": 10,
-        "hitFrame": 12,
-        "src": "sfx/whoosh_01.wav",
-        "role": "whoosh",
-        "volume": 0.5,
-        "durationFrames": 25
-      },
-      {
-        "frame": 25,
-        "hitFrame": 26,
-        "src": "sfx/pop_01.wav",
-        "role": "pop",
-        "volume": 0.6,
-        "durationFrames": 20
-      }
-    ],
-    "nodes": [
-      {
-        "label": "Data flows deterministically through",
-        "sub": "Layer 1"
-      },
-      {
-        "label": "verified cryptographic pipelines",
-        "sub": "Layer 2"
-      }
-    ],
-    "labels": [
-      "Data",
-      "flows",
-      "deterministically"
-    ],
-    "words": [
-      {
-        "word": "Data",
-        "startFrame": 0,
-        "endFrame": 13
-      },
-      {
-        "word": "flows",
-        "startFrame": 13,
-        "endFrame": 26
-      },
-      {
-        "word": "deterministically",
-        "startFrame": 26,
-        "endFrame": 38
-      },
-      {
-        "word": "through",
-        "startFrame": 38,
-        "endFrame": 51
-      },
-      {
-        "word": "verified",
-        "startFrame": 51,
-        "endFrame": 64
-      },
-      {
-        "word": "cryptographic",
-        "startFrame": 64,
-        "endFrame": 77
-      },
-      {
-        "word": "pipelines",
-        "startFrame": 77,
-        "endFrame": 89
-      }
-    ]
-  },
-  {
-    "id": "scene-5",
-    "scene_number": 5,
-    "role": "body",
-    "template": "steps-numbered",
-    "visual_type": "concept-diagram",
-    "themeColor": "#1a6fd4",
-    "durationInFrames": 102,
-    "narration": "The overall structure delivers unprecedented performance and guaranteed reliability.",
-    "title": "The overall structure delivers",
-    "on_screen_text": "The overall structure delivers unprecedented performance and guaranteed reliability.",
-    "emphasis_word": "unprecedented",
-    "audioCues": [
-      {
-        "frame": 10,
-        "hitFrame": 12,
-        "src": "sfx/whoosh_01.wav",
-        "role": "whoosh",
-        "volume": 0.5,
-        "durationFrames": 25
-      },
-      {
-        "frame": 25,
-        "hitFrame": 26,
-        "src": "sfx/pop_01.wav",
-        "role": "pop",
-        "volume": 0.6,
-        "durationFrames": 20
-      }
-    ],
-    "nodes": [
-      {
-        "label": "The overall structure delivers unprecedented",
-        "sub": "Layer 1"
-      },
-      {
-        "label": "performance and guaranteed reliability",
-        "sub": "Layer 2"
-      }
-    ],
-    "labels": [
-      "The",
-      "overall",
-      "structure"
-    ],
-    "words": [
-      {
-        "word": "The",
-        "startFrame": 0,
-        "endFrame": 10
-      },
-      {
-        "word": "overall",
-        "startFrame": 10,
-        "endFrame": 20
-      },
-      {
-        "word": "structure",
-        "startFrame": 20,
-        "endFrame": 31
-      },
-      {
-        "word": "delivers",
-        "startFrame": 31,
-        "endFrame": 41
-      },
-      {
-        "word": "unprecedented",
-        "startFrame": 41,
-        "endFrame": 51
-      },
-      {
-        "word": "performance",
-        "startFrame": 51,
-        "endFrame": 61
-      },
-      {
-        "word": "and",
-        "startFrame": 61,
-        "endFrame": 71
-      },
-      {
-        "word": "guaranteed",
-        "startFrame": 71,
-        "endFrame": 82
-      },
-      {
-        "word": "reliability",
-        "startFrame": 82,
-        "endFrame": 92
-      }
-    ]
-  },
-  {
-    "id": "scene-6",
-    "scene_number": 6,
-    "role": "cta",
-    "template": "cta-outro",
-    "visual_type": "outro",
-    "themeColor": "#1a6fd4",
-    "durationInFrames": 90,
-    "narration": "Accelerate your engineering with Bittrix Technologies.",
-    "title": "Accelerate your engineering with",
-    "on_screen_text": "Accelerate your engineering with Bittrix Technologies.",
-    "emphasis_word": "with",
-    "audioCues": [
-      {
-        "frame": 10,
-        "hitFrame": 12,
-        "src": "sfx/whoosh_01.wav",
-        "role": "whoosh",
-        "volume": 0.5,
-        "durationFrames": 25
-      },
-      {
-        "frame": 25,
-        "hitFrame": 26,
-        "src": "sfx/chime_01.wav",
-        "role": "chime",
-        "volume": 0.6,
-        "durationFrames": 20
-      }
-    ],
-    "nodes": [
-      {
-        "label": "Accelerate your engineering",
-        "sub": "Layer 1"
-      },
-      {
-        "label": "with Bittrix Technologies",
-        "sub": "Layer 2"
-      }
-    ],
-    "labels": [
-      "Accelerate",
-      "your",
-      "engineering"
-    ],
-    "words": [
-      {
-        "word": "Accelerate",
-        "startFrame": 0,
-        "endFrame": 13
+        "word": "become",
+        "startFrame": 23,
+        "endFrame": 32
       },
       {
         "word": "your",
-        "startFrame": 13,
-        "endFrame": 26
+        "startFrame": 32,
+        "endFrame": 36
       },
       {
-        "word": "engineering",
+        "word": "website",
+        "startFrame": 36,
+        "endFrame": 56
+      }
+    ],
+    "visual_type": "3d-showcase",
+    "icon": "🌐",
+    "emphasis_word": "website",
+    "nodes": [
+      {
+        "label": "Code",
+        "sub": "Raw files"
+      },
+      {
+        "label": "Website",
+        "sub": "Interactive browser page"
+      }
+    ],
+    "edges": [
+      {
+        "from": 0,
+        "to": 1,
+        "label": "becomes",
+        "dashed": false
+      }
+    ],
+    "labels": [
+      "Code",
+      "Website"
+    ]
+  },
+  {
+    "scene_number": 2,
+    "role": "body",
+    "durationInFrames": 137,
+    "duration_sec": 4.57,
+    "narration": "HTML parses tags into DOM nodes.",
+    "on_screen_text": "HTML Creates The DOM Tree",
+    "visual_direction": "Vibrant tree diagram with heavy boxed nodes cascading down from Document to Body and Children.",
+    "template": "hero-object",
+    "themeColor": "#ffe600",
+    "words": [
+      {
+        "word": "HTML",
+        "startFrame": 3,
+        "endFrame": 24
+      },
+      {
+        "word": "parses",
+        "startFrame": 25,
+        "endFrame": 37
+      },
+      {
+        "word": "tags",
+        "startFrame": 37,
+        "endFrame": 48
+      },
+      {
+        "word": "into",
+        "startFrame": 49,
+        "endFrame": 55
+      },
+      {
+        "word": "DOM",
+        "startFrame": 55,
+        "endFrame": 68
+      },
+      {
+        "word": "nodes",
+        "startFrame": 69,
+        "endFrame": 84
+      }
+    ],
+    "visual_type": "concept-diagram",
+    "emphasis_word": "DOM",
+    "nodes": [
+      {
+        "label": "HTML Tags",
+        "sub": "Raw markup tags"
+      },
+      {
+        "label": "DOM Nodes",
+        "sub": "Structured tree hierarchy"
+      }
+    ],
+    "edges": [
+      {
+        "from": 0,
+        "to": 1,
+        "label": "parses into",
+        "dashed": false
+      }
+    ],
+    "labels": [
+      "HTML",
+      "Tags",
+      "DOM Nodes"
+    ]
+  },
+  {
+    "scene_number": 3,
+    "role": "body",
+    "durationInFrames": 137,
+    "duration_sec": 4.57,
+    "narration": "CSSOM recalculates style cascades concurrently.",
+    "on_screen_text": "CSSOM Blocks Until Styles Compute",
+    "visual_direction": "Split dual-card neo-brutalist comparison: unstyled tree on the left versus calculated CSSOM cascade on the right.",
+    "template": "split-compare",
+    "themeColor": "#ff0055",
+    "words": [
+      {
+        "word": "CSSOM",
+        "startFrame": 3,
+        "endFrame": 12
+      },
+      {
+        "word": "recalculates",
+        "startFrame": 13,
+        "endFrame": 35
+      },
+      {
+        "word": "style",
+        "startFrame": 35,
+        "endFrame": 44
+      },
+      {
+        "word": "cascades",
+        "startFrame": 45,
+        "endFrame": 61
+      },
+      {
+        "word": "concurrently",
+        "startFrame": 61,
+        "endFrame": 83
+      }
+    ],
+    "visual_type": "split-compare",
+    "emphasis_word": "cascades",
+    "nodes": [
+      {
+        "label": "CSSOM",
+        "sub": "Recalculates rules"
+      },
+      {
+        "label": "Style Cascades",
+        "sub": "Concurrent computation"
+      }
+    ],
+    "edges": [
+      {
+        "from": 0,
+        "to": 1,
+        "label": "computes concurrently",
+        "dashed": true
+      }
+    ],
+    "labels": [
+      "CSSOM",
+      "Cascades",
+      "Concurrent"
+    ]
+  },
+  {
+    "scene_number": 4,
+    "role": "body",
+    "durationInFrames": 137,
+    "duration_sec": 4.57,
+    "narration": "Styles snap onto matching layout nodes.",
+    "on_screen_text": "CSS Rules Cascade And Bind",
+    "visual_direction": "Stacked overlapping cards showing CSS rule specificity (#id, .class, tag) slamming down into a locked bundle.",
+    "template": "card-stack",
+    "themeColor": "#ffe600",
+    "words": [
+      {
+        "word": "Styles",
+        "startFrame": 3,
+        "endFrame": 15
+      },
+      {
+        "word": "snap",
+        "startFrame": 16,
+        "endFrame": 25
+      },
+      {
+        "word": "onto",
         "startFrame": 26,
+        "endFrame": 33
+      },
+      {
+        "word": "matching",
+        "startFrame": 33,
+        "endFrame": 45
+      },
+      {
+        "word": "layout",
+        "startFrame": 45,
+        "endFrame": 54
+      },
+      {
+        "word": "nodes",
+        "startFrame": 55,
+        "endFrame": 71
+      }
+    ],
+    "visual_type": "process-flow",
+    "emphasis_word": "snap",
+    "nodes": [
+      {
+        "label": "Styles",
+        "sub": "Calculated cascade rules"
+      },
+      {
+        "label": "Layout Nodes",
+        "sub": "Matched element tree"
+      }
+    ],
+    "edges": [
+      {
+        "from": 0,
+        "to": 1,
+        "label": "snap onto",
+        "dashed": false
+      }
+    ],
+    "labels": [
+      "Styles",
+      "Snap",
+      "Layout Nodes"
+    ]
+  },
+  {
+    "scene_number": 5,
+    "role": "body",
+    "durationInFrames": 137,
+    "duration_sec": 4.57,
+    "narration": "Render trees layout and paint pixels.",
+    "on_screen_text": "Render Tree Drives Layout Paint",
+    "visual_direction": "Two converging directional arrow pathways uniting into a central glowing Render Tree diamond.",
+    "template": "flow-path",
+    "themeColor": "#ff0055",
+    "words": [
+      {
+        "word": "Render",
+        "startFrame": 3,
+        "endFrame": 14
+      },
+      {
+        "word": "trees",
+        "startFrame": 14,
+        "endFrame": 23
+      },
+      {
+        "word": "layout",
+        "startFrame": 23,
+        "endFrame": 35
+      },
+      {
+        "word": "and",
+        "startFrame": 36,
         "endFrame": 39
       },
       {
-        "word": "with",
+        "word": "paint",
         "startFrame": 39,
-        "endFrame": 51
+        "endFrame": 47
       },
       {
-        "word": "Bittrix",
-        "startFrame": 51,
-        "endFrame": 64
-      },
-      {
-        "word": "Technologies",
-        "startFrame": 64,
-        "endFrame": 77
+        "word": "pixels",
+        "startFrame": 47,
+        "endFrame": 68
       }
+    ],
+    "visual_type": "3d-showcase",
+    "icon": "⚡",
+    "emphasis_word": "paint",
+    "nodes": [
+      {
+        "label": "Render Trees",
+        "sub": "Combined DOM & CSSOM"
+      },
+      {
+        "label": "Pixels",
+        "sub": "Layout and paint"
+      }
+    ],
+    "edges": [
+      {
+        "from": 0,
+        "to": 1,
+        "label": "paint",
+        "dashed": false
+      }
+    ],
+    "labels": [
+      "Render Trees",
+      "Layout",
+      "Paint Pixels"
+    ]
+  },
+  {
+    "scene_number": 6,
+    "role": "body",
+    "durationInFrames": 137,
+    "duration_sec": 4.57,
+    "narration": "JavaScript triggers real-time DOM mutations.",
+    "on_screen_text": "JavaScript Mutates Living DOM Nodes",
+    "visual_direction": "Neo-brutalist performance gauge badge showing 16.6ms counter next to an official JavaScript logo badge.",
+    "template": "data-badge",
+    "themeColor": "#ffe600",
+    "words": [
+      {
+        "word": "JavaScript",
+        "startFrame": 3,
+        "endFrame": 22
+      },
+      {
+        "word": "triggers",
+        "startFrame": 22,
+        "endFrame": 35
+      },
+      {
+        "word": "real-time",
+        "startFrame": 35,
+        "endFrame": 49
+      },
+      {
+        "word": "DOM",
+        "startFrame": 50,
+        "endFrame": 61
+      },
+      {
+        "word": "mutations",
+        "startFrame": 61,
+        "endFrame": 88
+      }
+    ],
+    "visual_type": "concept-diagram",
+    "emphasis_word": "mutations",
+    "nodes": [
+      {
+        "label": "JavaScript",
+        "sub": "Script execution"
+      },
+      {
+        "label": "DOM Mutations",
+        "sub": "Real-time updates"
+      }
+    ],
+    "edges": [
+      {
+        "from": 0,
+        "to": 1,
+        "label": "triggers",
+        "dashed": false
+      }
+    ],
+    "labels": [
+      "JavaScript",
+      "Real-time",
+      "DOM Mutations"
+    ]
+  },
+  {
+    "scene_number": 7,
+    "role": "cta",
+    "durationInFrames": 137,
+    "duration_sec": 4.57,
+    "narration": "Follow to learn deep web engineering.",
+    "on_screen_text": "Follow To Master Web Engineering",
+    "visual_direction": "Central triumphant trio badge grouping HTML, CSS, and JS into a unified golden button with animated follow arrows.",
+    "template": "cta-outro",
+    "themeColor": "#ffe600",
+    "words": [
+      {
+        "word": "Follow",
+        "startFrame": 3,
+        "endFrame": 14
+      },
+      {
+        "word": "to",
+        "startFrame": 14,
+        "endFrame": 18
+      },
+      {
+        "word": "learn",
+        "startFrame": 18,
+        "endFrame": 26
+      },
+      {
+        "word": "deep",
+        "startFrame": 26,
+        "endFrame": 33
+      },
+      {
+        "word": "web",
+        "startFrame": 33,
+        "endFrame": 39
+      },
+      {
+        "word": "engineering",
+        "startFrame": 40,
+        "endFrame": 60
+      }
+    ],
+    "visual_type": "outro",
+    "emphasis_word": "engineering",
+    "nodes": [
+      {
+        "label": "Web Engineering",
+        "sub": "HTML, CSS, JavaScript"
+      }
+    ],
+    "edges": [],
+    "labels": [
+      "Learn",
+      "Deep Web",
+      "Engineering"
     ]
   }
 ];
@@ -647,7 +565,7 @@ const ThreeDShowcaseView: React.FC<{
   frame: number;
   fps: number;
 }> = ({ scene, frame, fps }) => {
-  const color = scene.themeColor || '#1a6fd4';
+  const color = scene.themeColor || '#ffe600';
   const entrance = spring({ frame, fps, config: { damping: 18, stiffness: 120, mass: 0.9 } });
   const opacity = interpolate(frame, [0, Math.round(fps * 0.2)], [0, 1], { extrapolateRight: 'clamp' });
   
@@ -791,7 +709,7 @@ const ImageHeroView: React.FC<{
   frame: number;
   fps: number;
 }> = ({ scene, frame, fps }) => {
-  const color = scene.themeColor || '#1a6fd4';
+  const color = scene.themeColor || '#ffe600';
   const entrance = spring({ frame, fps, config: { damping: 18, stiffness: 120, mass: 0.9 } });
   const zoom = interpolate(frame, [0, scene.durationInFrames || Math.round(fps * 3.5)], [1.0, 1.12], { extrapolateRight: 'clamp' });
   const panX = Math.sin(frame * 0.02) * 12;
@@ -911,7 +829,7 @@ const ConceptDiagramView: React.FC<{
   frame: number;
   fps: number;
 }> = ({ scene, frame, fps }) => {
-  const color = scene.themeColor || '#1a6fd4';
+  const color = scene.themeColor || '#ffe600';
   const springCfg = { damping: 12, stiffness: 120 };
 
   // Rule 11: Parallax camera drift (Background 2%, Foreground 6%)
@@ -1028,7 +946,7 @@ const ConceptDiagramView: React.FC<{
             transform: `scale(${enterB}) translateY(${pullB + idleFloatB}px) rotate(${idleRotB}deg)`,
           }}
         >
-          <div style={{ fontSize: 36, fontWeight: 900, color: '#6c3fb5' }}>{nodeB.label}</div>
+          <div style={{ fontSize: 36, fontWeight: 900, color: '#ff0055' }}>{nodeB.label}</div>
           {nodeB.sub && <div style={{ fontSize: 22, color: '#94a3b8', marginTop: 10, fontWeight: 500 }}>{nodeB.sub}</div>}
         </div>
       </div>
@@ -1044,7 +962,7 @@ const ProcessFlowView: React.FC<{
   frame: number;
   fps: number;
 }> = ({ scene, frame, fps }) => {
-  const color = scene.themeColor || '#1a6fd4';
+  const color = scene.themeColor || '#ffe600';
   const steps = scene.labels && scene.labels.length ? scene.labels : (scene.nodes?.map(n => n.label) || [scene.on_screen_text || '']);
   const activeStep = Math.floor(interpolate(frame, [8, scene.durationInFrames - 15], [0, Math.max(0.1, steps.length - 0.01)], {
     extrapolateLeft: 'clamp',
@@ -1092,7 +1010,7 @@ const ProcessFlowView: React.FC<{
                   width: 48,
                   height: 48,
                   borderRadius: '50%',
-                  background: isCurrent ? color : isPassed ? '#6c3fb5' : '#334155',
+                  background: isCurrent ? color : isPassed ? '#ff0055' : '#334155',
                   color: isCurrent ? '#020617' : '#ffffff',
                   display: 'flex',
                   alignItems: 'center',
@@ -1122,7 +1040,7 @@ const SplitCompareView: React.FC<{
   frame: number;
   fps: number;
 }> = ({ scene, frame, fps }) => {
-  const color = scene.themeColor || '#1a6fd4';
+  const color = scene.themeColor || '#ffe600';
   const entrance = spring({ frame, fps, config: { damping: 14, mass: 0.8 } });
   const laserPos = Math.sin(frame * 0.08) * 100;
   const nodes = scene.nodes && scene.nodes.length >= 2 ? scene.nodes : [
@@ -1178,7 +1096,7 @@ const SplitCompareView: React.FC<{
               padding: 36,
               borderRadius: 24,
               background: 'rgba(245, 158, 11, 0.12)',
-              border: '2px solid #6c3fb5',
+              border: '2px solid #ff0055',
               boxShadow: '0 10px 30px rgba(245, 158, 11, 0.25)',
               transform: `translateY(${-Math.sin(frame * 0.06) * 8}px)`,
             }}
@@ -1214,7 +1132,7 @@ const CalloutView: React.FC<{
   frame: number;
   fps: number;
 }> = ({ scene, frame, fps }) => {
-  const color = scene.themeColor || '#1a6fd4';
+  const color = scene.themeColor || '#ffe600';
   const entrance = spring({ frame, fps, config: { damping: 14, mass: 0.8 } });
   const pulse = Math.sin(frame * 0.08) * 8;
   const cameraZoom = 1.0 + (frame / (scene.durationInFrames || 90)) * 0.06;
@@ -1308,7 +1226,7 @@ const StatCounterView: React.FC<{
   frame: number;
   fps: number;
 }> = ({ scene, frame, fps }) => {
-  const color = scene.themeColor || '#1a6fd4';
+  const color = scene.themeColor || '#ffe600';
   const entrance = spring({ frame, fps, config: { damping: 14, mass: 0.8 } });
   const dialRotation = frame * 2.2;
   const pulse = Math.sin(frame * 0.1) * 6;
@@ -1418,7 +1336,7 @@ const OutroView: React.FC<{
       <div
         style={{
           position: 'absolute',
-          bottom: 240,
+          bottom: 260,
           left: 60,
           right: 60,
           display: 'flex',
@@ -1428,9 +1346,9 @@ const OutroView: React.FC<{
           zIndex: 10,
         }}
       >
-        <h2 style={{ fontSize: 38, fontWeight: 900, textAlign: 'center', color: brandPurple, textShadow: '0 2px 10px rgba(253,243,208,0.8)', maxWidth: 880, margin: 0 }}>
-          {scene.on_screen_text || scene.narration}
-        </h2>
+        <span style={{ fontSize: 24, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 4, color: brandPurpleLight }}>
+          Engineering Innovation
+        </span>
       </div>
 
       <KineticCaptions words={scene.words || []} currentFrame={frame} accentColor={brandPurple} />
@@ -1494,7 +1412,7 @@ export default function GeneratedCliVideo(props: any) {
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: '#f5f5f0',
+        backgroundColor: '#fffdf0',
         color: '#ffffff',
         fontFamily: 'system-ui, -apple-system, sans-serif',
         overflow: 'hidden',
@@ -1506,7 +1424,7 @@ export default function GeneratedCliVideo(props: any) {
           style={{
             position: 'absolute',
             inset: 0,
-            background: `radial-gradient(circle at ${bgShiftX}% ${bgShiftY}%, #1a6fd42e 0%, transparent 65%)`,
+            background: `radial-gradient(circle at ${bgShiftX}% ${bgShiftY}%, #ffe6002e 0%, transparent 65%)`,
             pointerEvents: 'none',
           }}
         />

@@ -8,8 +8,9 @@ export const assetSource = (assetPath?: string | null): string => {
   if (!assetPath || typeof assetPath !== 'string') {
     return '';
   }
-  if (/^(https?:|blob:|data:)/i.test(assetPath) || assetPath.startsWith('/')) {
+  if (/^(https?:|blob:|data:)/i.test(assetPath)) {
     return assetPath;
   }
-  return staticFile(assetPath);
+  const clean = assetPath.replace(/^\/?(public\/)?/, '');
+  return staticFile(clean);
 };

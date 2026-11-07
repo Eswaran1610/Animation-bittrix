@@ -6,6 +6,7 @@ import { ShortVideo } from './short-video/ShortVideo';
 import { SHORT_VIDEO_DEFAULT_PROPS, ShortVideoPropsSchema } from './short-video/shortVideoProps';
 import { collectMainCompositionQaIssues, collectShortVideoQaIssues } from './short-video/shortVideoQa';
 import { sceneTimelineDuration } from './short-video/sceneAdapter';
+import { MainVideo } from './MainVideo';
 
 /**
  * Minimal default payload used to register MainComposition in Remotion Studio
@@ -114,6 +115,15 @@ export const Root: React.FC = () => {
   return (
     <>
       {codexComposition}
+      <Composition
+        id="MainVideo"
+        component={MainVideo as unknown as React.FC<Record<string, unknown>>}
+        defaultProps={{ sceneData: resolvedProps }}
+        durationInFrames={mainDuration}
+        fps={mainFps}
+        width={resolvedProps.video.width}
+        height={resolvedProps.video.height}
+      />
       <Composition
         id="ShortVideo"
         component={ShortVideo}

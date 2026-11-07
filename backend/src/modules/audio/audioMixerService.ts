@@ -53,7 +53,7 @@ export class AudioMixerService {
     const remotionMasterFile = path.join(remotionDir, fileName);
 
     // Collect all inputs with millisecond timeline offsets
-    const inputs: Array<{ absPath: string; delayMs: number; volume: number }> = [];
+    const inputs: Array<{ absPath: string; delayMs: number; volume: number; kind: 'voice' | 'sfx' | 'bed' }> = [];
     let sceneFrameOffset = 0;
     const defaultTransitionFrames = 12;
 
@@ -65,7 +65,7 @@ export class AudioMixerService {
         const absNarration = path.join(projectPaths.remotionPublic, ...scene.narrationAudio.replace(/^\//, '').split('/'));
         if (existsSync(absNarration)) {
           const delayMs = Math.max(0, Math.round((sceneFrameOffset / fps) * 1000));
-          inputs.push({ absPath: absNarration, delayMs, volume: 1.0 });
+          inputs.push({ absPath: absNarration, delayMs, volume: 1.0, kind: 'voice' });
         }
       }
 
@@ -83,7 +83,7 @@ export class AudioMixerService {
               chime: 0.36, count: 0.34, ding: 0.36,
             };
             const cueVolume = Math.min(0.40, (cue.volume ?? 0.7) * (roleGain[cue.role || ''] ?? 0.38));
-            inputs.push({ absPath: absCue, delayMs, volume: cueVolume });
+            inputs.push({ absPath: absCue, delayMs, volume: cueVolume, kind: 'sfx' });
           }
         }
       }
@@ -97,7 +97,7 @@ export class AudioMixerService {
     if (backgroundAudioUrl) {
       const absBg = path.join(projectPaths.remotionPublic, ...backgroundAudioUrl.replace(/^\//, '').split('/'));
       if (existsSync(absBg)) {
-        inputs.push({ absPath: absBg, delayMs: 0, volume: 0.28 });
+        inputs.push({ absPath: absBg, delayMs: 0, volume: 0.30, kind: 'bed' });
       }
     }
 
@@ -120,8 +120,47 @@ export class AudioMixerService {
       filterParts.push(`[${i}:a]aformat=sample_rates=48000:channel_layouts=stereo,adelay=${input.delayMs}|${input.delayMs},volume=${input.volume.toFixed(3)}[a${i}]`);
     }
 
-    const inputLabels = inputs.map((_, i) => `[a${i}]`).join('');
-    filterParts.push(`${inputLabels}amix=inputs=${inputs.length}:duration=longest:normalize=0,aformat=sample_rates=48000:channel_layouts=stereo[mixed]`);
+    // Bus layout: voice + sfx are the "foreground"; the music bed is ducked under the
+    // voice with a sidechain compressor so speech always sits on top of the music.
+    const labelsOf = (kind: 'voice' | 'sfx' | 'bed') =>
+      inputs.map((input, i) => (input.kind === kind ? `[a${i}]` : '')).filter(Boolean);
+    const voiceLabels = labelsOf('voice');
+    const sfxLabels = labelsOf('sfx');
+    const bedLabels = labelsOf('bed');
+
+    const sumBus = (labels: string[], out: string) => {
+      if (labels.length === 0) return false;
+      if (labels.length === 1) filterParts.push(`${labels[0]}anull[${out}]`);
+      else filterParts.push(`${labels.join('')}amix=inputs=${labels.length}:duration=longest:normalize=0[${out}]`);
+      return true;
+    };
+
+    const hasVoice = sumBus(voiceLabels, 'voicebus');
+    const hasSfx = sumBus(sfxLabels, 'sfxbus');
+    const hasBed = sumBus(bedLabels, 'bedbus');
+
+    const finalLabels: string[] = [];
+    if (hasVoice) {
+      // one copy goes to the mix, one copy is the sidechain key for the bed
+      filterParts.push('[voicebus]asplit=2[voicemix][voicekey]');
+      finalLabels.push('[voicemix]');
+    }
+    if (hasSfx) finalLabels.push('[sfxbus]');
+    if (hasBed) {
+      if (hasVoice) {
+        filterParts.push('[bedbus][voicekey]sidechaincompress=threshold=0.02:ratio=10:attack=30:release=500:makeup=1[bedduck]');
+        finalLabels.push('[bedduck]');
+      } else {
+        finalLabels.push('[bedbus]');
+      }
+    }
+
+    filterParts.push(
+      `${finalLabels.join('')}amix=inputs=${finalLabels.length}:duration=longest:normalize=0,` +
+      // broadcast-style loudness for shorts, then a hard ceiling so peaks never clip
+      'loudnorm=I=-16:TP=-1.5:LRA=9,alimiter=limit=0.89,' +
+      'aformat=sample_rates=48000:channel_layouts=stereo[mixed]',
+    );
 
     ffmpegArgs.push('-filter_complex', filterParts.join(';'));
     ffmpegArgs.push('-map', '[mixed]');

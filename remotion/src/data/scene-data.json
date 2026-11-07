@@ -1,0 +1,78 @@
+{
+  "projectId": "decab645-0380-4647-977d-715c84fef4bb",
+  "version": 1,
+  "scenes": [
+    {
+      "sceneId": "scene_1",
+      "layoutPattern": "TRENDY_INSTA",
+      "title": "DECENTRALIZED CLOUD COMPUTING",
+      "narrationText": "Decentralized Cloud Computing enables rapid next-generation scalable systems.",
+      "sfxTrack": {
+        "src": "whoosh_01.wav",
+        "triggerFrame": 0
+      },
+      "visualAssets": [
+        {
+          "url": "assets/projects/decab645-0380-4647-977d-715c84fef4bb/node_1.svg",
+          "id": "node_1",
+          "renderPosition": "CENTER"
+        }
+      ],
+      "durationInFrames": 225
+    },
+    {
+      "sceneId": "scene_2",
+      "layoutPattern": "VERTICAL_STACK",
+      "title": "DEEP LAYERED ARCHITECTURAL",
+      "narrationText": "Deep layered architectural tiers process secure transactions continuously.",
+      "sfxTrack": {
+        "src": "whoosh_01.wav",
+        "triggerFrame": 0
+      },
+      "visualAssets": [
+        {
+          "url": "assets/projects/decab645-0380-4647-977d-715c84fef4bb/node_2.svg",
+          "id": "node_2",
+          "renderPosition": "CENTER"
+        }
+      ],
+      "durationInFrames": 225
+    },
+    {
+      "sceneId": "scene_3",
+      "layoutPattern": "HORIZONTAL_FLOW",
+      "title": "REAL-TIME DECENTRALIZED VALIDATION",
+      "narrationText": "Real-time decentralized validation drives uninterrupted high-throughput workflows.",
+      "sfxTrack": {
+        "src": "whoosh_01.wav",
+        "triggerFrame": 0
+      },
+      "visualAssets": [
+        {
+          "url": "assets/projects/decab645-0380-4647-977d-715c84fef4bb/node_3.svg",
+          "id": "node_3",
+          "renderPosition": "CENTER"
+        }
+      ],
+      "durationInFrames": 225
+    },
+    {
+      "sceneId": "scene_4",
+      "layoutPattern": "CENTRIC_FOCUS",
+      "title": "ELEVATE YOUR PRODUCTION",
+      "narrationText": "Elevate your production infrastructure with high-performance Bittrix Technologies.",
+      "sfxTrack": {
+        "src": "whoosh_01.wav",
+        "triggerFrame": 0
+      },
+      "visualAssets": [
+        {
+          "url": "assets/projects/decab645-0380-4647-977d-715c84fef4bb/node_4.svg",
+          "id": "node_4",
+          "renderPosition": "CENTER"
+        }
+      ],
+      "durationInFrames": 225
+    }
+  ]
+}

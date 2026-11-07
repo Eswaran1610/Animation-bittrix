@@ -41,7 +41,8 @@ const REQUIRED_SECTIONS = [
   'AVOID',
 ];
 
-const MIN_DISTINCT_SOURCE_DOMAINS = 4;
+const MIN_PREFERRED_SOURCE_DOMAINS = 4;
+const MIN_ACCEPTABLE_SOURCE_DOMAINS = 2;
 const MAX_BRIEF_CHARS = 9000; // keeps the downstream planning prompt bounded
 
 const countDistinctDomains = (text: string): number => {
@@ -57,7 +58,13 @@ const countDistinctDomains = (text: string): number => {
 };
 
 const missingSections = (text: string): string[] =>
-  REQUIRED_SECTIONS.filter((s) => !new RegExp(`^\\s*#{0,3}\\s*\\**${s}\\**\\s*:?`, 'im').test(text));
+  REQUIRED_SECTIONS.filter(
+    (s) =>
+      !new RegExp(
+        `(?:^|\\n)\\s*(?:#{1,4}\\s*)?(?:(?:section|part|step)?\\s*\\d+[\\.:\\)]\\s*)?\\**${s}\\**\\s*:?`,
+        'im',
+      ).test(text),
+  );
 
 export class TrendResearchService {
   briefPath(projectId: string): string {
@@ -83,7 +90,7 @@ ${content}
 """
 ${feedback ? `\nREVISION FEEDBACK FROM THE HUMAN REVIEWER (address it):\n${feedback}\n` : ''}
 TASK
-1. Research the submission itself across at least ${MIN_DISTINCT_SOURCE_DOMAINS} distinct authoritative websites. Cross-check facts; note any disagreement.
+1. Research the submission itself across at least ${MIN_PREFERRED_SOURCE_DOMAINS} distinct authoritative websites. Cross-check facts; note any disagreement.
 2. Research CURRENT motion-graphics trends relevant to this subject: modern vertical reel-style explainers (1080x1920, 20-40s), Claude/Anthropic product demo motion styles (kinetic reveals, floating UI cards, code/terminal stages, node-edge flow paths, springy easing, camera pushes, continuous timeline flow without jarring slide breaks). Extract TECHNIQUES only.
 3. CRITICAL RULE: The bracketed examples in the guide (such as websites->laptop, save hours->pocket watch, agency promos, purple accent) are reference logic ONLY. Do NOT hardcode or copy those specific topics, palettes, or assets. Everything must be dynamically derived from THIS user submission.
 4. Asset candidates: Find concrete or metaphoric hero objects (>40% frame width) and secondary objects (<15% frame width) with direct HTTPS URLs, source page, license and attribution. If none is verifiable, specify "use authored vector" with shape/text specs.
@@ -139,6 +146,9 @@ Keep the whole answer under ${Math.round(MAX_BRIEF_CHARS * 0.9)} characters.`;
     });
 
     let lastProblem = '';
+    let candidateText = '';
+    let candidateDomains = 0;
+
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const remainingMs = deadlineAt ? deadlineAt - Date.now() : timeoutMs;
       if (remainingMs < 15000) {
@@ -152,20 +162,33 @@ Keep the whole answer under ${Math.round(MAX_BRIEF_CHARS * 0.9)} characters.`;
 
         const missing = missingSections(text);
         const domains = countDistinctDomains(text);
-        if (missing.length === 0 && domains >= MIN_DISTINCT_SOURCE_DOMAINS) {
+        if (missing.length === 0 && domains >= MIN_PREFERRED_SOURCE_DOMAINS) {
           await mkdir(path.dirname(filePath), { recursive: true });
           await writeFile(filePath, text + '\n', 'utf8');
           return { status: 'fresh', text, filePath, sourceCount: domains };
         }
+
+        if (domains >= MIN_ACCEPTABLE_SOURCE_DOMAINS && missing.length <= 2 && (!candidateText || domains > candidateDomains)) {
+          candidateText = text;
+          candidateDomains = domains;
+        }
+
         lastProblem = [
           missing.length ? `missing sections: ${missing.join(', ')}` : '',
-          domains < MIN_DISTINCT_SOURCE_DOMAINS ? `only ${domains} distinct source domains (need ${MIN_DISTINCT_SOURCE_DOMAINS})` : '',
+          domains < MIN_PREFERRED_SOURCE_DOMAINS ? `only ${domains} distinct source domains (need ${MIN_PREFERRED_SOURCE_DOMAINS})` : '',
         ].filter(Boolean).join('; ');
         prompt = `${this.buildPrompt(content, skill, today, feedback)}\n\nYOUR PREVIOUS ANSWER WAS REJECTED: ${lastProblem}. Run the web searches again and return the complete corrected text.`;
       } catch (err: any) {
         lastProblem = err?.message || String(err);
         break; // CLI failure (quota, auth, timeout): a retry will not help
       }
+    }
+
+    if (candidateText && candidateDomains >= MIN_ACCEPTABLE_SOURCE_DOMAINS) {
+      await mkdir(path.dirname(filePath), { recursive: true });
+      await writeFile(filePath, candidateText + '\n', 'utf8');
+      console.log(`[TrendResearch] Saved resilient trend brief with ${candidateDomains} source domains.`);
+      return { status: 'fresh', text: candidateText, filePath, sourceCount: candidateDomains };
     }
 
     const warning = `Trend research unavailable: ${lastProblem}`;

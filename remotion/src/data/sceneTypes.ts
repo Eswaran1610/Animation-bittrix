@@ -105,6 +105,31 @@ export interface CaptionWord {
   endFrame: number;
 }
 
+export interface VoiceoverCue {
+  start: number;
+  end: number;
+  text: string;
+}
+
+export interface VoiceoverConfig {
+  asset: string;
+  cues: VoiceoverCue[];
+}
+
+export interface AudioConfig {
+  bed?: {
+    mood: string;
+    bpm?: number;
+    asset?: string;
+  };
+  voiceover?: VoiceoverConfig;
+  sfxCues?: Array<{
+    at: number;
+    sound: string;
+    gainDb?: number;
+  }>;
+}
+
 export interface VisualBlueprint {
   purpose: string;
   layout: string;
@@ -175,6 +200,8 @@ export interface SceneDataPayload {
     audioDurationSec?: number;
     backgroundAudioUrl?: string;
     captions?: CaptionWord[];
+    voiceover?: VoiceoverConfig;
+    audio?: AudioConfig;
     styleProfile?: StyleProfile;
     styleBrief?: StyleBrief;
   };

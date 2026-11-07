@@ -251,89 +251,85 @@ export const OrbitalRings: React.FC<{ color?: string }> = ({ color = '#38bdf8' }
 };
 
 /**
- * 4. Dynamic Network Flow Nodes with Animated Connecting Circuits
+ * 4. Node-link diagram: nodes spring in one after another, links draw on between
+ * them, and small data packets travel along every link. Node cards carry their own
+ * dark background so text stays readable on any stage colour.
  */
 export const NetworkNodes: React.FC<{ color?: string; nodes?: DynamicNode[] }> = ({
   color = '#818cf8',
   nodes = [],
 }) => {
   const frame = useCurrentFrame();
-  const pulse = Math.sin(frame * 0.1) * 0.1 + 1;
-
-  const defaultPositions = [
-    { x: -220, y: -80 },
-    { x: 120, y: -110 },
-    { x: -140, y: 70 },
-    { x: 180, y: 80 },
-  ];
-
-  const displayNodes = (
-    nodes.length > 0
-      ? nodes
-      : [
-          { label: 'Initial State', sub: 'Input vector' },
-          { label: 'Core Mechanism', sub: 'Active transformation' },
-          { label: 'Feedback Loop', sub: 'Target verification' },
-          { label: 'Target State', sub: 'Result resolved' },
-        ]
-  ).slice(0, 4);
+  const { fps } = useVideoConfig();
+  const list = (nodes.length > 0 ? nodes : [{ label: 'Input' }, { label: 'Process' }, { label: 'Output' }]).slice(0, 6);
+  const W = 960;
+  const H = 1100;
+  const pts = list.map((_, i) => ({
+    x: list.length === 1 ? W / 2 : i % 2 === 0 ? 260 : 700,
+    y: list.length === 1 ? H / 2 : 130 + i * ((H - 260) / (list.length - 1)),
+  }));
+  const NODE_STAGGER = 9;
 
   return (
-    <div
-      style={{
-        position: 'relative',
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      {/* Animated SVG Connector Lines */}
-      <svg
-        style={{
-          position: 'absolute',
-          width: '700px',
-          height: '420px',
-          overflow: 'visible',
-        }}
-      >
-        <line x1="160" y1="120" x2="380" y2="90" stroke={color} strokeWidth="3" strokeDasharray="6 6" />
-        <line x1="380" y1="90" x2="540" y2="280" stroke={color} strokeWidth="3" strokeDasharray="6 6" />
-        <line x1="160" y1="120" x2="240" y2="270" stroke={color} strokeWidth="3" />
-        <line x1="240" y1="270" x2="540" y2="280" stroke={`${color}40`} strokeWidth="1.5" />
-      </svg>
+    <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ position: 'relative', width: W, height: H }}>
+        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>
+          {pts.slice(0, -1).map((from, i) => {
+            const to = pts[i + 1];
+            const start = i * NODE_STAGGER + 8;
+            const draw = interpolate(frame, [start, start + 18], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+            const cycle = 42;
+            const t = frame > start + 18 ? ((frame - start - 18 + i * 11) % cycle) / cycle : -1;
+            const eased = t < 0 ? 0 : t * t * (3 - 2 * t);
+            return (
+              <g key={i}>
+                <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke={`${color}33`} strokeWidth={6} strokeLinecap="round" />
+                <line
+                  x1={from.x} y1={from.y} x2={to.x} y2={to.y}
+                  stroke={color} strokeWidth={6} strokeLinecap="round"
+                  pathLength={1} strokeDasharray={1} strokeDashoffset={1 - draw}
+                />
+                {t >= 0 && (
+                  <g transform={`translate(${from.x + (to.x - from.x) * eased} ${from.y + (to.y - from.y) * eased})`}>
+                    <rect x={-14} y={-10} width={28} height={20} rx={5} fill="#ffffff" stroke={color} strokeWidth={3} />
+                    <path d="M -9 -5 L 0 2 L 9 -5" fill="none" stroke={color} strokeWidth={2} />
+                  </g>
+                )}
+              </g>
+            );
+          })}
+        </svg>
 
-      {/* Pulsing Nodes */}
-      {displayNodes.map((node, idx) => {
-        const pos = defaultPositions[idx] || { x: (idx - 1.5) * 160, y: 0 };
-        return (
-          <div
-            key={idx}
-            style={{
-              position: 'absolute',
-              transform: `translate(${pos.x}px, ${pos.y}px) scale(${pulse})`,
-              background: 'rgba(9, 13, 22, 0.92)',
-              border: `2px solid ${color}`,
-              borderRadius: '12px',
-              padding: '12px 20px',
-              boxShadow: `0 0 35px ${color}40`,
-              color: '#ffffff',
-              textAlign: 'center',
-              minWidth: '150px',
-            }}
-          >
-            <div style={{ fontWeight: 800, fontSize: '18px', letterSpacing: '0.8px' }}>
-              {node.label}
+        {list.map((node, idx) => {
+          const pos = pts[idx];
+          const enter = spring({ frame: frame - idx * NODE_STAGGER, fps, config: { damping: 14, stiffness: 140 } });
+          const bob = Math.sin(frame * 0.06 + idx * 1.3) * 5;
+          return (
+            <div
+              key={idx}
+              style={{
+                position: 'absolute',
+                left: pos.x,
+                top: pos.y + bob,
+                transform: `translate(-50%, -50%) scale(${enter})`,
+                opacity: Math.min(1, enter),
+                background: '#0b1220',
+                border: `3px solid ${color}`,
+                borderRadius: 22,
+                padding: '22px 30px',
+                boxShadow: `0 0 40px ${color}55, 0 14px 30px rgba(0,0,0,0.35)`,
+                color: '#f8fafc',
+                textAlign: 'center',
+                minWidth: 250,
+                maxWidth: 380,
+              }}
+            >
+              <div style={{ fontWeight: 800, fontSize: 34, lineHeight: 1.15, letterSpacing: 0.3 }}>{node.label}</div>
+              {node.sub && <div style={{ fontSize: 24, color: '#cbd5e1', marginTop: 8 }}>{node.sub}</div>}
             </div>
-            {node.sub && (
-              <div style={{ fontSize: '14px', color: '#94a3b8', marginTop: '4px' }}>
-                {node.sub}
-              </div>
-            )}
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 };
@@ -407,106 +403,20 @@ export const MetricBar: React.FC<{
 };
 
 /**
- * 6. Dynamic Animated Technical Vector Blueprint with Laser Path Draw-on
+ * 6. Fallback diagram when a scene has no blueprint, image, metric or nodes.
+ * It splits the scene title into 2-4 labelled nodes and animates data flowing
+ * between them (instead of the old static target reticle).
  */
 export const DynamicDiagram: React.FC<{ color?: string; title?: string }> = ({
   color = '#818cf8',
   title,
 }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-
-  const diagramSpring = spring({
-    frame,
-    fps,
-    config: springPresets.snappy,
-  });
-
-  const pathDraw = interpolate(frame, [0, 45], [500, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  const rotation = frame * 0.5;
-
-  return (
-    <div
-      style={{
-        position: 'relative',
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        transform: `scale(${diagramSpring})`,
-      }}
-    >
-      <svg width="680" height="420" viewBox="0 0 680 420" style={{ overflow: 'visible' }}>
-        <defs>
-          <pattern id="diag-grid-p" width="40" height="40" patternUnits="userSpaceOnUse">
-            <path d="M 40 0 L 0 0 0 40" fill="none" stroke={`${color}15`} strokeWidth="1" />
-          </pattern>
-        </defs>
-        <rect width="680" height="420" fill="url(#diag-grid-p)" rx="16" />
-
-        {/* Laser Path Draw-on Outer Border */}
-        <rect
-          x="10"
-          y="10"
-          width="660"
-          height="400"
-          fill="none"
-          stroke={`${color}50`}
-          strokeWidth="2"
-          strokeDasharray="500"
-          strokeDashoffset={pathDraw}
-          rx="12"
-        />
-
-        {/* Central Rotating Target Reticle */}
-        <circle
-          cx="340"
-          cy="210"
-          r="95"
-          fill="none"
-          stroke={color}
-          strokeWidth="2"
-          strokeDasharray="8 6"
-          transform={`rotate(${rotation} 340 210)`}
-        />
-        <circle
-          cx="340"
-          cy="210"
-          r="65"
-          fill={`${color}12`}
-          stroke={`${color}80`}
-          strokeWidth="1.5"
-        />
-
-        {/* Precision Crosshair Lines */}
-        <line x1="180" y1="210" x2="500" y2="210" stroke={`${color}50`} strokeWidth="1" strokeDasharray="4 4" />
-        <line x1="340" y1="90" x2="340" y2="330" stroke={`${color}50`} strokeWidth="1" strokeDasharray="4 4" />
-
-        {/* Corner Calipers */}
-        <path d="M 30 50 L 30 30 L 50 30" fill="none" stroke={color} strokeWidth="3" />
-        <path d="M 650 50 L 650 30 L 630 30" fill="none" stroke={color} strokeWidth="3" />
-        <path d="M 30 370 L 30 390 L 50 390" fill="none" stroke={color} strokeWidth="3" />
-        <path d="M 650 370 L 650 390 L 630 390" fill="none" stroke={color} strokeWidth="3" />
-
-        {/* Center Pulsing Metric Node */}
-        <circle cx="340" cy="210" r="9" fill={color} />
-        <circle
-          cx="340"
-          cy="210"
-          r="20"
-          fill="none"
-          stroke={color}
-          strokeWidth="2"
-          opacity={Math.sin(frame * 0.15) * 0.5 + 0.5}
-        />
-      </svg>
-    </div>
-  );
+  const words = (title || '').split(/\s+/).filter(Boolean);
+  const groups = Math.min(4, Math.max(1, Math.round(words.length / 2)));
+  const size = Math.ceil(words.length / groups) || 1;
+  const labels: DynamicNode[] = [];
+  for (let i = 0; i < words.length; i += size) labels.push({ label: words.slice(i, i + size).join(' ') });
+  return <NetworkNodes color={color} nodes={labels.length ? labels : undefined} />;
 };
 
 /**

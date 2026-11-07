@@ -115,6 +115,28 @@ export const BACKEND_PRODUCTION_RULES = `
 - Keep the full visual palette within the backend validation limit.
 - The final scene has no outgoing transition; every earlier transition is a 10-frame KINETIC_WIPE.
 - Never return placeholders, generic diagrams, unrelated assets, or incomplete JSON.
+
+ANTI-TEMPLATE & ANTI-FABRICATION RULES (MANDATORY):
+- Do not reuse a fixed scene sequence.
+- Do not automatically start with a kinetic hook and end with a CTA unless the subject requires it.
+- Do not force terminal, cards, statistics, quotes, or before/after scenes into topics that do not need them.
+- Select scene types based on the actual information being explained.
+- Two videos about different topics must not receive the same scene order unless their subject matter genuinely requires it.
+- Use visual metaphors, diagrams, object animation, timelines, spatial transitions, and image-led storytelling where appropriate.
+- Do not turn every scene into a centered heading with a rectangular card. Avoid repeating the same composition in consecutive scenes.
+- Use real, topic-specific images only when verified assets are supplied. Never invent image paths or pretend an asset exists.
+- Never invent statistics, benchmarks, customer testimonials, company names, certifications, or performance claims.
+- If a fact is not present in the supplied research, explain the concept visually without presenting an unsupported number as fact.
+- Every scene must communicate a new part of the story. Remove scenes that merely repeat the previous scene's message.
+
+NARRATION AND AUDIO RULES:
+- Do not invent a voiceover asset path.
+- Only populate audio.voiceover when an actual narration file is supplied to the planner.
+- When a narration file is supplied, create cues with accurate start, end, and transcript text timestamps.
+- Each caption must match the words spoken during that exact time range.
+- Do not use music or sound effects as a substitute for narration.
+- Keep sound effects aligned with meaningful visual events.
+- Never claim that a narration file has been generated if it has not.
 `;
 
 export type VideoComplexity = 'simple-motion' | 'production-explainer';
@@ -1238,7 +1260,7 @@ Before responding, validate the first and final scene against these rules. Do no
         projectId: req.projectId,
         content: contentStr,
         runner: { runText: this.runText.bind(this) },
-        timeoutMs: Math.min(90000, this.providerTimeoutMs(false)),
+        timeoutMs: Math.min(120000, this.providerTimeoutMs(false)),
         deadlineAt,
         feedback: req.changeRequestFeedback,
         reuseExisting: isRevision && !topicChanged,

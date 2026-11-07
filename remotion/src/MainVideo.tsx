@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Sequence, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Sequence, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import { TransitionSeries } from '@remotion/transitions';
 import type { TransitionPresentation, TransitionTiming } from '@remotion/transitions';
 import { fade } from '@remotion/transitions/fade';
@@ -13,6 +13,39 @@ import { assetSource } from './assetSource';
 import { sceneTimelineDuration } from './short-video/sceneAdapter';
 
 const defaultTransitionFrames = 12;
+
+const VoiceoverCaption: React.FC<{ text: string }> = ({ text }) => {
+  return (
+    <AbsoluteFill
+      style={{
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        padding: '0 64px 280px',
+        pointerEvents: 'none',
+        zIndex: 100,
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 950,
+          padding: '16px 28px',
+          borderRadius: 16,
+          background: 'rgba(0, 0, 0, 0.82)',
+          border: '1px solid rgba(255, 255, 255, 0.18)',
+          color: '#FFFFFF',
+          fontSize: 38,
+          fontWeight: 800,
+          lineHeight: 1.25,
+          textAlign: 'center',
+          textShadow: '0 2px 12px rgba(0, 0, 0, 0.8)',
+          boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
+        }}
+      >
+        {text}
+      </div>
+    </AbsoluteFill>
+  );
+};
 
 const continuousFadeTiming = (durationInFrames: number): TransitionTiming => ({
   getDurationInFrames: () => durationInFrames,
@@ -82,11 +115,30 @@ type TimedCue = {
 
 export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData }) => {
   const frame = useCurrentFrame();
+  const videoConfig = useVideoConfig();
+  const fps = videoConfig?.fps || sceneData.video.fps || 30;
   const { scenes } = sceneData;
   const { audioUrl, backgroundAudioUrl, captions, styleProfile, styleBrief } = sceneData.video;
   const timedCues: TimedCue[] = [];
   const narrationTracks: Array<{ frame: number; src: string; durationFrames: number }> = [];
   let sceneOffset = 0;
+
+  const voiceoverConfig = sceneData.video.voiceover || sceneData.video.audio?.voiceover;
+  const voiceoverCues = voiceoverConfig?.cues ?? [];
+  const voiceoverAsset = voiceoverConfig?.asset;
+  const bedAsset = sceneData.video.audio?.bed?.asset || backgroundAudioUrl;
+
+  // Process top-level audio.sfxCues if provided
+  if (sceneData.video.audio?.sfxCues) {
+    sceneData.video.audio.sfxCues.forEach((sfx, idx) => {
+      timedCues.push({
+        frame: Math.round(sfx.at * fps),
+        src: sfx.sound,
+        volume: sfx.gainDb !== undefined ? Math.pow(10, sfx.gainDb / 20) : 0.7,
+        sourceId: `audio_sfx_${idx}`,
+      });
+    });
+  }
 
   scenes.forEach((scene, index) => {
     if (scene.narrationAudio) {
@@ -98,9 +150,38 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
     );
   });
 
-  const narrationVolume = (frame: number) => {
+  const runningFrame = videoConfig?.durationInFrames || sceneOffset;
+
+  const voiceoverDuck = (currentFrame: number) => {
+    if (voiceoverCues.length === 0) return 1;
+    const fadeFrames = Math.max(1, Math.round(fps * 0.15));
+    let minDucking = 1;
+    for (const cue of voiceoverCues) {
+      const start = Math.round(cue.start * fps);
+      const end = Math.round(cue.end * fps);
+      if (currentFrame >= start - fadeFrames && currentFrame <= end + fadeFrames) {
+        const fadeIn = interpolate(
+          currentFrame,
+          [start - fadeFrames, start],
+          [1, 0.22],
+          { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+        );
+        const fadeOut = interpolate(
+          currentFrame,
+          [end, end + fadeFrames],
+          [0.22, 1],
+          { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+        );
+        const duck = Math.min(fadeIn, fadeOut);
+        if (duck < minDucking) minDucking = duck;
+      }
+    }
+    return minDucking;
+  };
+
+  const narrationVolume = (currentFrame: number) => {
     const duck = timedCues.reduce((amount, cue) => {
-      const distance = frame - cue.frame;
+      const distance = currentFrame - cue.frame;
       if (distance < -3 || distance > 10) return amount;
       return Math.max(amount, interpolate(distance, [-3, 0, 10], [0, 0.16, 0]));
     }, 0);
@@ -116,7 +197,10 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
     return Math.min(0.38, (cue.volume ?? 0.7) * (roleGain[cue.role || ''] ?? 0.38));
   };
 
-  const voiceActive = (frame: number) => Boolean(audioUrl) || narrationTracks.some((track) => frame >= track.frame && frame < track.frame + track.durationFrames);
+  const voiceActive = (f: number) =>
+    Boolean(audioUrl) ||
+    narrationTracks.some((track) => f >= track.frame && f < track.frame + track.durationFrames) ||
+    (voiceoverCues.length > 0 && voiceoverDuck(f) < 0.95);
 
   const rawBg = styleBrief?.palette.bg || styleProfile?.background || '#05070f';
   const safeStyleBrief = styleBrief
@@ -224,7 +308,27 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
       ) : (
         /* Multi-track fallback when master audio is not yet generated */
         <>
-          {backgroundAudioUrl && <Audio src={assetSource(backgroundAudioUrl)} volume={(frame) => 0.8 * (voiceActive(frame) ? 0.5 : 1) * narrationVolume(frame)} />}
+          {bedAsset && (
+            <Audio
+              src={assetSource(bedAsset)}
+              volume={(f) =>
+                interpolate(
+                  f,
+                  [0, 15, Math.max(16, runningFrame - 30), runningFrame],
+                  [0, 0.65, 0.65, 0],
+                  { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+                ) *
+                (voiceActive(f) ? 0.35 : 1) *
+                narrationVolume(f) *
+                voiceoverDuck(f)
+              }
+            />
+          )}
+          {voiceoverAsset && (
+            <Sequence from={0} durationInFrames={runningFrame}>
+              <Audio src={assetSource(voiceoverAsset)} volume={0.95} />
+            </Sequence>
+          )}
           {narrationTracks.map((track, index) => (
             <Sequence key={`narration-${index}`} from={track.frame} durationInFrames={track.durationFrames}>
               <Audio src={assetSource(track.src)} volume={(localFrame) => 0.92 * narrationVolume(track.frame + localFrame)} />
@@ -240,11 +344,23 @@ export const MainVideo: React.FC<{ sceneData: SceneDataPayload }> = ({ sceneData
       <AbsoluteFill style={{ transform: `scale(${1 + 0.05 * Math.min(1, frame / Math.max(1, sceneOffset))})`, transformOrigin: '50% 45%' }}>
         <TransitionSeries>{transitionNodes}</TransitionSeries>
       </AbsoluteFill>
-      <WordCaptions
-        captions={captions}
-        color={styleProfile?.primary}
-        emphasisWords={scenes.flatMap((s) => s.emphasis_words || [])}
-      />
+      {captions && captions.length > 0 ? (
+        <WordCaptions
+          captions={captions}
+          color={styleProfile?.primary}
+          emphasisWords={scenes.flatMap((s) => s.emphasis_words || [])}
+        />
+      ) : (
+        voiceoverCues.map((cue, index) => (
+          <Sequence
+            key={`voiceover-cue-${index}`}
+            from={Math.round(cue.start * fps)}
+            durationInFrames={Math.max(1, Math.round((cue.end - cue.start) * fps))}
+          >
+            <VoiceoverCaption text={cue.text} />
+          </Sequence>
+        ))
+      )}
     </AbsoluteFill>
   );
 };

@@ -51,3 +51,13 @@ remotion/out/
 tmp/
 qa/scene-stills/
 
+# Rendered output
+*.mp4
+!remotion/public/bittrix-logo.mp4
+backend/media/
+remotion/public/assets/projects/
+remotion/public/audio/
+remotion/public/sfx/
+!remotion/public/sfx/.gitkeep
+!remotion/public/sfx/default/
+

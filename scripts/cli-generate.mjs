@@ -133,6 +133,10 @@ const scenes = sentences.map((narration, idx) => {
     }
   ];
 
+  const icons = ['⚡', '🛡️', '⚙️', '🚀', '🎯', '💡', '🔍', '🌐'];
+  const nodeIconA = icons[idx % icons.length];
+  const nodeIconB = icons[(idx + 3) % icons.length];
+
   return {
     id: `scene-${idx + 1}`,
     scene_number: idx + 1,
@@ -147,8 +151,8 @@ const scenes = sentences.map((narration, idx) => {
     emphasis_word: words[Math.floor(words.length / 2)] || words[0],
     audioCues,
     nodes: [
-      { label: words.slice(0, Math.ceil(words.length / 2)).join(' '), sub: 'Layer 1' },
-      { label: words.slice(Math.ceil(words.length / 2)).join(' '), sub: 'Layer 2' }
+      { label: words.slice(0, Math.ceil(words.length / 2)).join(' ') || topic, sub: 'Core Engine', icon: nodeIconA },
+      { label: words.slice(Math.ceil(words.length / 2)).join(' ') || 'Scale Target', sub: 'High Throughput', icon: nodeIconB }
     ],
     labels: words.slice(0, 3),
     words: words.map((w, wIdx) => ({
@@ -160,15 +164,147 @@ const scenes = sentences.map((narration, idx) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STEP 3 — Generate Authoritative TSX with Master Audio injected
 // ─────────────────────────────────────────────────────────────────────────────
-console.log('\n⚛️  [3/5] Generating Authoritative TSX (Voice + SFX = One Render)...');
+// STEP 3 — AI Agent TSX Authoring & Self-Repair (Zero template fallback)
+// ─────────────────────────────────────────────────────────────────────────────
+console.log('\n⚛️  [3/5] AI Agent authoring 100% custom Remotion TSX code...');
 
-const { buildAuthoritativeTsx } = await import('../backend/dist/modules/production/authoritativeTsxBuilder.js');
-const tsxSource = buildAuthoritativeTsxWithMasterAudio(
-  buildAuthoritativeTsx,
-  topic, scenes, activeTheme, audioFileName
-);
+const { tsxValidator } = await import('../backend/dist/modules/production/tsxValidator.js');
+
+const tsxPrompt = `You are an elite Motion Graphics Software Engineer authoring 100% BESPOKE Remotion TSX code.
+CRITICAL CONSTRAINT: TEMPLATE FALLBACKS HAVE BEEN COMPLETELY REMOVED. You as the AI agent MUST author 100% of the Remotion TSX component code yourself.
+
+PROJECT: "${topic}" (ID: ${projectId})
+OUTPUT FORMAT: 1080 x 1920, ${fps} FPS, Total Duration: ${totalFrames} frames (${totalAudioSec.toFixed(2)}s).
+
+SCENES WITH MEASURED TIMESTAMPS:
+${JSON.stringify(scenes, null, 2)}
+
+CREATIVE REQUIREMENTS:
+1. Export default: export default function GeneratedCliVideo(props: any) { ... }
+2. Import from 'remotion': AbsoluteFill, Sequence, Audio, staticFile, spring, interpolate, useCurrentFrame, useVideoConfig
+3. Include master voiceover track:
+   <Audio src={staticFile('audio/${audioFileName}')} volume={1.0} startFrom={0} />
+4. Single continuous living canvas with continuous virtual camera (interpolate camX, camY, camScale across scenes).
+5. Topic-specific visual mechanics for "${topic}". ZERO 50% border-radius circles or placeholder orbs!
+6. Synchronized kinetic karaoke captions matching scene.words with dynamic active-word scaling and accent glow.
+7. The FINAL SCENE (~last 3s) MUST render the exact Bittrix Technologies royal purple (#5b1a78) outro matching bittrix-reel(1).html:
+   - 6-point radial gradient hexagon with spoke circles
+   - Rolling chain link track and rotating 12-tooth gear with serif 'B'
+   - Staggered letter italic bold "BITTRIX" and tracking "TECHNOLOGIES"
+   - Purple underline and diagonal light sweep
+   - Spoken narration aloud: "Accelerate your engineering with Bittrix Technologies."
+8. Return ONLY valid, self-contained TypeScript/TSX in a \`\`\`tsx code fence.
+`;
+
+let tsxSource = null;
+let lastErrors = [];
+
+try {
+  const { stdout: agyTsxOutput } = await execFileAsync(
+    '/usr/bin/agy',
+    ['-p', tsxPrompt, '--model', 'gemini-3.8-flash-high', '--output-format', 'json', '--disable-slash-commands', '--dangerously-skip-permissions'],
+    { timeout: 180000, maxBuffer: 10 * 1024 * 1024 }
+  );
+  let rawText = agyTsxOutput.trim();
+  try {
+    const outer = JSON.parse(rawText);
+    if (outer.response) rawText = outer.response;
+  } catch {}
+
+  const match = rawText.match(/```(?:tsx|typescript|jsx)\s*([\s\S]*?)```/i);
+  let candidate = match ? match[1].trim() : null;
+  if (!candidate && rawText.includes('import') && rawText.includes('GeneratedCliVideo')) {
+    candidate = rawText.trim();
+  }
+  if (candidate) {
+    if (!candidate.includes('export default') && !candidate.includes('export const GeneratedCliVideo')) {
+      candidate = `${candidate}\n\nexport default GeneratedCliVideo;`;
+    }
+    const val = await tsxValidator.validate(candidate);
+    if (val.valid) {
+      tsxSource = candidate;
+      console.log(`✅ Agent bespoke Remotion TSX authored and validated successfully!`);
+    } else {
+      lastErrors = val.errors;
+      console.warn(`⚠️ Agent TSX initial validation warnings: ${val.errors.join('; ')}`);
+    }
+  } else {
+    lastErrors = ['Agent did not return a ```tsx code fence'];
+  }
+} catch (err) {
+  console.warn(`⚠️ Agent initial TSX generation error: ${err.message}`);
+  lastErrors = [err.message];
+}
+
+// Agent Self-Repair Loop
+let repairAttempts = 0;
+const maxRepairAttempts = 2;
+while (!tsxSource && repairAttempts < maxRepairAttempts) {
+  repairAttempts++;
+  console.log(`🔄 Requesting agent TSX repair pass (${repairAttempts}/${maxRepairAttempts})...`);
+  const repairPrompt = `You are an elite Motion Graphics Software Engineer authoring Remotion TSX.
+CRITICAL ERROR: Your previous Remotion TSX code failed validation:\n- ${lastErrors.join('\n- ')}
+
+USER CONSTRAINT: TEMPLATE FALLBACKS ARE STRICTLY REMOVED. You MUST author 100% of the TSX code yourself.
+Fix all errors and return the complete, self-contained Remotion TSX component in a \`\`\`tsx code fence:
+
+PROJECT: "${topic}"
+TOTAL DURATION: ${totalFrames} frames @ ${fps}fps
+
+SCENES WITH MEASURED TIMESTAMPS:
+${JSON.stringify(scenes, null, 2)}
+
+Requirements:
+1. export default function GeneratedCliVideo(props: any) { ... }
+2. Import from 'remotion': AbsoluteFill, Sequence, Audio, staticFile, spring, interpolate, useCurrentFrame, useVideoConfig
+3. Master audio track: <Audio src={staticFile('audio/${audioFileName}')} volume={1.0} startFrom={0} />
+4. Single continuous living canvas with continuous camera motion.
+5. Topic-specific physical mechanics for "${topic}". ZERO generic 50% border radius circles!
+6. Kinetic karaoke captions from scene.words.
+7. Exact royal purple (#5b1a78) Bittrix outro in final scene with rotating gear and chain track.
+`;
+  try {
+    const { stdout: repOutput } = await execFileAsync(
+      '/usr/bin/agy',
+      ['-p', repairPrompt, '--model', 'gemini-3.8-flash-high', '--output-format', 'json', '--disable-slash-commands', '--dangerously-skip-permissions'],
+      { timeout: 180000, maxBuffer: 10 * 1024 * 1024 }
+    );
+    let repText = repOutput.trim();
+    try {
+      const outer = JSON.parse(repText);
+      if (outer.response) repText = outer.response;
+    } catch {}
+
+    const repMatch = repText.match(/```(?:tsx|typescript|jsx)\s*([\s\S]*?)```/i);
+    let candidate = repMatch ? repMatch[1].trim() : null;
+    if (!candidate && repText.includes('import') && repText.includes('GeneratedCliVideo')) {
+      candidate = repText.trim();
+    }
+    if (candidate) {
+      if (!candidate.includes('export default') && !candidate.includes('export const GeneratedCliVideo')) {
+        candidate = `${candidate}\n\nexport default GeneratedCliVideo;`;
+      }
+      const val = await tsxValidator.validate(candidate);
+      if (val.valid) {
+        tsxSource = candidate;
+        console.log(`✅ Agent TSX self-repair pass succeeded on attempt ${repairAttempts}!`);
+        break;
+      } else {
+        lastErrors = val.errors;
+      }
+    } else {
+      lastErrors = ['Agent did not return a ```tsx code fence'];
+    }
+  } catch (err) {
+    console.error(`Repair pass ${repairAttempts} error:`, err.message);
+    lastErrors = [err.message];
+  }
+}
+
+if (!tsxSource) {
+  throw new Error(`AI agent failed to author valid bespoke Remotion TSX after ${repairAttempts} attempts (${lastErrors.join('; ')}). Per user rule, template fallbacks are strictly disabled.`);
+}
 
 const tsxPath = path.join(outDir, 'composition.tsx');
 await fs.writeFile(tsxPath, tsxSource, 'utf8');
@@ -378,51 +514,6 @@ console.log(finalVideoPath);
 // HELPERS
 // ═════════════════════════════════════════════════════════════════════════════
 
-/**
- * Wraps buildAuthoritativeTsx to inject master narration audio track.
- * Result: single render file contains voice + all SFX = no separate mux step.
- *
- * Layout:
- *   <AbsoluteFill>
- *     <Audio src="audio/xxx_master.mp3" volume={1.0} />  ← MASTER VOICE
- *     {ambient glow...}
- *     {scenes.map → each Sequence has its own SFX audioCues}
- *   </AbsoluteFill>
- */
-function buildAuthoritativeTsxWithMasterAudio(builderFn, topic, scenes, theme, audioFileName) {
-  const baseTsx = builderFn(topic, scenes, {
-    palette: theme.palette,
-    fonts: theme.fonts,
-    archetype: theme.archetype,
-    motionPersonality: theme.motionPersonality,
-    background: theme.background
-  });
-
-  const masterAudioBlock = `
-      {/* ── MASTER NARRATION TRACK: Voice @ 0dB, full video duration ── */}
-      <Audio
-        src={staticFile('audio/${audioFileName}')}
-        volume={1.0}
-        startFrom={0}
-      />
-`;
-
-  // Inject right before the themed ambient glow block (always present in generated TSX)
-  const insertTarget = `{/* Themed ambient`;
-  const insertIdx = baseTsx.indexOf(insertTarget);
-  if (insertIdx !== -1) {
-    return baseTsx.slice(0, insertIdx) + masterAudioBlock + baseTsx.slice(insertIdx);
-  }
-
-  // Fallback: inject before scene loop
-  const fallback = `      {scenes.map(`;
-  const fallbackIdx = baseTsx.indexOf(fallback);
-  if (fallbackIdx !== -1) {
-    return baseTsx.slice(0, fallbackIdx) + masterAudioBlock + baseTsx.slice(fallbackIdx);
-  }
-
-  return baseTsx;
-}
 
 /**
  * Preview Validation Suite — runs all 5 quality gates per AGENTS.md spec

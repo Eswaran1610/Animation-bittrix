@@ -2,7 +2,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { projectPaths } from '../../config/paths.js';
 import { activeProviderService } from '../providers/activeProviderService.js';
-import { ConnectionState } from './codexAuthService.js';
+export type ConnectionState = 'unknown' | 'connected' | 'standby' | 'failed';
 
 const execFileAsync = promisify(execFile);
 

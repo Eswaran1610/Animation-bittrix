@@ -9,7 +9,7 @@ import { api, CliConnection, ActiveProviderStatus } from '../services/api';
 // ──────────────────────────────────────────────────
 
 interface CliCardProps {
-  id: 'codex' | 'agy' | 'claude';
+  id: 'agy' | 'claude';
   title: string;
   subtitle: string;
   icon: React.ReactNode;
@@ -166,20 +166,14 @@ const CliCard: React.FC<CliCardProps> = ({
 // Main Settings modal
 // ──────────────────────────────────────────────────
 
-export const SettingsModal: React.FC<{ onActiveProviderChange?: (provider: 'codex' | 'agy' | 'claude' | 'none') => void }> = ({ onActiveProviderChange }) => {
-  const [activeProvider, setActiveProvider] = useState<'codex' | 'agy' | 'claude' | 'none'>('codex');
+export const SettingsModal: React.FC<{ onActiveProviderChange?: (provider: 'agy' | 'claude' | 'none') => void }> = ({ onActiveProviderChange }) => {
+  const [activeProvider, setActiveProvider] = useState<'agy' | 'claude' | 'none'>('agy');
 
-  const updateActiveProvider = (provider: 'codex' | 'agy' | 'claude' | 'none') => {
+  const updateActiveProvider = (provider: 'agy' | 'claude' | 'none') => {
     setActiveProvider(provider);
     onActiveProviderChange?.(provider);
     void loadAll();
   };
-
-  // Codex
-  const [codex, setCodex] = useState<CliConnection | null>(null);
-  const [codexBusy, setCodexBusy] = useState(false);
-  const [codexMsg, setCodexMsg] = useState('');
-  const [codexLoading, setCodexLoading] = useState(true);
 
   // AGY
   const [agy, setAgy] = useState<CliConnection | null>(null);
@@ -194,13 +188,11 @@ export const SettingsModal: React.FC<{ onActiveProviderChange?: (provider: 'code
   const [claudeLoading, setClaudeLoading] = useState(true);
 
   const loadAll = async () => {
-    setCodexLoading(true);
     setAgyLoading(true);
     setClaudeLoading(true);
 
-    const [activeRes, codexRes, agyRes, claudeRes] = await Promise.allSettled([
+    const [activeRes, agyRes, claudeRes] = await Promise.allSettled([
       api.getActiveProvider(),
-      api.getCodexConnection(),
       api.getAgyConnection(),
       api.getClaudeConnection(),
     ]);
@@ -208,14 +200,6 @@ export const SettingsModal: React.FC<{ onActiveProviderChange?: (provider: 'code
     if (activeRes.status === 'fulfilled') {
       setActiveProvider(activeRes.value.activeProvider);
     }
-
-    if (codexRes.status === 'fulfilled') {
-      setCodex(codexRes.value);
-      setCodexMsg(codexRes.value.message || '');
-    } else {
-      setCodexMsg('Could not reach backend for Codex status.');
-    }
-    setCodexLoading(false);
 
     if (agyRes.status === 'fulfilled') {
       setAgy(agyRes.value);
@@ -236,38 +220,6 @@ export const SettingsModal: React.FC<{ onActiveProviderChange?: (provider: 'code
 
   useEffect(() => { void loadAll(); }, []);
 
-  const handleCodexConnect = async () => {
-    setCodexBusy(true);
-    setCodexMsg('');
-    try {
-      const res = await api.connectCodex();
-      setCodex(res);
-      setCodexMsg(res.message || '');
-      updateActiveProvider('codex');
-      // Refresh AGY to show standby
-      const agyStat = await api.getAgyConnection();
-      setAgy(agyStat);
-    } catch (e: any) {
-      setCodexMsg(e?.message || 'Codex connection failed.');
-    } finally {
-      setCodexBusy(false);
-    }
-  };
-
-  const handleCodexDisconnect = async () => {
-    setCodexBusy(true);
-    try {
-      const res = await api.disconnectCodex();
-      setCodex(res);
-      setCodexMsg('Codex disconnected.');
-      updateActiveProvider('none');
-    } catch (e: any) {
-      setCodexMsg(e?.message || 'Disconnect failed.');
-    } finally {
-      setCodexBusy(false);
-    }
-  };
-
   const handleAgyConnect = async () => {
     setAgyBusy(true);
     setAgyMsg('');
@@ -276,9 +228,6 @@ export const SettingsModal: React.FC<{ onActiveProviderChange?: (provider: 'code
       setAgy(res);
       setAgyMsg(res.message || '');
       updateActiveProvider('agy');
-      // Refresh Codex to show standby
-      const codexStat = await api.getCodexConnection();
-      setCodex(codexStat);
     } catch (e: any) {
       setAgyMsg(e?.message || 'AGY connection failed.');
     } finally {
@@ -357,7 +306,6 @@ export const SettingsModal: React.FC<{ onActiveProviderChange?: (provider: 'code
               Connected Active CLI (One CLI at a Time)
             </div>
             <div style={{ fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {activeProvider === 'codex' && <><span style={{ color: '#38bdf8' }}>🤖 OpenAI Codex</span> (Active)</>}
               {activeProvider === 'agy' && <><span style={{ color: '#38bdf8' }}>⚡ AGY Antigravity</span> (Active)</>}
               {activeProvider === 'claude' && <><span style={{ color: '#f97316' }}>🟠 Claude Code</span> (Active)</>}
               {activeProvider === 'none' && <><span style={{ color: '#fb7185' }}>No CLI Connected</span> (Disconnected)</>}
@@ -373,27 +321,6 @@ export const SettingsModal: React.FC<{ onActiveProviderChange?: (provider: 'code
           <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Cpu size={18} color="#38bdf8" /> AI CLI Backends
           </h3>
-
-          {/* Codex */}
-          <CliCard
-            id="codex"
-            title="OpenAI Codex"
-            subtitle="codex CLI"
-            icon={<span style={{ fontSize: '16px' }}>🤖</span>}
-            description={
-              <>
-                The backend runs the local <code>codex</code> CLI for script generation, creative direction, and Remotion scene planning.{' '}
-                Run <code>codex login</code> in the terminal if needed.
-              </>
-            }
-            connection={codex}
-            isActive={activeProvider === 'codex'}
-            loading={codexLoading}
-            busy={codexBusy}
-            message={codexMsg}
-            onConnect={handleCodexConnect}
-            onDisconnect={handleCodexDisconnect}
-          />
 
           {/* AGY */}
           <CliCard

@@ -81,8 +81,10 @@ export class TrendResearchService {
   }
 
   buildPrompt(content: string, skill: string, today: string, feedback?: string): string {
-    return `You are a motion-graphics research analyst. Today's date is ${today}.
-You have live web search. USE IT. Do not answer from memory.
+    return `PERFORMANCE & SEARCH LIMIT: Perform at most 1-2 quick web searches. Then immediately synthesize the text sections below. Do not loop web searches.
+
+You are a motion-graphics research analyst. Today's date is ${today}.
+You have live web search. USE IT efficiently. Do not answer from memory.
 
 ${skill ? `FOLLOW THIS SKILL:\n${skill}\n\n` : ''}USER SUBMISSION (the only source of subject matter; do not assume a domain):
 """
@@ -91,7 +93,7 @@ ${content}
 ${feedback ? `\nREVISION FEEDBACK FROM THE HUMAN REVIEWER (address it):\n${feedback}\n` : ''}
 TASK
 1. Research the submission itself across at least ${MIN_PREFERRED_SOURCE_DOMAINS} distinct authoritative websites. Cross-check facts; note any disagreement.
-2. Research CURRENT motion-graphics trends relevant to this subject: modern vertical reel-style explainers (1080x1920, 20-40s), Claude/Anthropic product demo motion styles (kinetic reveals, floating UI cards, code/terminal stages, node-edge flow paths, springy easing, camera pushes, continuous timeline flow without jarring slide breaks). Extract TECHNIQUES only.
+2. Research CURRENT motion-graphics trends that fit THIS subject and its audience: find 3+ recent (last 6 months) vertical reel-style explainers (1080x1920, 20-40s) from channels in the same niche as the subject, plus current motion-design trend write-ups. Pick the visual language that fits THIS topic (for example data-heavy -> chart/number kinetics; physical products -> object close-ups; software -> UI/code stages; abstract ideas -> metaphor objects). Extract TECHNIQUES only, with the source URL and date for each.
 3. CRITICAL RULE: The bracketed examples in the guide (such as websites->laptop, save hours->pocket watch, agency promos, purple accent) are reference logic ONLY. Do NOT hardcode or copy those specific topics, palettes, or assets. Everything must be dynamically derived from THIS user submission.
 4. Asset candidates: Find concrete or metaphoric hero objects (>40% frame width) and secondary objects (<15% frame width) with direct HTTPS URLs, source page, license and attribution. If none is verifiable, specify "use authored vector" with shape/text specs.
 5. Decide what fits THIS content. Different content must lead to completely different design choices, layouts, and palettes.

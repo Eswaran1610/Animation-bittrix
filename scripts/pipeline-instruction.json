@@ -1,0 +1,61 @@
+{
+  "system": "Animation-Bittrix Autonomous CLI Pipeline",
+  "version": "2.0.0",
+  "fps": 60,
+  "default_resolution": "1080x1920",
+  "target_duration_sec": 23,
+  "content_duration_sec": 20,
+  "outro_duration_sec": 3,
+  "research": {
+    "min_web_sources": 4,
+    "crawl_depth": "deep_academic_and_official",
+    "require_verified_facts": true,
+    "forbidden": ["shallow_wikipedia_alone", "hallucinated_metrics", "fabricated_quotes"]
+  },
+  "script": {
+    "sentences_per_scene": 1,
+    "scenes_count": "5-7",
+    "structure": [
+      { "role": "hook", "focus": "Provocative factual question or opening mechanism" },
+      { "role": "body", "focus": "Core engineering concept, architecture, or data mechanism" },
+      { "role": "body", "focus": "Comparison, metric throughput, or system interaction" },
+      { "role": "body", "focus": "Technical resolution or takeaway" },
+      { "role": "cta", "focus": "Bittrix Technologies mandatory outro and continuous transition" }
+    ],
+    "outro": {
+      "mandatory": true,
+      "brand": "Bittrix Technologies",
+      "video_asset": "bittrix-logo.mp4",
+      "script_cta": "Accelerate your engineering with high-performance Bittrix Technologies."
+    }
+  },
+  "motion_archetypes": {
+    "forbidden": ["plain_static_callout", "simple_text_slide", "unanimated_card"],
+    "allowed": [
+      "retention-clock",
+      "viewfinder-target",
+      "card-stack",
+      "physics-simulation",
+      "branching-tree",
+      "split-compare",
+      "stat-counter",
+      "3d-showcase"
+    ]
+  },
+  "audio_sfx": {
+    "engine": "procedural_math_sfx",
+    "roles": ["clock_tick", "shutter_click", "card_slap", "punch_hit", "whoosh", "pop", "click", "ding", "count", "impact"],
+    "lead_frames": -2,
+    "dense_hits": true
+  },
+  "visuals": {
+    "quality_gate": {
+      "enforce_safe_margin_px": 80,
+      "enforce_vertical_canvas": "1080x1920",
+      "enforce_60fps": true,
+      "min_motion_energy": 0.85,
+      "target_motion_energy": 0.90
+    },
+    "dynamic_cache_dir": "remotion/public/assets/projects/{PROJECT_ID}"
+  }
+}

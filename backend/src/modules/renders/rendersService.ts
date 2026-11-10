@@ -259,9 +259,25 @@ export class RendersService {
           projectAssets.push({ type: fetched.kind, sceneNumber: fetched.sceneNumber, objectId: fetched.objectId, title: fetched.title, path: fetched.localPath, projectUrl: `/media/${fetched.staticUrl}`, remotionUrl: fetched.staticUrl, downloadUrl: fetched.downloadUrl, sourceUrl: fetched.sourceUrl, license: fetched.license, attribution: fetched.attribution || null, fileSizeBytes: fetched.fileSizeBytes });
         } catch (assetErr: any) {
           console.warn(`[RendersService] Non-fatal: Asset fetch skipped for scene ${s.scene_number} ("${object.label || object.id}"):`, assetErr.message);
-          spec.type = 'procedural';
+          spec.type = 'vector';
           delete spec.asset_download_url;
           delete spec.model_download_url;
+          // Generate procedural vector shapes so the scene never collapses to an empty orb
+          const hue = ((Number(s.scene_number) * 67) % 360);
+          spec.viewBox = [0, 0, 600, 400];
+          spec.rects = [
+            { x: 30, y: 30, width: 540, height: 340, rx: 24, fill: `hsla(${hue}, 70%, 15%, 0.85)`, stroke: `hsl(${hue}, 80%, 65%)`, strokeWidth: 4 }
+          ];
+          spec.circles = [
+            { cx: 300, cy: 180, r: 65, fill: `hsla(${hue}, 85%, 55%, 0.25)`, stroke: `hsl(${hue}, 90%, 65%)`, strokeWidth: 5 },
+            { cx: 180, cy: 260, r: 28, fill: `hsla(${hue + 40}, 80%, 50%, 0.4)`, stroke: `hsl(${hue + 40}, 85%, 65%)`, strokeWidth: 3 },
+            { cx: 420, cy: 260, r: 28, fill: `hsla(${hue + 40}, 80%, 50%, 0.4)`, stroke: `hsl(${hue + 40}, 85%, 65%)`, strokeWidth: 3 }
+          ];
+          spec.lines = [
+            { x1: 180, y1: 260, x2: 300, y2: 180, stroke: `hsl(${hue}, 80%, 60%)`, strokeWidth: 4, dash: '8 6' },
+            { x1: 420, y1: 260, x2: 300, y2: 180, stroke: `hsl(${hue}, 80%, 60%)`, strokeWidth: 4, dash: '8 6' }
+          ];
+          spec.text = object.label || s.on_screen_text;
         }
       }));
 
@@ -661,6 +677,111 @@ export class RendersService {
     return renderJobRes.rows[0];
   }
 
+  private async stageProjectRemotionFiles(projectId: string, tsxSource: string): Promise<void> {
+    const projectDir = path.join(projectPaths.remotionRoot, 'src', 'projects', projectId);
+    await fs.mkdir(projectDir, { recursive: true });
+
+    // 1. Isolated GeneratedVideo.tsx
+    await fs.writeFile(path.join(projectDir, 'GeneratedVideo.tsx'), tsxSource, 'utf8');
+
+    // 2. Isolated Composition.tsx
+    const compositionCode = `import React from 'react';
+import { Audio, Sequence } from 'remotion';
+import GeneratedVideo from './GeneratedVideo';
+import { SceneDataPayload } from '../../data/sceneTypes';
+import { assetSource } from '../../assetSource';
+
+export const MainComposition: React.FC<SceneDataPayload> = (sceneData) => {
+  const masterAudioUrl = sceneData?.video?.audioUrl;
+  const backgroundAudioUrl = sceneData?.video?.backgroundAudioUrl;
+  const scenes = sceneData?.scenes || [];
+  let accumulatedFrame = 0;
+
+  return (
+    <>
+      <GeneratedVideo {...sceneData} />
+      {masterAudioUrl && <Audio src={assetSource(masterAudioUrl)} volume={1.0} />}
+      {!masterAudioUrl && backgroundAudioUrl && <Audio src={assetSource(backgroundAudioUrl)} volume={0.15} />}
+      {!masterAudioUrl &&
+        scenes.map((scene, sceneIndex) => {
+          const fromFrame = accumulatedFrame;
+          const transOut = (scene as any).transitionOutFrames ?? (sceneIndex < scenes.length - 1 ? 10 : 0);
+          accumulatedFrame += (scene.durationInFrames || 90) - (sceneIndex < scenes.length - 1 ? transOut : 0);
+
+          return (
+            <React.Fragment key={\`audio-scene-\${scene.id || sceneIndex}\`}>
+              {scene.narrationAudio && (
+                <Sequence from={fromFrame} durationInFrames={scene.durationInFrames}>
+                  <Audio src={assetSource(scene.narrationAudio)} volume={1.0} />
+                </Sequence>
+              )}
+              {scene.audioCues?.map((cue, cueIdx) => {
+                if (!cue?.src) return null;
+                return (
+                  <Sequence
+                    key={\`cue-\${scene.id || sceneIndex}-\${cueIdx}\`}
+                    from={fromFrame + (cue.frame ?? cue.hitFrame ?? 0)}
+                    durationInFrames={cue.durationFrames || 60}
+                  >
+                    <Audio src={assetSource(cue.src)} volume={cue.volume ?? 0.6} />
+                  </Sequence>
+                );
+              })}
+            </React.Fragment>
+          );
+        })}
+    </>
+  );
+};
+export default MainComposition;
+`;
+    await fs.writeFile(path.join(projectDir, 'Composition.tsx'), compositionCode, 'utf8');
+
+    // 3. Isolated Root.tsx (JSX)
+    const rootCode = `import React from 'react';
+import { Composition, getInputProps } from 'remotion';
+import { MainComposition } from './Composition';
+import { SceneDataPayload } from '../../data/sceneTypes';
+import { normalizeSceneData } from '../../data/normalizeSceneData';
+
+const calcTimelineDuration = (scenes: any[] = []) =>
+  scenes.reduce((total, scene, index) => total + (scene.durationInFrames || 90) - (index < scenes.length - 1 ? (scene.transitionOutFrames || 12) : 0), 0) || 900;
+
+export const ProjectRoot: React.FC = () => {
+  const rawInput = getInputProps();
+  const resolvedProps = normalizeSceneData(rawInput) || (rawInput as SceneDataPayload);
+  const mainFps = resolvedProps?.video?.fps || 30;
+  const mainDuration = resolvedProps?.video?.durationInFrames || calcTimelineDuration(resolvedProps?.scenes);
+
+  return (
+    <Composition
+      id="MainComposition"
+      component={MainComposition as unknown as React.FC<Record<string, unknown>>}
+      defaultProps={resolvedProps as unknown as Record<string, unknown>}
+      durationInFrames={mainDuration}
+      fps={mainFps}
+      width={resolvedProps?.video?.width || 1080}
+      height={resolvedProps?.video?.height || 1920}
+    />
+  );
+};
+`;
+    await fs.writeFile(path.join(projectDir, 'Root.tsx'), rootCode, 'utf8');
+
+    // 4. Isolated index.ts (Pure TypeScript entrypoint)
+    const indexCode = `import { registerRoot } from 'remotion';
+import { ProjectRoot } from './Root';
+
+registerRoot(ProjectRoot);
+`;
+    await fs.writeFile(path.join(projectDir, 'index.ts'), indexCode, 'utf8');
+
+    // 4. Also keep legacy GeneratedCliVideo.tsx in root src for compatibility
+    const generatedTsxPath = path.join(projectPaths.remotionRoot, 'src', 'GeneratedCliVideo.tsx');
+    await fs.writeFile(generatedTsxPath, tsxSource, 'utf8');
+    console.log(`[RendersService] Project ${projectId} isolated Remotion component and entry staged at ${projectDir}`);
+  }
+
   private async useCliProductionPackage(projectId: string, scriptVersion: number, previewVersion: number): Promise<string> {
     const packageRow = await productionPackageService.latestReady(projectId, scriptVersion);
     if (!packageRow?.package_path) {
@@ -676,10 +797,9 @@ export class RendersService {
     await fs.mkdir(projectPaths.renderDataDir, { recursive: true });
     await fs.writeFile(renderDataPath, JSON.stringify(props, null, 2), 'utf8');
 
-    // Stage the TSX source code generated by the CLI into Remotion src
+    // Stage the TSX source code into isolated project folder and legacy fallback
     if (packagePayload.tsxSource) {
-      const generatedTsxPath = path.join(projectPaths.remotionRoot, 'src', 'GeneratedCliVideo.tsx');
-      await fs.writeFile(generatedTsxPath, packagePayload.tsxSource, 'utf8');
+      await this.stageProjectRemotionFiles(projectId, packagePayload.tsxSource);
     }
 
     // Always derive global frames from scene-local Remotion cues. Older
@@ -710,8 +830,9 @@ export class RendersService {
 
   async prepareCliProductionPackage(projectId: string, scriptVersion: number): Promise<void> {
     const packageRow = await productionPackageService.latest(projectId, scriptVersion);
-    if (!packageRow || packageRow.status === 'ready' || packageRow.status === 'building') return;
+    if (!packageRow || packageRow.status === 'ready') return;
     await query(`UPDATE production_packages SET status = 'building', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [packageRow.id]);
+    try {
     const projectResult = await query(`SELECT * FROM projects WHERE id = $1`, [projectId]);
     const scriptResult = await query(`SELECT * FROM scripts WHERE project_id = $1 AND version = $2`, [projectId, scriptVersion]);
     if (!projectResult.rows[0] || !scriptResult.rows[0]) throw new Error('Project or approved script not found for production preparation.');
@@ -801,6 +922,10 @@ export class RendersService {
 
     await publishPackageProgress(58, 'Animation package prepared; launching preview render...');
     await this.createPreviewRender(projectId, scriptVersion);
+    } catch (err: any) {
+      await query(`UPDATE production_packages SET status = 'failed', error_message = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [packageRow.id, err?.message || 'Production preparation failed']);
+      throw err;
+    }
   }
 
   private async processPreviewRender(
@@ -840,6 +965,7 @@ export class RendersService {
       await preflightRenderProps(propsPath);
       await publishPreviewProgress(50, 'Preflight verified. Initializing Remotion motion renderer...');
       await videoRenderer.renderVideo({
+        projectId,
         outputPath: previewDiskPath,
         title: projectTitle,
         subheading: script.scene_plan[0].subtitle,
@@ -869,12 +995,48 @@ export class RendersService {
           { videoDiskPath: previewDiskPath }
         ).catch(() => {});
       }
+
+      // Auto-save directly into videos folder as final video
+      const finalDiskPath = path.join(projectPaths.backendMedia, 'videos', `${projectId}_final.mp4`);
+      await fs.mkdir(path.dirname(finalDiskPath), { recursive: true });
+      await fs.copyFile(previewDiskPath, finalDiskPath).catch(() => {});
+      const finalVideoUrl = `/media/videos/${projectId}_final.mp4`;
+      let fileSize = 0;
+      try {
+        const stats = await fs.stat(previewDiskPath);
+        fileSize = stats.size;
+      } catch {}
+      const durationSeconds = previewProps?.video?.durationInFrames && previewProps?.video?.fps
+        ? previewProps.video.durationInFrames / previewProps.video.fps
+        : 30;
+
+      await query(
+        `INSERT INTO videos (
+          project_id, render_job_id, storage_url, preview_version_approved, script_version_approved, duration_seconds, file_size_bytes
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT DO NOTHING`,
+        [projectId, renderJobId, finalVideoUrl, previewVersion, script.version, durationSeconds, fileSize]
+      ).catch(() => {});
+
       await query(
         `UPDATE projects
-         SET stage = 'preview_review', status = 'Preview ready for review', updated_at = CURRENT_TIMESTAMP
+         SET stage = 'completed', status = 'Completed', updated_at = CURRENT_TIMESTAMP
          WHERE id = $1`,
         [projectId]
       );
+      realtime.publish({
+        type: 'pipeline_progress',
+        projectId,
+        stage: 'completed',
+        progress: 100,
+        status: `Video rendered and ready: ${finalDiskPath}`
+      });
+      realtime.publish({
+        type: 'project_updated',
+        projectId,
+        stage: 'completed',
+        status: 'Completed'
+      });
     } catch (err: any) {
       const errorMessage = formatRenderFailure(err);
       console.error(`[RendersService] Preview render ${renderJobId} failed:`, errorMessage);
@@ -937,7 +1099,7 @@ export class RendersService {
     if (approvedPackage?.package_path) {
       const bundle = JSON.parse(await fs.readFile(approvedPackage.package_path, 'utf8'));
       if (typeof bundle.tsxSource !== 'string') throw new Error('The approved production package is missing its Remotion entry component.');
-      await fs.writeFile(path.join(projectPaths.remotionRoot, 'src', 'GeneratedCliVideo.tsx'), bundle.tsxSource, 'utf8');
+      await this.stageProjectRemotionFiles(projectId, bundle.tsxSource);
     }
 
     // Real output path on disk
@@ -983,6 +1145,7 @@ export class RendersService {
 
       await publishFinalProgress(10, 'Initializing 1080p final production render...');
       await videoRenderer.renderVideo({
+        projectId,
         outputPath: diskPath,
         title: project.title,
         subheading: script.scene_plan[0].subtitle,

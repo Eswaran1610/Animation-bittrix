@@ -29,10 +29,11 @@
 17. **Motion energy threshold**: Quality gate: motion energy >= 0.80 per scene. Target >= 0.90 for a safety margin.
 18. **Strict threshold adherence**: If a scene fails, add motion to that scene and re-render. Do not lower the threshold.
 
-## F. FACTS AND SOURCES
+## F. FACTS, SOURCES & VISUAL REFERENCE GROUNDING
 19. **Ground truth**: Check every claim against a real, openly available source. Label implementation details separately from official specs.
 20. **Verified URLs only**: List only sources with a real URL that you actually checked. Drop any you cannot confirm.
 21. **Accuracy first**: Prefer accurate wording over catchy wording when they conflict.
+22. **Visual reference grounding (No guesswork visuals)**: Never invent or guess abstract visuals or repetitive placeholder orbs. Study and ground scene compositions against real top-tier motion graphics references (modern tech reels, Apple/Claude style product visuals, kinetic UI diagrams, and network topology animations). Every scene must reflect the actual physical or conceptual mechanics described in the script.
 
 ## G. FINAL QA (all must pass before output)
 22. Each scene change falls within +/-0.2s of its voice line's start.

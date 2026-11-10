@@ -50,7 +50,9 @@ async function runQualityGate() {
   await fs.mkdir(outDir, { recursive: true });
 
   console.log('📦 Bundling Remotion video components...');
-  const bundleTemp = await fs.mkdtemp(path.join(os.tmpdir(), 'playbook-bundle-'));
+  const cacheBase = path.join(root, 'backend', 'media', 'cache');
+  await fs.mkdir(cacheBase, { recursive: true });
+  const bundleTemp = await fs.mkdtemp(path.join(cacheBase, 'playbook-bundle-'));
   const serveUrl = await bundle({
     entryPoint: path.join(remotionRoot, 'src/index.ts'),
     publicDir: path.join(remotionRoot, 'public'),
@@ -63,7 +65,7 @@ async function runQualityGate() {
 
   const browserOptions = {
     logLevel: 'info',
-    port: Number(process.env.REMOTION_PORT || 3000),
+    ...(process.env.REMOTION_PORT ? { port: Number(process.env.REMOTION_PORT) } : {}),
     chromeMode: 'headless-shell',
     chromiumOptions: { headless: true },
     ...(browserExecutable ? { browserExecutable } : {}),
@@ -108,6 +110,7 @@ async function runQualityGate() {
         frame,
         output: frameFile,
         imageFormat: 'png',
+        inputProps: props || {},
         ...browserOptions,
       });
 
@@ -156,6 +159,9 @@ async function runQualityGate() {
   }
 
   console.log('\n================ QUALITY GATE REPORT ================');
+  try {
+    await fs.rm(bundleTemp, { recursive: true, force: true });
+  } catch {}
   if (qualityIssues.length > 0) {
     console.error('❌ QUALITY GATE FAILED! The scene has layout or visual defects:');
     qualityIssues.forEach((issue) => console.error(`  • ${issue}`));

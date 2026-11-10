@@ -1,5 +1,5 @@
 import React from 'react';
-import { Film, Video, Settings, ShieldCheck, Sparkles, RefreshCw, LogIn } from 'lucide-react';
+import { Film, Video, Settings, ShieldCheck, Sparkles, RefreshCw, LogIn, Zap } from 'lucide-react';
 
 interface NavbarProps {
   currentTab: 'dashboard' | 'videos' | 'settings';

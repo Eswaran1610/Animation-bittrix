@@ -11,15 +11,14 @@ import { rendersService } from './modules/renders/rendersService.js';
 import { pool, query } from './config/db.js';
 import { realtime } from './realtime.js';
 import { projectPaths } from './config/paths.js';
-import { codexAuthService } from './modules/auth/codexAuthService.js';
 import { agyAuthService } from './modules/auth/agyAuthService.js';
 import { claudeAuthService } from './modules/auth/claudeAuthService.js';
-import { shutdownCodexProcesses } from './modules/providers/codexProvider.js';
 import { shutdownAllCliProcesses } from './modules/providers/cliProvider.js';
 import { productionPackageService } from './modules/production/productionPackageService.js';
 import { activeProviderService } from './modules/providers/activeProviderService.js';
 import { THEME_CATALOG } from './modules/themes/themeCatalog.js';
 import { motionCanvasService } from './modules/motionCanvas/motionCanvasService.js';
+import { autonomousPipelineService } from './modules/pipeline/autonomousPipelineService.js';
 
 dotenv.config();
 
@@ -77,6 +76,67 @@ app.post('/api/motion-canvas/build', async (req, res) => {
   }
 });
 
+// Autonomous 60 FPS Dynamic Engine Endpoints
+app.get('/api/pipeline/autonomous/latest', async (_req, res) => {
+  try {
+    const latest = await autonomousPipelineService.getLatest();
+    res.json(latest || { status: 'none' });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/pipeline/autonomous/jobs', (_req, res) => {
+  res.json(autonomousPipelineService.listJobs());
+});
+
+app.get('/api/pipeline/autonomous/jobs/:id', (req, res) => {
+  const job = autonomousPipelineService.getJob(req.params.id);
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+  res.json(job);
+});
+
+app.post('/api/pipeline/autonomous/run', async (req, res) => {
+  try {
+    const { topic, projectName, durationSec, fps = 60, resolution = '1080x1920', voice = 'en-US-ChristopherNeural' } = req.body;
+    if (!topic || typeof topic !== 'string' || !topic.trim()) {
+      return res.status(400).json({ error: 'topic string is required' });
+    }
+    const job = await autonomousPipelineService.startJob({
+      topic: topic.trim(),
+      projectName: projectName?.trim() || undefined,
+      durationSec: Number(durationSec) || 23,
+      fps: Number(fps) || 60,
+      resolution,
+      voice,
+    });
+    res.json(job);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/pipeline/autonomous/revise', async (req, res) => {
+  try {
+    const { id, revision } = req.body;
+    if (!id || !revision || revision.sceneIndex === undefined) {
+      return res.status(400).json({ error: 'id and revision.sceneIndex are required' });
+    }
+    const updated = await autonomousPipelineService.reviseJob(id, revision);
+    res.json(updated);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/pipeline/sfx-catalog', async (_req, res) => {
+  try {
+    res.json(await autonomousPipelineService.getSfxCatalog());
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Active provider selection — GET to read, PUT to switch.
 app.get('/api/providers/active', (req, res) => {
   res.json(activeProviderService.status());
@@ -85,25 +145,11 @@ app.get('/api/providers/active', (req, res) => {
 app.put('/api/providers/active', (req, res) => {
   try {
     const { provider } = req.body;
-    if (!provider) return res.status(400).json({ error: '"provider" field is required (codex | agy | claude | none)' });
+    if (!provider) return res.status(400).json({ error: '"provider" field is required (agy | claude | none)' });
     res.json(activeProviderService.set(provider));
   } catch (err: any) {
     res.status(400).json({ error: err.message });
   }
-});
-
-// Codex is authenticated by the local CLI on the backend machine; credentials
-// never cross this API boundary.
-app.get('/api/auth/codex', async (req, res) => {
-  res.json(await codexAuthService.status());
-});
-
-app.post('/api/auth/codex', async (req, res) => {
-  res.json(await codexAuthService.connect());
-});
-
-app.post('/api/auth/codex/disconnect', async (req, res) => {
-  res.json(await codexAuthService.disconnect());
 });
 
 // Themes Endpoint
@@ -123,13 +169,16 @@ app.get('/api/projects', async (req, res) => {
 
 app.post('/api/projects', async (req, res) => {
   try {
-    const { input_content, input_type = 'text', title, requested_duration_sec, theme_id, theme } = req.body;
+    const input_content = req.body.input_content || req.body.content || req.body.topic;
+    const input_type = req.body.input_type || req.body.type || 'text';
+    const { title, theme_id, theme } = req.body;
     if (!input_content) {
       return res.status(400).json({ error: 'input_content is required' });
     }
-    const duration = requested_duration_sec === undefined || requested_duration_sec === null || requested_duration_sec === '' ? undefined : Number(requested_duration_sec);
-    if (duration !== undefined && (!Number.isInteger(duration) || duration < 20 || duration > 40)) {
-      return res.status(400).json({ error: 'requested_duration_sec must be an integer between 20 and 40 seconds' });
+    const rawDuration = req.body.requested_duration_sec ?? req.body.durationSec ?? req.body.duration;
+    const duration = rawDuration === undefined || rawDuration === null || rawDuration === '' ? undefined : Number(rawDuration);
+    if (duration !== undefined && (!Number.isInteger(duration) || duration < 15 || duration > 60)) {
+      return res.status(400).json({ error: 'requested_duration_sec must be an integer between 15 and 60 seconds' });
     }
     const selectedTheme = typeof (theme_id || theme) === 'string' ? String(theme_id || theme).trim() : undefined;
     const project = await projectsService.createProject(input_content, input_type, title, duration, selectedTheme);
@@ -223,20 +272,6 @@ app.get('/api/usage/claude', async (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
-});
-
-// Local Codex CLI authentication status. Credentials are never returned to,
-// stored in, or logged by the frontend.
-app.get('/api/providers/codex/status', async (req, res) => {
-  res.json(await codexAuthService.status());
-});
-
-app.post('/api/providers/codex/connect', async (req, res) => {
-  res.json(await codexAuthService.connect());
-});
-
-app.post('/api/providers/codex/disconnect', async (req, res) => {
-  res.json(await codexAuthService.disconnect());
 });
 
 // AGY (Antigravity) CLI auth — local session, no credentials returned.
@@ -512,7 +547,6 @@ const shutdown = async (signal: string) => {
     process.exit(1);
   }, 4000);
 
-  shutdownCodexProcesses();
   shutdownAllCliProcesses();
 
   for (const socket of websocketServer.clients) {

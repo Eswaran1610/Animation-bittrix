@@ -43,7 +43,8 @@ for (let frame = 1; frame < frameCount; frame += 1) {
   const current = bytes.subarray(frame * FRAME_BYTES, (frame + 1) * FRAME_BYTES);
   let difference = 0;
   for (let index = 0; index < FRAME_BYTES; index += 1) difference += Math.abs(current[index] - previous[index]);
-  const timelineFrame = Math.round((frame / SAMPLE_FPS) * 30);
+  const videoFps = Number(props.fps || 60);
+  const timelineFrame = Math.round((frame / SAMPLE_FPS) * videoFps);
   let sceneIndex = sceneStarts.length - 1;
   for (let index = 0; index < sceneStarts.length; index += 1) {
     const sceneEnd = sceneStarts[index] + Number(scenes[index].durationInFrames || 0);

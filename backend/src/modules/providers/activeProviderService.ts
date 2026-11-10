@@ -5,14 +5,14 @@
  * Choices: 'codex' | 'agy' | 'claude' | 'none'
  */
 
-export type ProviderId = 'codex' | 'agy' | 'claude' | 'none';
+export type ProviderId = 'agy' | 'claude' | 'none';
 
 class ActiveProviderService {
   private current: ProviderId;
 
   constructor() {
     const fromEnv = (process.env.ACTIVE_PROVIDER || '').toLowerCase().trim() as ProviderId;
-    this.current = (fromEnv === 'agy' || fromEnv === 'claude' || fromEnv === 'none') ? fromEnv : 'codex';
+    this.current = (fromEnv === 'claude' || fromEnv === 'none') ? fromEnv : 'agy';
   }
 
   get(): ProviderId {
@@ -21,12 +21,12 @@ class ActiveProviderService {
 
   set(id: string): { activeProvider: ProviderId; message: string } {
     const next = id.toLowerCase().trim() as ProviderId;
-    if (next !== 'codex' && next !== 'agy' && next !== 'claude' && next !== 'none') {
-      throw new Error(`Unknown provider "${id}". Valid choices: codex, agy, claude, none.`);
+    if (next !== 'agy' && next !== 'claude' && next !== 'none') {
+      throw new Error(`Unknown provider "${id}". Valid choices: agy, claude, none.`);
     }
     this.current = next;
     process.env.ACTIVE_PROVIDER = next;
-    const labels: Record<ProviderId, string> = { codex: 'Codex', agy: 'AGY', claude: 'Claude Code', none: 'No CLI' };
+    const labels: Record<ProviderId, string> = { agy: 'AGY', claude: 'Claude Code', none: 'No CLI' };
     const label = next === 'none' ? 'All CLIs disconnected' : `${labels[next]} is now the active CLI`;
     return {
       activeProvider: this.current,
@@ -41,7 +41,7 @@ class ActiveProviderService {
   status() {
     return {
       activeProvider: this.current,
-      available: ['codex', 'agy', 'claude', 'none'] as ProviderId[],
+      available: ['agy', 'claude', 'none'] as ProviderId[],
     };
   }
 }

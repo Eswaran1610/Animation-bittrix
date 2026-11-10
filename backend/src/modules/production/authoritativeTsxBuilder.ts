@@ -105,9 +105,19 @@ export function buildAuthoritativeTsx(
       }
     }
 
+    const isOutro = visualType === 'outro';
+    const finalNarration = isOutro
+      ? (s.narration && s.narration.toLowerCase().includes('bittrix') ? s.narration : 'Follow Bittrix Technologies for more interesting concepts.')
+      : s.narration;
+    const finalThemeColor = isOutro ? '#5b1a78' : s.themeColor;
+    const finalOnScreenText = isOutro ? (s.on_screen_text || 'Bittrix Technologies') : s.on_screen_text;
+
     return {
       ...s,
       visual_type: visualType,
+      narration: finalNarration,
+      themeColor: finalThemeColor,
+      on_screen_text: finalOnScreenText,
       nodes,
       labels,
       emphasis_word: s.emphasis_word || words[Math.floor(words.length / 2)] || text
@@ -284,7 +294,7 @@ const ThreeDShowcaseView: React.FC<{
           style={{
             position: 'absolute',
             inset: -40,
-            borderRadius: '50%',
+            borderRadius: 32,
             border: \`2px solid \${color}55\`,
             background: \`radial-gradient(circle, \${color}18 0%, transparent 70%)\`,
             transform: 'translateZ(-40px)',
@@ -292,42 +302,23 @@ const ThreeDShowcaseView: React.FC<{
           }}
         />
 
+        {/* Silicon Wafer Substrate & Traces (Zero circular orbits) */}
         <div
           style={{
             position: 'absolute',
-            width: 72,
-            height: 72,
-            borderRadius: 20,
-            background: 'rgba(30, 41, 59, 0.9)',
-            border: \`2px solid \${color}\`,
-            boxShadow: \`0 0 30px \${color}66\`,
-            transform: \`rotateZ(\${frame * 1.2}deg) translateX(220px) rotateZ(-\${frame * 1.2}deg) translateZ(40px)\`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 32,
+            inset: -40,
+            borderRadius: 24,
+            border: \`2px solid \${color}44\`,
+            background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(2, 6, 23, 0.98) 100%)',
+            transform: 'translateZ(-40px)',
+            boxShadow: \`0 0 80px \${color}33\`,
+            overflow: 'hidden',
           }}
         >
-          ⚡
-        </div>
-
-        <div
-          style={{
-            position: 'absolute',
-            width: 72,
-            height: 72,
-            borderRadius: 20,
-            background: 'rgba(30, 41, 59, 0.9)',
-            border: \`2px solid \${color}\`,
-            boxShadow: \`0 0 30px \${color}66\`,
-            transform: \`rotateZ(\${frame * 1.2 + 180}deg) translateX(220px) rotateZ(-\${frame * 1.2 + 180}deg) translateZ(40px)\`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 32,
-          }}
-        >
-          🔐
+          <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0 }}>
+            <line x1="10%" y1="50%" x2="90%" y2="50%" stroke={color} strokeWidth="3" strokeDasharray="8 6" strokeDashoffset={-frame * 2} />
+            <line x1="50%" y1="10%" x2="50%" y2="90%" stroke={color} strokeWidth="3" strokeDasharray="8 6" strokeDashoffset={frame * 2} />
+          </svg>
         </div>
 
         <div
@@ -668,10 +659,12 @@ const ProcessFlowView: React.FC<{
             >
               <div
                 style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: '50%',
-                  background: isCurrent ? color : isPassed ? '${accentColor}' : '#334155',
+                  width: 56,
+                  height: 44,
+                  borderRadius: 12,
+                  background: isCurrent ? color : isPassed ? '${accentColor}' : '#1e293b',
+                  border: isCurrent ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.1)',
+                  fontFamily: 'monospace',
                   color: isCurrent ? '#020617' : '#ffffff',
                   display: 'flex',
                   alignItems: 'center',
@@ -833,47 +826,74 @@ const CalloutView: React.FC<{
           {scene.on_screen_text || scene.narration}
         </h1>
 
-        {/* Orbitals & Focus Node */}
-        <div style={{ position: 'relative', width: 180, height: 180, marginTop: 16 }}>
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              borderRadius: '50%',
-              border: \`2px dashed \${color}88\`,
-              transform: \`rotate(\${frame * 1.8}deg)\`,
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              inset: 20,
-              borderRadius: '50%',
-              background: \`radial-gradient(circle at 35% 35%, #ffffff 0%, \${color} 50%, #030712 100%)\`,
-              boxShadow: \`0 0 60px \${color}aa\`,
-              transform: \`scale(\${1 + Math.sin(frame * 0.1) * 0.08}) rotate(-\${frame * 1.2}deg)\`,
-            }}
-          />
-        </div>
+        {/* Architectural Tech Module (Zero circular orbs) */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 20,
+            padding: '24px 36px',
+            borderRadius: 16,
+            background: 'rgba(15, 23, 42, 0.85)',
+            border: \`1px solid \${color}44\`,
+            boxShadow: \`0 20px 50px rgba(0,0,0,0.6), inset 0 0 30px \${color}15\`,
+            position: 'relative',
+          }}
+        >
+          {/* Corner brackets */}
+          <div style={{ position: 'absolute', top: -1, left: -1, width: 14, height: 14, borderTop: \`3px solid \${color}\`, borderLeft: \`3px solid \${color}\` }} />
+          <div style={{ position: 'absolute', top: -1, right: -1, width: 14, height: 14, borderTop: \`3px solid \${color}\`, borderRight: \`3px solid \${color}\` }} />
+          <div style={{ position: 'absolute', bottom: -1, left: -1, width: 14, height: 14, borderBottom: \`3px solid \${color}\`, borderLeft: \`3px solid \${color}\` }} />
+          <div style={{ position: 'absolute', bottom: -1, right: -1, width: 14, height: 14, borderBottom: \`3px solid \${color}\`, borderRight: \`3px solid \${color}\` }} />
 
-        {scene.emphasis_word && (
-          <div
-            style={{
-              padding: '10px 28px',
-              borderRadius: 999,
-              background: \`\${color}22\`,
-              border: \`2px solid \${color}\`,
-              color: color,
-              fontSize: 24,
-              fontWeight: 800,
-              letterSpacing: 2,
-              textTransform: 'uppercase',
-              boxShadow: \`0 0 30px \${color}44\`,
-            }}
-          >
-            {scene.emphasis_word}
+          {/* Monospace System Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'monospace', fontSize: 18, color: '#94a3b8', letterSpacing: 2 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: color, boxShadow: \`0 0 10px \${color}\` }} />
+            <span>CORE_TELEMETRY // VERIFIED</span>
           </div>
-        )}
+
+          {/* Dynamic Oscillating Signal Bars */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: 44 }}>
+            {[18, 32, 24, 40, 28, 36, 20, 30].map((h, i) => {
+              const dynH = Math.max(8, h + Math.sin(frame * 0.18 + i * 0.8) * 14);
+              return (
+                <div
+                  key={i}
+                  style={{
+                    width: 8,
+                    height: dynH,
+                    borderRadius: 3,
+                    background: i % 2 === 0 ? color : '#38bdf8',
+                    boxShadow: \`0 0 10px \${color}66\`,
+                  }}
+                />
+              );
+            })}
+          </div>
+
+          {scene.emphasis_word && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 24px',
+                borderRadius: 8,
+                background: \`\${color}25\`,
+                border: \`1px solid \${color}\`,
+                color: '#ffffff',
+                fontFamily: 'monospace',
+                fontSize: 22,
+                fontWeight: 800,
+                letterSpacing: 2,
+                textTransform: 'uppercase',
+              }}
+            >
+              <span style={{ color }}>▶</span> {scene.emphasis_word}
+            </div>
+          )}
+        </div>
       </div>
 
       <KineticCaptions words={scene.words || []} currentFrame={frame} accentColor={color} />
@@ -916,31 +936,56 @@ const StatCounterView: React.FC<{
           {scene.on_screen_text || scene.narration}
         </h2>
 
-        {/* Circular Gauge */}
-        <div style={{ position: 'relative', width: 240, height: 240 }}>
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              borderRadius: '50%',
-              border: \`4px dashed \${color}\`,
-              boxShadow: \`0 0 40px \${color}66\`,
-              transform: \`rotate(\${dialRotation}deg)\`,
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <div style={{ fontSize: 60, fontWeight: 900, color: '#ffffff' }}>
+        {/* Linear Segmented Progress Meter (Zero circular gauges) */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 20,
+            padding: '32px 48px',
+            borderRadius: 20,
+            background: 'rgba(15, 23, 42, 0.9)',
+            border: \`1px solid \${color}55\`,
+            boxShadow: \`0 20px 60px rgba(0,0,0,0.7), inset 0 0 30px \${color}15\`,
+            width: '100%',
+            maxWidth: 780,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+            <span style={{ fontSize: 80, fontWeight: 900, color: '#ffffff', fontFamily: 'monospace' }}>
               {scene.stat_value || '+' + Math.min(100, Math.floor(frame * 2)) + '%'}
-            </div>
+            </span>
+            <span style={{ fontSize: 24, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: 2 }}>
+              ▲ METRIC_INDEX
+            </span>
+          </div>
+
+          {/* 12-Segment Tech Bar */}
+          <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+            {[...Array(12)].map((_, i) => {
+              const activeCount = Math.min(12, Math.floor((frame / 45) * 12));
+              const isActive = i < activeCount;
+              return (
+                <div
+                  key={i}
+                  style={{
+                    flex: 1,
+                    height: 18,
+                    borderRadius: 4,
+                    background: isActive ? color : 'rgba(255,255,255,0.1)',
+                    boxShadow: isActive ? \`0 0 12px \${color}\` : 'none',
+                    transition: 'background 0.1s ease',
+                  }}
+                />
+              );
+            })}
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontFamily: 'monospace', fontSize: 16, color: '#94a3b8' }}>
+            <span>MIN: 0.00</span>
+            <span>TARGET_OPTIMIZED</span>
+            <span>MAX: 100.00</span>
           </div>
         </div>
 
@@ -956,63 +1001,255 @@ const StatCounterView: React.FC<{
   );
 };
 
-// 6. OutroView: Clean brand resolution
+// Bittrix Outro Mathematical Physics Grounded in /home/eswaran/Downloads/bittrix-reel(1).html
+const clOutro = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const segOutro = (t: number, a: number, b: number) => clOutro((t - a) / (b - a));
+const eoOutro = (u: number) => 1 - Math.pow(1 - u, 3);
+const ebOutro = (u: number) => {
+  const s = 1.70158;
+  const u1 = u - 1;
+  return u1 * u1 * ((s + 1) * u1 + s) + 1;
+};
+
+const CX_O = 540;
+const CY_O = 720;
+const R_O = 250;
+const P_O = '#5b1a78';
+const D_O = '#1d1a1a';
+const BG_O = '#fdf3d0';
+
+const hvOutro = (r: number): [number, number][] =>
+  [0, 1, 2, 3, 4, 5].map((i) => {
+    const a = ((-90 + 60 * i) * Math.PI) / 180;
+    return [r * Math.cos(a), r * Math.sin(a)];
+  });
+
+const HX_O = hvOutro(R_O);
+const CH_O = hvOutro(R_O + 48).map((p) => [p[0] + CX_O, p[1] + CY_O]);
+const NODES_O = [5, 1, 3].map((i) => [CX_O + HX_O[i][0] * 1.04, CY_O + HX_O[i][1] * 1.04]);
+
+// 6. OutroView: Grounded in /home/eswaran/Downloads/bittrix-reel(1).html
 const OutroView: React.FC<{
   scene: ScenePayload;
   frame: number;
   fps: number;
 }> = ({ scene, frame, fps }) => {
-  const brandPurple = '#5b1a78';
-  const brandPurpleLight = '#9a4cc2';
-  const brandDark = '#1d1a1a';
-  const brandCream = '#fdf3d0';
+  const t = Math.min(3, Math.max(0, frame / fps));
 
-  const entrance = spring({ frame, fps, config: { damping: 14, mass: 0.8 } });
-  const pulse = Math.sin(frame * 0.1) * 0.05;
-  const gearRot = frame * 2.2;
-  const orbitRot = frame * 1.5;
-  const shinePos = interpolate(frame, [25, 65], [-300, 700], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  // Hexagon scale and rotation
+  const hs = ebOutro(segOutro(t, 0, 0.7));
+  const hexRot = (1 - eoOutro(segOutro(t, 0, 0.8))) * -60;
+
+  // Rolling chain alpha
+  const ca = segOutro(t, 0.3, 0.6) * (1 - segOutro(t, 2, 2.45));
+  const ph = 0.6 * t + 0.25 * t * t;
+  const N = 42;
+
+  // Gear & B scale
+  const gs = ebOutro(segOutro(t, 0.6, 1.3));
+  const gearRot = t * 2.2 * (180 / Math.PI);
+
+  // Underline expansion
+  const bw = 520 * eoOutro(segOutro(t, 2.1, 2.6));
+
+  // Light shine sweep
+  const sh = segOutro(t, 2.35, 2.95);
+  const shineX = -400 + (1080 + 800) * sh;
 
   return (
     <AbsoluteFill
       style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: brandCream,
+        position: 'absolute',
+        inset: 0,
+        background: 'radial-gradient(circle at 540px 720px, #fff9e2 0%, #fdf3d0 80%)',
+        overflow: 'hidden',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
       }}
     >
-      <AbsoluteFill style={{ overflow: 'hidden' }}>
-        <Video
-          src={staticFile('bittrix-logo.mp4')}
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-          }}
-        />
-      </AbsoluteFill>
+      <svg width="1080" height="1920" viewBox="0 0 1080 1920" style={{ position: 'absolute', inset: 0 }}>
+        <defs>
+          <radialGradient id="hexRadialOutro" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#7a2ba3" />
+            <stop offset="100%" stopColor="#5b1a78" />
+          </radialGradient>
+        </defs>
 
+        {/* 1. Main Hexagon */}
+        <g transform={\`translate(\${CX_O}, \${CY_O}) rotate(\${hexRot}) scale(\${Math.max(0, hs)})\`}>
+          <polygon
+            points={HX_O.map((p) => \`\${p[0]},\${p[1]}\`).join(' ')}
+            fill="url(#hexRadialOutro)"
+            filter="drop-shadow(0 0 35px rgba(91, 26, 120, 0.45))"
+          />
+        </g>
+
+        {/* 2. Spokes and Outer Nodes */}
+        {NODES_O.map((n, i) => {
+          const u = eoOutro(segOutro(t, 0.5 + i * 0.12, 1.0 + i * 0.12));
+          const ex = n[0] + (CX_O - n[0]) * 0.5 * u;
+          const ey = n[1] + (CY_O - n[1]) * 0.5 * u;
+          const s = ebOutro(segOutro(t, 0.5 + i * 0.12, 0.9 + i * 0.12)) * (1 + 0.07 * Math.sin(t * 7 + i));
+
+          return (
+            <g key={i}>
+              <line x1={n[0]} y1={n[1]} x2={ex} y2={ey} stroke={P_O} strokeWidth={9} strokeLinecap="round" />
+              <circle
+                cx={n[0]}
+                cy={n[1]}
+                r={Math.max(0, 36 * s)}
+                fill={P_O}
+                stroke="#9a4cc2"
+                strokeWidth={7}
+                filter="drop-shadow(0 0 15px rgba(154, 76, 194, 0.6))"
+              />
+            </g>
+          );
+        })}
+
+        {/* 3. Rolling Chain Track */}
+        {ca > 0 && (
+          <g opacity={ca}>
+            {[...Array(N)].map((_, k) => {
+              const e = ((k / N + ph) % 1) * 6;
+              const idx = Math.floor(e);
+              const f = e - idx;
+              const A = CH_O[idx];
+              const B = CH_O[(idx + 1) % 6];
+              const px = A[0] + (B[0] - A[0]) * f;
+              const py = A[1] + (B[1] - A[1]) * f;
+              const angle = (Math.atan2(B[1] - A[1], B[0] - A[0]) * 180) / Math.PI;
+              const isFilled = k % 2 === 1;
+
+              return (
+                <g key={k} transform={\`translate(\${px}, \${py}) rotate(\${angle})\`}>
+                  {isFilled ? (
+                    <rect x={-9} y={-9} width={18} height={18} rx={6} fill={P_O} />
+                  ) : (
+                    <rect x={-21} y={-11} width={42} height={22} rx={11} fill="none" stroke={P_O} strokeWidth={6} />
+                  )}
+                </g>
+              );
+            })}
+          </g>
+        )}
+
+        {/* 4. Gear + Central B */}
+        <g transform={\`translate(\${CX_O}, \${CY_O}) scale(\${Math.max(0, gs)})\`}>
+          <g transform={\`rotate(\${gearRot})\`}>
+            {(() => {
+              const n = 12;
+              const w = (Math.PI * 2) / n;
+              const r0 = 100;
+              const r1 = 128;
+              let d = '';
+              for (let k = 0; k < n; k++) {
+                const a = k * w;
+                const pts = [
+                  [a, r0],
+                  [a + w * 0.15, r1],
+                  [a + w * 0.42, r1],
+                  [a + w * 0.57, r0],
+                ];
+                pts.forEach((pt, pIdx) => {
+                  const px = pt[1] * Math.cos(pt[0]);
+                  const py = pt[1] * Math.sin(pt[0]);
+                  d += (k === 0 && pIdx === 0 ? 'M ' : 'L ') + \`\${px} \${py} \`;
+                });
+              }
+              d += 'Z';
+              return <path d={d} fill={BG_O} stroke="#9a4cc2" strokeWidth={2} />;
+            })()}
+          </g>
+
+          <circle cx={0} cy={0} r={76} fill={P_O} filter="drop-shadow(0 0 20px rgba(91, 26, 120, 0.8))" />
+
+          <text
+            x={0}
+            y={8}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontFamily="Georgia, serif"
+            fontWeight={700}
+            fontSize={130}
+            fill={BG_O}
+          >
+            B
+          </text>
+        </g>
+
+        {/* 5. Expanding Purple Underline Bar */}
+        {bw > 0 && (
+          <rect
+            x={CX_O - bw / 2}
+            y={1316}
+            width={bw}
+            height={7}
+            rx={3.5}
+            fill={P_O}
+            filter="drop-shadow(0 0 10px rgba(91, 26, 120, 0.8))"
+          />
+        )}
+      </svg>
+
+      {/* 6. Wordmark BITTRIX */}
       <div
         style={{
           position: 'absolute',
-          bottom: 260,
-          left: 60,
-          right: 60,
+          top: 1040,
+          left: 0,
+          right: 0,
           display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 12,
-          zIndex: 10,
+          justifyContent: 'center',
+          alignItems: 'baseline',
+          fontFamily: 'Arial Black, Impact, Arial, sans-serif',
+          fontStyle: 'italic',
+          fontWeight: 900,
+          fontSize: 168,
+          color: P_O,
+          textShadow: '0 8px 30px rgba(91, 26, 120, 0.4)',
         }}
       >
-        <span style={{ fontSize: 24, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 4, color: brandPurpleLight }}>
-          Engineering Innovation
-        </span>
+        {'BITTRIX'.split('').map((letter, i) => {
+          const u = eoOutro(segOutro(t, 1.4 + i * 0.07, 1.9 + i * 0.07));
+          return (
+            <span
+              key={i}
+              style={{
+                display: 'inline-block',
+                opacity: u,
+                transform: \`translateX(\${(1 - u) * -110}px)\`,
+              }}
+            >
+              {letter}
+            </span>
+          );
+        })}
       </div>
 
-      <KineticCaptions words={scene.words || []} currentFrame={frame} accentColor={brandPurple} />
+      {/* 7. Subtitle TECHNOLOGIES */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 1230,
+          left: 0,
+          right: 0,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          fontFamily: 'Arial, sans-serif',
+          fontWeight: 600,
+          fontSize: 46,
+          color: D_O,
+          opacity: eoOutro(segOutro(t, 1.9, 2.5)),
+          letterSpacing: \`\${10 + 16 * eoOutro(segOutro(t, 1.9, 2.5))}px\`,
+          textTransform: 'uppercase',
+        }}
+      >
+        TECHNOLOGIES
+      </div>
+
+      {/* 8. Spoken CTA Kinetic Karaoke Captions */}
+      <KineticCaptions words={scene.words || []} currentFrame={frame} accentColor={P_O} />
     </AbsoluteFill>
   );
 };

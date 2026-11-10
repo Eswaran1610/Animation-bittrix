@@ -18,8 +18,8 @@ export function App() {
   const [healthInfo, setHealthInfo] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [providerUsage, setProviderUsage] = useState<any>(null);
-  const [activeProvider, setActiveProvider] = useState<'codex' | 'agy' | 'claude' | 'none'>('codex');
-  const activeProviderRef = useRef<'codex' | 'agy' | 'claude' | 'none'>('codex');
+  const [activeProvider, setActiveProvider] = useState<'agy' | 'claude' | 'none'>('agy');
+  const activeProviderRef = useRef<'agy' | 'claude' | 'none'>('agy');
   const [liveProviderUsage, setLiveProviderUsage] = useState<any>(null);
   const [liveProgress, setLiveProgress] = useState<{ progress: number; label: string; stage?: string; projectId?: string }>({ progress: 0, label: 'Waiting for a pipeline run' });
   const [liveConnected, setLiveConnected] = useState(false);

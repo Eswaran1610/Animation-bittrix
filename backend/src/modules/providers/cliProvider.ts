@@ -5,7 +5,6 @@ import { spawn } from 'child_process';
 import { projectPaths } from '../../config/paths.js';
 import { realtime } from '../../realtime.js';
 import { tsxValidator } from '../production/tsxValidator.js';
-import { buildAuthoritativeTsx } from '../production/authoritativeTsxBuilder.js';
 
 const activeChildren = new Set<ReturnType<typeof spawn>>();
 
@@ -54,8 +53,8 @@ export class UnifiedCliProvider extends BasePlanProvider {
   providerTimeoutMs(fastCreative = false): number {
     const active = activeProviderService.get();
     if (active === 'agy') {
-      const configured = Number(process.env[fastCreative ? 'AGY_CREATIVE_TIMEOUT_MS' : 'AGY_TIMEOUT_MS'] || (fastCreative ? 240000 : 360000));
-      return Number.isFinite(configured) ? Math.max(60000, Math.min(600000, Math.round(configured))) : 360000;
+      const configured = Number(process.env[fastCreative ? 'AGY_CREATIVE_TIMEOUT_MS' : 'AGY_TIMEOUT_MS'] || (fastCreative ? 300000 : 600000));
+      return Number.isFinite(configured) ? Math.max(60000, Math.min(900000, Math.round(configured))) : 600000;
     }
     const configured = Number(process.env[fastCreative ? 'CODEX_CREATIVE_TIMEOUT_MS' : 'CODEX_TIMEOUT_MS'] || (fastCreative ? 180000 : 240000));
     return Number.isFinite(configured) ? Math.max(60000, Math.min(240000, Math.round(configured))) : 240000;
@@ -64,8 +63,8 @@ export class UnifiedCliProvider extends BasePlanProvider {
   providerTotalTimeoutMs(fastCreative = false): number {
     const active = activeProviderService.get();
     if (active === 'agy') {
-      const configured = Number(process.env[fastCreative ? 'AGY_CREATIVE_TOTAL_TIMEOUT_MS' : 'AGY_TOTAL_TIMEOUT_MS'] || (fastCreative ? 480000 : 720000));
-      return Number.isFinite(configured) ? Math.max(120000, Math.min(900000, Math.round(configured))) : 540000;
+      const configured = Number(process.env[fastCreative ? 'AGY_CREATIVE_TOTAL_TIMEOUT_MS' : 'AGY_TOTAL_TIMEOUT_MS'] || (fastCreative ? 600000 : 1200000));
+      return Number.isFinite(configured) ? Math.max(120000, Math.min(1800000, Math.round(configured))) : 1200000;
     }
     const configured = Number(process.env[fastCreative ? 'CODEX_CREATIVE_TOTAL_TIMEOUT_MS' : 'CODEX_TOTAL_TIMEOUT_MS'] || (fastCreative ? 240000 : 360000));
     return Number.isFinite(configured) ? Math.max(120000, Math.min(360000, Math.round(configured))) : 360000;
@@ -84,8 +83,6 @@ export class UnifiedCliProvider extends BasePlanProvider {
 
     if (active === 'agy') {
       return this.runAgyPlan(prompt, effectiveTimeoutMs, projectId);
-    } else if (active === 'codex') {
-      return this.runCodexPlan(prompt, effectiveTimeoutMs, projectId, deadlineAt, fastCreative);
     } else {
       return this.runGenericCliPlan(active, prompt, effectiveTimeoutMs, projectId);
     }
@@ -127,7 +124,7 @@ export class UnifiedCliProvider extends BasePlanProvider {
     );
 
     if (code !== 0) {
-      throw new Error(`AGY CLI exited with code ${code}: ${stderr.slice(-300)}`);
+      throw this.extractProcessError('AGY', code, stdout, stderr);
     }
 
     let container: any;
@@ -188,113 +185,14 @@ export class UnifiedCliProvider extends BasePlanProvider {
           parsed = this.extractJson(rec.stdout);
         }
       } else {
-        throw new Error(`Failed to extract valid JSON plan from AGY response: ${parseErr?.message}`);
+        throw this.extractProcessError('AGY (recovery)', rec.code, rec.stdout, rec.stderr);
       }
     }
 
     return { output: responseText, tokenUsage, parsed };
   }
 
-  // ──────────────────────────────────────────────────
-  // Codex Runner (Codex CLI)
-  // ──────────────────────────────────────────────────
-  private async runCodexPlan(
-    prompt: string,
-    timeoutMs: number,
-    projectId: string | undefined,
-    deadlineAt: number,
-    fastCreative = false
-  ): Promise<{ output: string; tokenUsage: TokenUsage; parsed: any }> {
-    console.log(`[UnifiedCliProvider:codex] Running dynamic content-driven CODEX planning (timeout=${Math.round(timeoutMs / 1000)}s)...`);
-    
-    let output = '';
-    let errorOutput = '';
-    let timedOut = false;
 
-    if (projectId) {
-      realtime.publish({
-        type: 'pipeline_progress',
-        projectId,
-        stage: 'research',
-        progress: 30,
-        status: 'Codex executing multi-website deep research...'
-      });
-    }
-
-    try {
-      const child = spawn('codex', [
-        'exec',
-        '--ephemeral',
-        '--skip-git-repo-check',
-        '--sandbox',
-        'read-only',
-        '--json',
-        '--color',
-        'never',
-        prompt,
-      ], {
-        cwd: projectPaths.root,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        detached: process.platform !== 'win32',
-      });
-
-      activeChildren.add(child);
-      let forceKillTimer: NodeJS.Timeout | undefined;
-      const timer = setTimeout(() => {
-        timedOut = true;
-        signalProcessTree(child, 'SIGTERM');
-        forceKillTimer = setTimeout(() => signalProcessTree(child, 'SIGKILL'), 2000);
-      }, timeoutMs);
-
-      await new Promise<void>((resolve, reject) => {
-        child.stdout.on('data', (d) => { output += d.toString(); });
-        child.stderr.on('data', (d) => { errorOutput += d.toString(); });
-        child.once('error', reject);
-        child.once('close', (code) => {
-          activeChildren.delete(child);
-          clearTimeout(timer);
-          if (forceKillTimer) clearTimeout(forceKillTimer);
-          if (timedOut) {
-            reject(new Error(`Codex CLI timed out after ${Math.round(timeoutMs / 1000)} seconds`));
-            return;
-          }
-          if (code !== 0) {
-            reject(new Error(`Codex CLI failed with exit code ${code}: ${errorOutput}`));
-            return;
-          }
-          if (projectId) {
-            realtime.publish({
-              type: 'pipeline_progress',
-              projectId,
-              stage: 'script_plan',
-              progress: 80,
-              status: 'Codex plan ready: scene blueprints & narration generated'
-            });
-          }
-          resolve();
-        });
-      });
-    } catch (err: any) {
-      console.error('[UnifiedCliProvider:codex] Error running codex CLI:', err.message);
-      throw err;
-    }
-
-    // Extract the final message text from Codex NDJSON events if present
-    let responseText = output;
-    const lines = output.split(/\r?\n/).filter(Boolean);
-    for (const line of lines) {
-      try {
-        const evt = JSON.parse(line);
-        if (evt.type === 'item.completed' && evt.item?.type === 'agent_message' && typeof evt.item?.text === 'string') {
-          responseText = evt.item.text;
-        }
-      } catch {}
-    }
-
-    const tokenUsage = this.extractCodexTokenUsage(output);
-    const parsed = this.extractJson(responseText);
-    return { output: responseText, tokenUsage, parsed };
-  }
 
   // ──────────────────────────────────────────────────
   // Generic / Claude Code Runner
@@ -311,7 +209,7 @@ export class UnifiedCliProvider extends BasePlanProvider {
       ['-p', prompt, '--output-format', 'json', '--dangerously-skip-permissions'],
       timeoutMs
     );
-    if (code !== 0) throw new Error(`${cliBin} CLI exited with code ${code}: ${stderr.slice(-300)}`);
+    if (code !== 0) throw this.extractProcessError(cliBin, code, stdout, stderr);
     let output = stdout;
     let tokenUsage: TokenUsage = { input_tokens: 0, output_tokens: 0, total_tokens: 0, estimated: false, available: false, source: 'unavailable' };
     if (cliBin === 'claude') {
@@ -343,12 +241,12 @@ export class UnifiedCliProvider extends BasePlanProvider {
   /** Plain-text CLI pass used by the dynamic topic + motion trend researcher. */
   async runText(prompt: string, opts: { timeoutMs: number; projectId?: string }): Promise<string> {
     const active = activeProviderService.get();
-    if (active === 'none') throw new Error('No CLI is connected. Connect AGY or Codex in Settings first.');
+    if (active === 'none') throw new Error('No CLI is connected. Connect AGY or Claude in Settings first.');
     const timeoutMs = Math.max(15000, opts.timeoutMs);
 
     if (active === 'agy') {
       const model = process.env.AGY_MODEL || 'gemini-3.8-flash-medium';
-      const printTimeoutMin = Math.max(1, Math.ceil(timeoutMs / 60000));
+      const printTimeoutMin = Math.max(5, Math.ceil(timeoutMs / 60000));
       const { stdout, stderr, code } = await this.spawnProcess('agy', [
         '-p', prompt,
         '--model', model,
@@ -356,8 +254,8 @@ export class UnifiedCliProvider extends BasePlanProvider {
         '--print-timeout', `${printTimeoutMin}m`,
         '--disable-slash-commands',
         '--dangerously-skip-permissions',
-      ], timeoutMs);
-      if (code !== 0) throw new Error(`AGY CLI exited with code ${code}: ${stderr.slice(-300)}`);
+      ], timeoutMs + 10000);
+      if (code !== 0) throw this.extractProcessError('AGY', code, stdout, stderr);
       try {
         const container = JSON.parse(stdout);
         if (container?.status && container.status !== 'SUCCESS') {
@@ -370,27 +268,10 @@ export class UnifiedCliProvider extends BasePlanProvider {
       }
     }
 
-    if (active === 'codex') {
-      const { stdout, stderr, code } = await this.spawnProcess('codex', [
-        'exec', '--ephemeral', '--skip-git-repo-check', '--sandbox', 'read-only', '--json', '--color', 'never', prompt,
-      ], timeoutMs);
-      if (code !== 0) throw new Error(`Codex CLI failed with exit code ${code}: ${stderr.slice(-300)}`);
-      let response = stdout;
-      for (const line of stdout.split(/\r?\n/).filter(Boolean)) {
-        try {
-          const event = JSON.parse(line);
-          if (event.type === 'item.completed' && event.item?.type === 'agent_message' && typeof event.item.text === 'string') {
-            response = event.item.text;
-          }
-        } catch {}
-      }
-      return response;
-    }
-
     const { stdout, stderr, code } = await this.spawnProcess(active, [
       '-p', prompt, '--output-format', 'json', '--dangerously-skip-permissions',
-    ], timeoutMs);
-    if (code !== 0) throw new Error(`${active} CLI exited with code ${code}: ${stderr.slice(-300)}`);
+    ], timeoutMs + 10000);
+    if (code !== 0) throw this.extractProcessError(active, code, stdout, stderr);
     try {
       const result = JSON.parse(stdout);
       return typeof result?.result === 'string' ? result.result : typeof result?.response === 'string' ? result.response : stdout;
@@ -438,63 +319,69 @@ export class UnifiedCliProvider extends BasePlanProvider {
 
     const totalFrames = compactScenes.reduce((sum, s) => sum + s.durationInFrames, 0);
 
-    const prompt = `You are the Lead Creative Director & Motion Animation Designer for this video.
-Return ONLY ONE valid JSON object with exactly two keys: "scenePlan" and "audioDesign".
+    const prompt = `You are an elite Motion Graphics Software Engineer & Creative Animation Director.
+Your task is to author 100% CUSTOM, TOPIC-SPECIFIC Remotion TSX code for this vertical 1080x1920 (9:16) video.
 
 PROJECT: "${input.projectTitle}" (ID: ${input.projectId}), Script v${input.scriptVersion}
-OUTPUT FORMAT: 1080 x 1920 (9:16 vertical), 60 FPS Professional Motion Graphics, Total Duration: ${totalFrames} frames (${(totalFrames / 60).toFixed(2)}s).
+OUTPUT FORMAT: 1080 x 1920, 60 FPS, Total Duration: ${totalFrames} frames (${(totalFrames / 60).toFixed(2)}s).
 
-AUTHORITATIVE SCENES & MEASURED AUDIO WORD TIMESTAMPS:
+SCENES WITH MEASURED WORD TIMESTAMPS:
 ${JSON.stringify(compactScenes, null, 2)}
 
-MANDATORY MOTION DESIGN REQUIREMENTS FOR scenePlan:
-Return an array of ${compactScenes.length} scene objects matching the input scenes. Each scene object MUST contain:
-1. "scene_number": integer (1 to ${compactScenes.length})
-2. "visual_type": Choose one of: "3d-showcase" | "image-hero" | "concept-diagram" | "process-flow" | "split-compare" | "timeline" | "callout" | "stat-counter" | "outro".
-   - RULE: Use "3d-showcase" for core technology, mechanisms, or spatial architecture to render an isometric 3D floating stage.
-   - RULE: Use "image-hero" with "image_url" when a photographic or illustration asset explains the concept.
-   - RULE: NEVER use the same visual_type in 3 consecutive scenes.
-   - RULE: Use "stat-counter" ONLY if the narration contains a specific quantitative number and provide "source_url".
-   - RULE: Last scene (final ~3s) MUST be "outro" (which loads the mandatory 3-second Bittrix Technologies logo video piece).
-3. "icon": Relevant 3D glyph/emoji for 3D showcase scenes (e.g. 🌐, ⚡, 🔐, 🧠, 💻, 🚀).
-4. "image_url": (Optional) Direct open-license HTTPS image URL or static asset path.
-5. "emphasis_word": The key spoken word from this scene's narration that triggers the primary motion hit.
-6. "nodes": Array of 1-3 visual nodes/concepts directly mentioned in the narration: [{ "label": "Short Spoken Concept", "sub": "Detail from narration" }]
-7. "edges": Array of connections between nodes: [{ "from": 0, "to": 1, "label": "action/relation", "dashed": false }]
-8. "labels": Array of 2-4 keywords or step titles directly from this scene's sentence.
-9. "stat_value": (Optional) If visual_type is stat-counter, the exact number.
-10. "source_url": (Optional) Source URL verifying the number.
+CRITICAL CREATIVE DIRECTIVE — LIVING CONTINUOUS CINEMA (NO SLIDE SHOWS, NO REPETITIVE CIRCLES):
+1. THE SINGLE-CANVAS / CONTINUOUS CAMERA LAW:
+   - A video is NOT a slide show. NEVER clear the screen to black or white between scenes.
+   - Maintain a unified living canvas (ambient gradient depth, moving grid mesh, atmospheric particles).
+   - The virtual camera moves continuously across space: interpolate camX, camY, and camScale smoothly across scenes.
+   - Elements persist, evolve, or morph: objects introduced in one beat don't vanish abruptly; they anchor to the side, spawn connections, or transform.
+2. BAN REPETITIVE CIRCLES & PLACEHOLDER ORBS:
+   - NEVER draw generic circular badges for everything (no 50% border radius balls).
+   - Every visual must represent literal topic mechanics:
+     * Code/Tech: Dark terminal windows ($ git commit), branching commit graphs (DAGs), syntax diff cards with green + and red - lines, bytecode registers.
+     * Tools/Software: Real UI artboards, snapping alignment guides, precision Bezier pen tools with tangent handles, multi-layer stacks.
+     * Systems/Cloud: Server racks, dynamic laser bus lines, packet queues, telemetry meters.
+     * Comparisons: Dual comparative performance meters (turnaround speed vs creative ceiling), balance scales.
+3. PROGRESSIVE DISCLOSURE & SPRING PHYSICS:
+   - Never drop a finished diagram onto the screen all at once; let lines draw (strokeDashoffset) and nodes bloom in sync with the narration.
+   - Use spring physics: spring({ frame: Math.max(0, sceneFrame - delay), fps, config: { damping: 14, stiffness: 120 } }).
+   - Continuous subtle idle drift (sin/cos rotation, floating particles, ambient glow).
+4. SYNCHRONIZED KINETIC KARAOKE CAPTIONS:
+   - For each scene, render the spoken words from scene.words with dynamic active-word scaling and accent glow at startFrame/endFrame.
+5. BITTRIX TECHNOLOGIES OUTRO (EXACT ROYAL PURPLE UI & SPOKEN VOICE):
+   - The final scene (last ~3s) MUST render the Bittrix Technologies outro grounded in the exact UI (/home/eswaran/Downloads/bittrix-reel(1).html):
+     * Theme color: royal purple #5b1a78 with warm cream #fdf3d0.
+     * Animated 6-point radial gradient hexagon with spoke circles.
+     * Rolling chain link track and rotating 12-tooth gear with serif 'B'.
+     * Staggered letter elastic italic bold "BITTRIX" wordmark and tracking "TECHNOLOGIES" subtitle.
+     * Expanding purple underline bar and diagonal light sweep.
+     * The spoken voiceover must say aloud: "Follow Bittrix Technologies for more interesting concepts." (with matching kinetic karaoke captions).
 
-NO META-CLUTTER OR PLACEHOLDERS:
-- FORBIDDEN: "Ready to render", "placeholder", "lorem", "HOOK", "BODY", "SUBSCRIBE", "CORE ARCHITECTURE", tool names, Remotion APIs.
-- Every node and label word MUST come from the narration.
+OUTPUT FORMAT:
+Return TWO blocks:
+1. A \`\`\`json block with audioDesign and optional scenePlan metadata.
+2. A \`\`\`tsx block with the complete, self-contained Remotion component:
+import React, { useMemo } from 'react';
+import { AbsoluteFill, Sequence, spring, interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 
-REQUIREMENTS FOR audioDesign:
-{"bedMood":"content-specific ambient bed description","voiceDirection":"keep natural 1.00x delivery","scenes":[{"scene_number":1,"cues":[{"hitFrame":15,"role":"whoosh","reason":"visual entrance"}]}]}
-Allowed cue roles: pop, click, tick, whoosh, slide, riser, impact, sparkle, chime, draw, count, ding. Max 5 cues per scene.
+export default function GeneratedCliVideo(props: any) {
+  // Bespoke continuous camera & scene animation logic
+}
 `;
 
     let parsed: any = null;
+    let rawResponse = '';
+    const initialTimeoutMs = Math.max(480000, this.providerTimeoutMs());
     try {
-      const response = await this.runText(prompt, { timeoutMs: 120000, projectId: input.projectId });
-      const first = response.indexOf('{');
-      const last = response.lastIndexOf('}');
-      if (first >= 0 && last > first) {
-        parsed = JSON.parse(response.slice(first, last + 1));
-      } else {
-        const cleaned = response
-          .replace(/```(?:json)?/gi, '')
-          .replace(/```/g, '')
-          .replace(/,\s*([}\]])/g, '$1')
-          .trim();
-        const cFirst = cleaned.indexOf('{');
-        const cLast = cleaned.lastIndexOf('}');
-        if (cFirst >= 0 && cLast > cFirst) {
-          parsed = JSON.parse(cleaned.slice(cFirst, cLast + 1));
-        }
+      rawResponse = await this.runText(prompt, { timeoutMs: initialTimeoutMs, projectId: input.projectId });
+      const jsonMatch = rawResponse.match(/```(?:json)\s*(\{[\s\S]*?\})\s*```/i);
+      if (jsonMatch) {
+        try { parsed = JSON.parse(jsonMatch[1].trim()); } catch {}
+      }
+      if (!parsed) {
+        try { parsed = this.extractJson(rawResponse); } catch {}
       }
     } catch (cliErr: any) {
-      console.warn(`[${active.toUpperCase()}] CLI generation call failed: ${cliErr.message}. Falling back to authoritative plan generator.`);
+      console.warn(`[${active.toUpperCase()}] CLI initial generation call failed: ${cliErr.message}. Proceeding to agent repair pass.`);
     }
 
     let finalScenes = compactScenes;
@@ -514,17 +401,99 @@ Allowed cue roles: pop, click, tick, whoosh, slide, riser, impact, sparkle, chim
     }
 
     let validTsxSource: string | null = null;
-    if (parsed && typeof parsed.tsxSource === 'string' && parsed.tsxSource.trim().length > 0) {
-      const val = await tsxValidator.validate(parsed.tsxSource);
+    let lastErrors: string[] = [];
+
+    // 1. Extract from ```tsx or ```typescript or ```jsx code fence
+    const tsxMatch = rawResponse.match(/```(?:tsx|typescript|jsx)\s*([\s\S]*?)```/i);
+    let candidateTsx = tsxMatch ? tsxMatch[1].trim() : null;
+
+    // 2. Also check if JSON had tsxSource
+    if (!candidateTsx && parsed && typeof parsed.tsxSource === 'string' && parsed.tsxSource.trim().length > 0) {
+      candidateTsx = parsed.tsxSource.trim();
+    }
+
+    if (candidateTsx) {
+      if (!candidateTsx.includes('export default') && !candidateTsx.includes('export const GeneratedCliVideo')) {
+        candidateTsx = `${candidateTsx}\n\nexport default GeneratedCliVideo;`;
+      }
+      const val = await tsxValidator.validate(candidateTsx);
       if (val.valid) {
-        validTsxSource = parsed.tsxSource;
-        console.log(`[${active.toUpperCase()}] Direct TSX passed validation.`);
+        validTsxSource = candidateTsx;
+        console.log(`[${active.toUpperCase()}] Custom AI-generated Remotion TSX code passed validation! Using bespoke code.`);
+      } else {
+        lastErrors = val.errors;
+        console.warn(`[${active.toUpperCase()}] Custom TSX initial validation warnings: ${val.errors.join('; ')}`);
+      }
+    } else {
+      lastErrors = ['Agent did not return a ```tsx code fence in initial response'];
+    }
+
+    // Agent Self-Repair Loop: Per user rule, ZERO template fallbacks. The agent MUST author the code.
+    let repairAttempts = 0;
+    const maxRepairAttempts = 2;
+
+    while (!validTsxSource && repairAttempts < maxRepairAttempts) {
+      repairAttempts++;
+      console.log(`[${active.toUpperCase()}] Requesting agent TSX authoring/repair pass (Attempt ${repairAttempts}/${maxRepairAttempts})...`);
+
+      const repairPrompt = `You are an elite Motion Graphics Software Engineer authoring bespoke Remotion TSX code.
+CRITICAL CONSTRAINT: TEMPLATE FALLBACKS HAVE BEEN PERMANENTLY REMOVED. You as the AI agent MUST author 100% of the Remotion TSX component code yourself.
+
+${candidateTsx ? `Your previous TSX code failed validation with the following errors:\n- ${lastErrors.join('\n- ')}\n\nFix every issue and output the complete, corrected code.` : 'You did not output the required Remotion TSX component in a ```tsx code fence. You must generate the complete component now.'}
+
+PROJECT: "${input.projectTitle}" (ID: ${input.projectId})
+TOTAL DURATION: ${totalFrames} frames @ 60fps (${(totalFrames / 60).toFixed(2)}s)
+
+SCENES WITH MEASURED TIMESTAMPS:
+${JSON.stringify(compactScenes, null, 2)}
+
+STRICT RULES:
+1. Export default component: export default function GeneratedCliVideo(props: any) { ... }
+2. Import from 'remotion': AbsoluteFill, Sequence, spring, interpolate, useCurrentFrame, useVideoConfig
+3. Single continuous living canvas with continuous virtual camera interpolation (camX, camY, camScale).
+4. Topic-specific physical visual mechanics for "${input.projectTitle}". ABSOLUTELY ZERO generic 50% border-radius circles or placeholder orbs.
+5. Synchronized kinetic karaoke captions from scene.words.
+6. The FINAL SCENE (~last 3s) MUST render the exact Bittrix Technologies royal purple (#5b1a78) outro:
+   - 6-point radial gradient hexagon with spoke circles
+   - Rolling chain link track and rotating 12-tooth gear with serif 'B'
+   - Staggered letter italic bold "BITTRIX" and tracking "TECHNOLOGIES"
+   - Expanding purple underline and light shine sweep
+   - Spoken narration aloud: "Follow Bittrix Technologies for more interesting concepts."
+7. Return ONLY valid, self-contained TypeScript/TSX in a \`\`\`tsx code fence. No explanations, no placeholder stubs.
+`;
+
+      const repairTimeoutMs = Math.max(420000, this.providerTimeoutMs());
+      try {
+        const repairResponse = await this.runText(repairPrompt, { timeoutMs: repairTimeoutMs, projectId: input.projectId });
+        const repMatch = repairResponse.match(/```(?:tsx|typescript|jsx)\s*([\s\S]*?)```/i);
+        candidateTsx = repMatch ? repMatch[1].trim() : null;
+        if (!candidateTsx && repairResponse.includes('import') && repairResponse.includes('GeneratedCliVideo')) {
+          candidateTsx = repairResponse.trim();
+        }
+        if (candidateTsx) {
+          if (!candidateTsx.includes('export default') && !candidateTsx.includes('export const GeneratedCliVideo')) {
+            candidateTsx = `${candidateTsx}\n\nexport default GeneratedCliVideo;`;
+          }
+          const val = await tsxValidator.validate(candidateTsx);
+          if (val.valid) {
+            validTsxSource = candidateTsx;
+            console.log(`[${active.toUpperCase()}] Agent bespoke Remotion TSX code passed validation on attempt ${repairAttempts}!`);
+            break;
+          } else {
+            lastErrors = val.errors;
+            console.warn(`[${active.toUpperCase()}] Agent TSX validation failed on attempt ${repairAttempts}: ${val.errors.join('; ')}`);
+          }
+        } else {
+          lastErrors = ['Agent did not return a ```tsx code fence'];
+        }
+      } catch (err: any) {
+        console.error(`[${active.toUpperCase()}] Agent repair pass failed with error:`, err.message);
+        lastErrors = [err.message];
       }
     }
 
     if (!validTsxSource) {
-      console.log(`[UnifiedCliProvider] Building authoritative data-driven Remotion TSX for "${input.projectTitle}"...`);
-      validTsxSource = buildAuthoritativeTsx(input.projectTitle, finalScenes, input.styleBrief);
+      throw new Error(`[UnifiedCliProvider] The AI agent failed to author valid Remotion TSX after ${repairAttempts} attempts (${lastErrors.join('; ')}). Per user rule, template fallbacks are strictly disabled.`);
     }
 
     const roles = new Set(['pop', 'click', 'tick', 'whoosh', 'slide', 'riser', 'impact', 'sparkle', 'chime', 'draw', 'count', 'ding']);
@@ -598,8 +567,24 @@ Allowed cue roles: pop, click, tick, whoosh, slide, riser, impact, sparkle, chim
   }
 
   // ──────────────────────────────────────────────────
-  // Process Spawner Helper
+  // Process Spawner & Error Extraction Helper
   // ──────────────────────────────────────────────────
+  private extractProcessError(bin: string, code: number | null, stdout: string, stderr: string): Error {
+    let detail = (stderr || '').trim();
+    if (!detail && stdout) {
+      try {
+        const parsed = JSON.parse(stdout);
+        detail = parsed.error || parsed.message || (parsed.status && parsed.status !== 'SUCCESS' ? `status: ${parsed.status} ${parsed.response || ''}` : '') || '';
+      } catch {
+        detail = '';
+      }
+      if (!detail) {
+        detail = stdout.trim().slice(-400);
+      }
+    }
+    return new Error(`${bin} CLI exited with code ${code}${detail ? `: ${detail}` : ''}`);
+  }
+
   private async spawnProcess(
     bin: string,
     args: string[],
@@ -644,34 +629,6 @@ Allowed cue roles: pop, click, tick, whoosh, slide, riser, impact, sparkle, chim
     });
   }
 
-  private extractCodexTokenUsage(output: string): TokenUsage {
-    const usage: TokenUsage = {
-      input_tokens: 0,
-      output_tokens: 0,
-      total_tokens: 0,
-      estimated: false,
-      available: false,
-      source: 'codex'
-    };
-    const candidates: any[] = [];
-    for (const line of output.split(/\r?\n/)) {
-      try { candidates.push(JSON.parse(line)); } catch {}
-    }
-    for (const candidate of candidates) {
-      if (!candidate || typeof candidate !== 'object') continue;
-      const input = Number(candidate.input_tokens ?? candidate.prompt_tokens);
-      const outputTokens = Number(candidate.output_tokens ?? candidate.completion_tokens);
-      const total = Number(candidate.total_tokens);
-      if (Number.isFinite(input) || Number.isFinite(outputTokens) || Number.isFinite(total)) {
-        usage.input_tokens = Number.isFinite(input) ? input : 0;
-        usage.output_tokens = Number.isFinite(outputTokens) ? outputTokens : 0;
-        usage.total_tokens = Number.isFinite(total) ? total : usage.input_tokens + usage.output_tokens;
-        usage.available = true;
-        return usage;
-      }
-    }
-    return usage;
-  }
 }
 
 export const unifiedCliProvider = new UnifiedCliProvider();

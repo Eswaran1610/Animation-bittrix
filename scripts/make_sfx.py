@@ -106,6 +106,37 @@ def ding(rng):
     t = tt(0.5); f = rng.choice([880.0, 988.0, 1047.0])
     return ping(t, f, 0.12) + 0.6 * ping(t, f * 1.5, 0.1, start=0.07)
 
+def clock_tick(rng):
+    t = tt(0.08)
+    primary = ping(t, rng.uniform(3800, 4800), 0.003)
+    secondary = ping(t, rng.uniform(2200, 2800), 0.004, start=0.012, amp=0.5)
+    noise = 0.3 * rng.standard_normal(len(t)) * expd(t, 0.002)
+    return primary + secondary + noise
+
+def shutter_click(rng):
+    t = tt(0.12)
+    curtain1 = ping(t, rng.uniform(1600, 2200), 0.008) + 0.4 * rng.standard_normal(len(t)) * expd(t, 0.004)
+    t2 = 0.026
+    curtain2 = ping(t, rng.uniform(3000, 3800), 0.01, start=t2, amp=1.2) + 0.5 * rng.standard_normal(len(t)) * expd(np.maximum(t - t2, 0), 0.006) * (t >= t2)
+    return (curtain1 + curtain2) * np.minimum(t / 0.0005, 1)
+
+def card_slap(rng):
+    d = 0.15; t = tt(d)
+    friction = swept_noise(rng, 0.035, 1200, 3500, q=2.0)
+    body_pad = np.pad(friction, (0, max(0, len(t) - len(friction))))[:len(t)] * 0.4
+    f = 450 + (rng.uniform(600, 800) - 450) * expd(t, 0.02)
+    slap = np.sin(2 * np.pi * np.cumsum(f) / SR) * expd(t, 0.035)
+    click = rng.standard_normal(len(t)) * expd(t, 0.003) * 0.6
+    return (slap + 0.7 * click + body_pad) * np.minimum(t / 0.0008, 1)
+
+def punch_hit(rng):
+    t = tt(0.2)
+    f0, f1 = rng.uniform(650, 950), rng.uniform(75, 120)
+    f = f1 + (f0 - f1) * expd(t, 0.03)
+    body = np.sin(2 * np.pi * np.cumsum(f) / SR) * expd(t, 0.055)
+    crack = rng.standard_normal(len(t)) * expd(t, 0.0025) * 0.5
+    return (body + crack) * np.minimum(t / 0.0008, 1)
+
 
 # role: (function, how the hit is found, mix gain used by the cue builder)
 ROLES = {
@@ -113,6 +144,8 @@ ROLES = {
     "whoosh": (whoosh, "peak", 0.7), "slide": (slide, "peak", 0.5), "riser": (riser, "peak", 0.55),
     "impact": (impact, "onset", 0.9), "sparkle": (sparkle, "onset", 0.5), "chime": (chime, "onset", 0.55),
     "draw": (draw, "peak", 0.4), "count": (count, "onset", 0.45), "ding": (ding, "onset", 0.55),
+    "clock_tick": (clock_tick, "onset", 0.5), "shutter_click": (shutter_click, "onset", 0.7),
+    "card_slap": (card_slap, "onset", 0.8), "punch_hit": (punch_hit, "onset", 0.85),
 }
 
 

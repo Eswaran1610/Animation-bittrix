@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { Player } from '@remotion/player';
+import { MainComposition } from '../../../remotion/src/Composition';
 import { ProjectDetail as IProjectDetail } from '../types';
 import { api } from '../services/api';
 import { 
   ArrowLeft, CheckCircle2, ShieldCheck, AlertCircle, Play, 
-  FileText, Sparkles, RefreshCw, Eye, Download, History, ExternalLink 
+  FileText, Sparkles, RefreshCw, Eye, Download, History, ExternalLink, Zap
 } from 'lucide-react';
 
 interface ProjectDetailProps {
@@ -27,6 +29,8 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, activePro
   const [previewFeedback, setPreviewFeedback] = useState('');
   const [isSubmittingPreviewAction, setIsSubmittingPreviewAction] = useState(false);
   const [previewReport, setPreviewReport] = useState<any>(null);
+  const [previewMode, setPreviewMode] = useState<'remotion' | 'mp4'>('remotion');
+  const [livePreviewProps, setLivePreviewProps] = useState<any>(null);
 
   // Selected Script Version
   const [selectedScriptVer, setSelectedScriptVer] = useState(project.current_script_version || 1);
@@ -65,7 +69,14 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, activePro
   }, [latestPreviewJob?.id, latestPreviewJob?.status, latestProductionPackage?.status]);
 
   useEffect(() => {
-    if (currentPreviewVer > 0) void api.getPreviewReport(project.id, currentPreviewVer).then(setPreviewReport).catch(() => setPreviewReport(null));
+    if (currentPreviewVer > 0) {
+      void api.getPreviewReport(project.id, currentPreviewVer).then(setPreviewReport).catch(() => setPreviewReport(null));
+      void api.getPreviewProps(project.id, currentPreviewVer).then((props) => {
+        if (props) setLivePreviewProps(props);
+      }).catch((err) => {
+        console.warn('[ProjectDetail] Could not fetch live preview props:', err);
+      });
+    }
   }, [project.id, currentPreviewVer, latestPreviewJob?.status]);
 
   // Actions
@@ -607,16 +618,111 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, activePro
               </div>
             ) : (
               <div>
-                <video
-                  key={latestPreviewJob?.output_location || `preview-v${currentPreviewVer}`}
-                  controls
-                  playsInline
-                  preload="metadata"
-                  style={{ display: 'block', width: '100%', maxHeight: '70vh', aspectRatio: '9 / 16', background: '#090d16', borderRadius: '12px' }}
-                >
-                  <source src={latestPreviewJob?.output_location} type="video/mp4" />
-                  Your browser cannot play this preview video.
-                </video>
+                {/* Dual Mode Switch: Live Remotion Player vs Rendered Preview MP4 */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
+                  <div style={{ display: 'inline-flex', background: '#090d16', padding: '4px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewMode('remotion')}
+                      style={{
+                        padding: '4px 12px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: previewMode === 'remotion' ? '#38bdf8' : 'transparent',
+                        color: previewMode === 'remotion' ? '#090d16' : '#94a3b8',
+                        fontWeight: 700,
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <Zap size={12} /> Remotion Player
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewMode('mp4')}
+                      style={{
+                        padding: '4px 12px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        background: previewMode === 'mp4' ? '#10b981' : 'transparent',
+                        color: previewMode === 'mp4' ? '#ffffff' : '#94a3b8',
+                        fontWeight: 700,
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <Play size={12} /> Rendered MP4
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{
+                  width: '100%',
+                  maxHeight: '70vh',
+                  aspectRatio: '9 / 16',
+                  maxWidth: '360px',
+                  margin: '0 auto',
+                  borderRadius: '16px',
+                  overflow: 'hidden',
+                  background: '#090d16',
+                  boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
+                  border: '1.5px solid var(--border-color)',
+                }}>
+                  {previewMode === 'remotion' ? (
+                    (() => {
+                      const computedDurationSec = activeScript?.scene_plan?.reduce((sum, s) => sum + (Number(s.duration_sec) || 4), 0) || project.requested_duration_sec || 23;
+                      const durationInFrames = Math.round(computedDurationSec * 60);
+
+                      const resolvedProps = livePreviewProps || {
+                        video: {
+                          title: project.title,
+                          width: 1080,
+                          height: 1920,
+                          fps: 60,
+                          durationInFrames: durationInFrames,
+                          targetDurationSec: computedDurationSec,
+                        },
+                        scenes: activeScript?.scene_plan || [],
+                      };
+                      const playerFps = resolvedProps.video?.fps || 60;
+                      const playerDuration = resolvedProps.video?.durationInFrames || durationInFrames;
+
+                      return (
+                        <Player
+                          component={MainComposition as any}
+                          inputProps={resolvedProps}
+                          durationInFrames={playerDuration}
+                          fps={playerFps}
+                          compositionWidth={1080}
+                          compositionHeight={1920}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                          }}
+                          controls
+                          loop
+                        />
+                      );
+                    })()
+                  ) : (
+                    <video
+                      key={latestPreviewJob?.output_location || `preview-v${currentPreviewVer}`}
+                      controls
+                      playsInline
+                      preload="metadata"
+                      style={{ display: 'block', width: '100%', height: '100%', objectFit: 'cover' }}
+                    >
+                      <source src={latestPreviewJob?.output_location} type="video/mp4" />
+                      Your browser cannot play this preview video.
+                    </video>
+                  )}
+                </div>
 
                 {/* Preview Meta */}
                 <div style={{
@@ -624,10 +730,13 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, activePro
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   fontSize: '13px',
-                  color: 'var(--text-muted)'
+                  color: 'var(--text-muted)',
+                  marginTop: '12px'
                 }}>
-                  <span>Rendered preview: <strong>v{currentPreviewVer}</strong> (Script v{project.current_script_version})</span>
-                  <span style={{ color: '#38bdf8', fontSize: '12px' }}>Natural voice + word captions + motion</span>
+                  <span>Preview version: <strong>v{currentPreviewVer}</strong> (Script v{project.current_script_version})</span>
+                  <span style={{ color: '#38bdf8', fontSize: '12px' }}>
+                    {previewMode === 'remotion' ? '⚡ Interactive Remotion Canvas Player' : '🎬 9:16 Preview MP4'}
+                  </span>
                 </div>
                 {previewReport?.summary && (
                   <div style={{ marginTop: '14px', padding: '12px', borderRadius: '8px', background: '#0f172a', color: 'var(--text-secondary)', fontSize: '12px' }}>

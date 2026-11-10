@@ -57,6 +57,31 @@ export const DEFAULT_STYLE_BRIEF: StyleBrief = {
   bedMood: 'focused electronic pulse',
 };
 
+// The theme catalog has more archetype names than the renderer vocabulary
+// (motion-contract.json). Map every extra name to its nearest supported one so
+// validation, style family and rendering all see a supported archetype.
+export const EXTENDED_ARCHETYPE_FALLBACK: Record<string, StyleBrief['archetype']> = {
+  '3d-isometric': 'isometric-diagram',
+  'minimal-editorial': 'paper-cutout',
+  'cyber-glow': 'glass-ui',
+  'corporate-clean': 'data-story',
+  'luxury-gold': 'glass-ui',
+  'matrix-code': 'retro-terminal',
+  'cosmic-space': 'glass-ui',
+  'claymorphism': 'kinetic-type',
+  'chalk-board': 'paper-cutout',
+  'comic-pop': 'neo-brutalist',
+  'clean-vector': 'data-story',
+  'neon-arcade': 'retro-terminal',
+};
+
+export const toSupportedArchetype = (value: unknown): StyleBrief['archetype'] => {
+  const supported = new Set((MOTION_CONTRACT.archetypes as string[]) || []);
+  const name = typeof value === 'string' ? value : '';
+  if (supported.has(name)) return name as StyleBrief['archetype'];
+  return EXTENDED_ARCHETYPE_FALLBACK[name] || DEFAULT_STYLE_BRIEF.archetype;
+};
+
 export const styleProfileFromBrief = (brief: StyleBrief): StyleProfile => {
   const familyByArchetype: Record<StyleBrief['archetype'], StyleProfile['family']> = {
     'kinetic-type': 'playful-pop',
@@ -69,7 +94,7 @@ export const styleProfileFromBrief = (brief: StyleBrief): StyleProfile => {
     'retro-terminal': 'technical-terminal',
   };
   return {
-    family: familyByArchetype[brief.archetype],
+    family: familyByArchetype[toSupportedArchetype(brief.archetype)],
     motif: `${brief.archetype} with ${brief.background} motion field`,
     background: brief.palette.bg,
     surface: brief.palette.bg,
@@ -494,11 +519,14 @@ export abstract class BasePlanProvider implements AIProvider {
       if (!brief.bedMood || typeof brief.bedMood !== 'string' || !brief.bedMood.trim()) {
         brief.bedMood = DEFAULT_STYLE_BRIEF.bedMood;
       }
+      if (!brief.fonts || typeof brief.fonts !== 'object') {
+        brief.fonts = { ...DEFAULT_STYLE_BRIEF.fonts };
+      }
     }
 
     if (input?.selectedTheme) {
       const chosen = getThemeById(input.selectedTheme);
-      parsed.styleBrief.archetype = chosen.archetype;
+      parsed.styleBrief.archetype = toSupportedArchetype(chosen.archetype);
       parsed.styleBrief.motionPersonality = chosen.motionPersonality;
       parsed.styleBrief.background = chosen.background;
       parsed.styleBrief.sfxPack = chosen.sfxPack;
@@ -509,6 +537,9 @@ export abstract class BasePlanProvider implements AIProvider {
         accent: chosen.palette.accent,
         text: chosen.palette.text,
       };
+      if (!parsed.styleBrief.fonts || typeof parsed.styleBrief.fonts !== 'object') {
+        parsed.styleBrief.fonts = { ...DEFAULT_STYLE_BRIEF.fonts };
+      }
       parsed.styleProfile = styleProfileFromBrief(parsed.styleBrief);
       parsed.styleProfile.surface = chosen.palette.surface;
     }
@@ -1056,7 +1087,9 @@ MANDATORY THEME COMPLIANCE:
       ? trendResearchService.formatForPlanPrompt(trendBrief)
       : '';
 
-    return `REQUIRED ORDER: First read and follow the repository video-production skill, the deep-researcher skill (if research-required), and the project renderer contract below. The actual project renderer contract is authoritative where the skill lists generic defaults. Use the separate research brief below when available; otherwise conduct the required web research before planning. Verify only facts/assets that need confirmation when the brief is complete, then create the scene plan using supported project capabilities.
+    return `PERFORMANCE & SEARCH LIMIT: You have live web search. Perform at most 2-4 focused searches to verify key facts and direct URLs. Then immediately synthesize the complete, structured JSON response according to the schema below. Do not loop searches indefinitely.
+
+REQUIRED ORDER: First read and follow the repository video-production skill, the deep-researcher skill (if research-required), and the project renderer contract below. The actual project renderer contract is authoritative where the skill lists generic defaults. Use the separate research brief below when available; otherwise conduct the required web research before planning. Verify only facts/assets that need confirmation when the brief is complete, then create the scene plan using supported project capabilities.
 
 ${researchSkill ? `REPOSITORY DEEP-RESEARCHER SKILL (.agents/skills/deep-researcher/SKILL.md):\n${researchSkill}\n\n` : ''}REPOSITORY VIDEO-PRODUCTION SKILL (.agents/skills/video-production-director/SKILL.md):
 ${productionSkill}
@@ -1201,7 +1234,7 @@ Return a completely corrected raw JSON object directly in your response only. Do
 The following rules are hard requirements, not suggestions:
 - scenePlan has 7-9 scenes numbered consecutively from 1
 - scene 1 has role "hook", template "question-hook", and on_screen_text ending in ? or ؟
-- the final scene has role "cta", template "cta-outro", visual_type "outro", duration_sec: 3.0, on_screen_text: "Bittrix Technologies", and visual_direction: "Authentic Bittrix Technologies 3-second animated logo video with purple and cream branding"
+- the final scene has role "cta", template "cta-outro", visual_type "outro", duration_sec: 3.0, on_screen_text: "Bittrix Technologies", theme_color: "#5b1a78", narration: "Follow Bittrix Technologies for more interesting concepts.", and visual_direction: "Authentic Bittrix Technologies 3-second animated logo video with royal purple #5b1a78 and cream branding"
 - every middle scene has role "body"
 - every visual_blueprint has non-empty purpose, layout, camera_motion, an asset_queries array, and at least two distinct objects
 - every object has a unique id, x/y values from 0 to 1, and a valid render_spec.type
@@ -1260,7 +1293,7 @@ Before responding, validate the first and final scene against these rules. Do no
         projectId: req.projectId,
         content: contentStr,
         runner: { runText: this.runText.bind(this) },
-        timeoutMs: Math.min(120000, this.providerTimeoutMs(false)),
+        timeoutMs: Math.min(Number(process.env.TREND_RESEARCH_TIMEOUT_MS || 240000), this.providerTimeoutMs(false)),
         deadlineAt,
         feedback: req.changeRequestFeedback,
         reuseExisting: isRevision && !topicChanged,

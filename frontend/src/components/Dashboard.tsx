@@ -27,7 +27,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onCreateProject,
   onDeleteProject,
 }) => {
-  const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'claude' ? 'Claude Code' : activeProvider === 'codex' ? 'Codex' : 'AI';
+  const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'claude' ? 'Claude Code' : 'AI';
   const [inputType, setInputType] = useState<'text' | 'topic' | 'url'>('topic');
   const [selectedThemeId, setSelectedThemeId] = useState<string>('character-explainer');
   const [inputContent, setInputContent] = useState('');
@@ -37,9 +37,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
   const providerMetrics = (project: Project) => activeProvider === 'agy'
     ? { tokens: project.agy_total_tokens, runs: project.agy_run_count, estimated: project.agy_usage_estimated, available: project.agy_usage_available }
-    : activeProvider === 'claude'
-      ? { tokens: project.claude_total_tokens, runs: project.claude_run_count, estimated: project.claude_usage_estimated, available: project.claude_usage_available }
-      : { tokens: project.codex_total_tokens, runs: project.codex_run_count, estimated: project.codex_usage_estimated, available: project.codex_usage_available };
+    : { tokens: project.claude_total_tokens, runs: project.claude_run_count, estimated: project.claude_usage_estimated, available: project.claude_usage_available };
   const totalProviderTokens = projects.reduce((sum, project) => sum + Number(providerMetrics(project).tokens || 0), 0);
   const totalProviderRuns = projects.reduce((sum, project) => sum + Number(providerMetrics(project).runs || 0), 0);
   const hasEstimatedUsage = projects.some((project) => providerMetrics(project).estimated);

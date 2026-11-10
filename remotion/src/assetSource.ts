@@ -12,5 +12,9 @@ export const assetSource = (assetPath?: string | null): string => {
     return assetPath;
   }
   const clean = assetPath.replace(/^\/?(public\/)?/, '');
-  return staticFile(clean);
+  try {
+    return staticFile(clean);
+  } catch {
+    return `/${clean}`;
+  }
 };

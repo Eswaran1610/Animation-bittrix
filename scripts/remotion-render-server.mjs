@@ -55,6 +55,7 @@ const server = http.createServer(async (req, res) => {
     const renderId = `render_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const tempPropsPath = path.join(tmpDir, `${renderId}_props.json`);
     const tempOutputPath = path.join(tmpDir, `${renderId}_output.mp4`);
+    let payload = null;
 
     try {
       console.log(`\n[RenderWorker] [${renderId}] Received render request from ${req.socket.remoteAddress}`);
@@ -65,7 +66,7 @@ const server = http.createServer(async (req, res) => {
         chunks.push(chunk);
       }
       const rawBody = Buffer.concat(chunks).toString('utf-8');
-      const payload = JSON.parse(rawBody);
+      payload = JSON.parse(rawBody);
 
       const scale = payload.scale || 1.0;
       const concurrency = payload.concurrency || String(Math.min(4, Math.max(1, (os.cpus()?.length || 2) - 1)));

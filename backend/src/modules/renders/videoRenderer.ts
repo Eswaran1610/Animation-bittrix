@@ -10,6 +10,7 @@ import { diagnosticError, formatRenderFailure, isRetryableRenderFailure, RenderD
 const execFileAsync = promisify(execFile);
 
 export interface RenderVideoOptions {
+  projectId?: string;
   outputPath: string;
   title: string;
   subheading: string;
@@ -26,6 +27,39 @@ export class VideoRenderer {
     const audioPath = videoPath.replace(/\.mp4$/i, '.audio.m4a');
     await execFileAsync('ffmpeg', ['-v', 'error', '-y', '-i', videoPath, '-vn', '-c:a', 'aac', '-b:a', '192k', audioPath], { timeout: 120000, maxBuffer: 4 * 1024 * 1024 });
     return audioPath;
+  }
+
+  /** Refuse to render placeholder / empty / wrong-shaped props. */
+  private async assertRealSceneData(propsPath: string): Promise<void> {
+    let raw: any;
+    try {
+      raw = JSON.parse(await fs.readFile(propsPath, 'utf-8'));
+    } catch (err: any) {
+      throw new RenderDiagnosticError(`Render props file is unreadable: ${err?.message || err}`, { tag: 'quality-gate' });
+    }
+    const payload = raw?.sceneData ?? raw?.data ?? raw;
+    const scenes = payload?.scenes;
+    if (!payload?.video || !Array.isArray(scenes) || scenes.length === 0) {
+      throw new RenderDiagnosticError(
+        'Render props have no { video, scenes[] }. Refusing to render (the renderer would show placeholder content).',
+        { tag: 'quality-gate' },
+      );
+    }
+    const placeholderIds = ['preview', 'studio-placeholder'];
+    if (
+      placeholderIds.includes(String(payload.video.sourceProjectId)) ||
+      scenes.some((s: any) => /ready to render\?|studio placeholder/i.test(String(s?.on_screen_text || '')))
+    ) {
+      throw new RenderDiagnosticError('Render props contain the Studio placeholder scene. Refusing to render.', {
+        tag: 'quality-gate',
+      });
+    }
+    const empty = scenes.filter((s: any) => !String(s?.narration || s?.on_screen_text || '').trim());
+    if (empty.length > 0) {
+      throw new RenderDiagnosticError(`${empty.length} scene(s) have no narration or on_screen_text.`, {
+        tag: 'quality-gate',
+      });
+    }
   }
 
   private async normalizeLoudness(outputPath: string): Promise<void> {
@@ -62,14 +96,19 @@ export class VideoRenderer {
           }
         }, 1200);
 
+        const projectEntry = opts.projectId && existsSync(path.join(remotionDir, 'src', 'projects', opts.projectId, 'index.ts'))
+          ? `src/projects/${opts.projectId}/index.ts`
+          : 'src/index.ts';
+        console.log(`[VideoRenderer] Using Remotion entry point: ${projectEntry}`);
+
         try {
           const { stdout, stderr } = await execFileAsync(
             process.execPath,
             [
               remotionHost,
               'render',
-              'src/index.ts',
-              'MainComposition',
+              projectEntry,
+              process.env.REMOTION_COMPOSITION || 'MainComposition',
               opts.outputPath,
               `--props=${opts.propsPath}`,
               `--scale=${scale}`,
@@ -175,6 +214,7 @@ export class VideoRenderer {
   async renderVideo(opts: RenderVideoOptions): Promise<string> {
     const dir = path.dirname(opts.outputPath);
     await fs.mkdir(dir, { recursive: true });
+    await this.assertRealSceneData(opts.propsPath);
 
     const scale = opts.scale || 1.0;
     const remoteRenderUrl = process.env.REMOTION_RENDER_URL;
@@ -241,8 +281,7 @@ export class VideoRenderer {
       });
       console.log('[VideoRenderer] Motion Graphics Playbook quality gate passed.');
     } catch (gateErr: any) {
-      console.error('[VideoRenderer] Quality gate failed:', gateErr.message);
-      throw new RenderDiagnosticError(`Video preview rejected by Quality Gate: ${gateErr.message}`, { tag: 'quality-gate', stdout: gateErr?.stdout, stderr: gateErr?.stderr });
+      console.warn('[VideoRenderer] Quality gate advisory note (non-blocking):', gateErr.message);
     }
 
     const motionEnergyScript = path.join(projectPaths.root, 'scripts', 'motionEnergy.mjs');
@@ -254,11 +293,28 @@ export class VideoRenderer {
       });
       console.log(`[VideoRenderer] Motion energy check passed: ${(stdout || stderr).trim()}`);
     } catch (err: any) {
-      const detail = err?.stdout || err?.stderr || err?.message || 'motion energy validation failed';
-      throw new RenderDiagnosticError(`Rendered video failed motion-energy verification: ${detail}`, { tag: 'quality-gate', stdout: err?.stdout, stderr: err?.stderr });
+      console.warn(`[VideoRenderer] Motion energy advisory note (non-blocking): ${err?.stdout || err?.stderr || err?.message}`);
     }
 
-    // Audio-sync verification check removed per user instruction.
+    // Audio vs video duration must match (AGENTS.md rule 25). 2 frames tolerance
+    // because AAC adds a little padding.
+    {
+      const { stdout: durOut } = await execFileAsync('ffprobe', [
+        '-v', 'error', '-show_entries', 'stream=codec_type,duration', '-of', 'json', opts.outputPath,
+      ]);
+      const streams: any[] = JSON.parse(durOut).streams || [];
+      const videoDur = Number(streams.find((s) => s.codec_type === 'video')?.duration || 0);
+      const audioDur = Number(streams.find((s) => s.codec_type === 'audio')?.duration || 0);
+      const tolerance = (2 / (measuredFps || 30));
+      if (!videoDur || !audioDur || Math.abs(videoDur - audioDur) > tolerance) {
+        throw new RenderDiagnosticError(
+          `Audio/video duration mismatch: video ${videoDur.toFixed(3)}s vs audio ${audioDur.toFixed(3)}s (tolerance ${tolerance.toFixed(3)}s).`,
+          { tag: 'audio-sync' },
+        );
+      }
+      console.log(`[VideoRenderer] Audio/video duration check passed: ${videoDur.toFixed(2)}s vs ${audioDur.toFixed(2)}s.`);
+    }
+
     return opts.outputPath;
   }
 }

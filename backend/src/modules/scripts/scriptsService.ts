@@ -43,11 +43,11 @@ export class ScriptsService {
   }
 
   /**
-   * Generate initial script (v1) using the currently active AI provider (Codex or AGY).
+   * Generate initial script (v1) using the currently active AI provider (AGY or Claude).
    */
   async generateInitialScript(projectId: string, inputContent: string, inputType: 'text' | 'topic' | 'url', requestedDurationSec?: number, themeId?: string): Promise<Script> {
     const activeProvider = activeProviderService.get();
-    const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'claude' ? 'Claude Code' : activeProvider === 'codex' ? 'Codex' : 'AI';
+    const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'claude' ? 'Claude Code' : 'AI';
     realtime.publish({ type: 'pipeline_progress', projectId, stage: 'research', progress: 15, status: `${providerLabel} deep research across multiple web sources` });
     const { result: researchResult, signature } = await this.generateInitialPlan(projectId, inputContent, inputType, requestedDurationSec, themeId);
 
@@ -121,9 +121,8 @@ export class ScriptsService {
 
     const projectRes = await query(`SELECT input_content, input_type, requested_duration_sec, theme_id FROM projects WHERE id = $1`, [projectId]);
     if (projectRes.rows.length === 0) throw new Error('Project not found while revising script.');
-
     const activeProvider = activeProviderService.get();
-    const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'claude' ? 'Claude Code' : activeProvider === 'codex' ? 'Codex' : 'AI';
+    const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'claude' ? 'Claude Code' : 'AI';
     const provider = getActiveAIProvider();
 
     const researchResult = await provider.generateScript({

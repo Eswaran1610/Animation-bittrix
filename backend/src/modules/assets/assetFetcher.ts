@@ -18,6 +18,8 @@ export interface CodexAssetRequest {
   sourceUrl: string;
   license: string;
   attribution?: string;
+  /** Words that must relate to the scene (from the scene's narration / asset_queries). */
+  sceneKeywords?: string[];
 }
 
 export interface FetchedAsset extends CodexAssetRequest {
@@ -63,6 +65,23 @@ const assertPermissiveLicense = (license: string) => {
 const assertAttribution = (license: string, attribution?: string) => {
   if (/\b(cc[- ]?by|cc[- ]?by[- ]?sa|by-sa)\b/i.test(license) && !attribution?.trim()) {
     throw new Error(`Codex selected "${license}" media but supplied no required attribution.`);
+  }
+};
+
+const assertRelevantToScene = (request: CodexAssetRequest) => {
+  const keywords = (request.sceneKeywords || [])
+    .map((k) => k.toLowerCase().trim())
+    .filter((k) => k.length >= 3);
+  if (keywords.length === 0) return; // caller did not ask for the check
+  const haystack = [request.title, request.objectId, request.sourceUrl, request.downloadUrl, request.attribution]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  if (!keywords.some((k) => haystack.includes(k))) {
+    throw new Error(
+      `Asset "${request.title}" does not look related to this scene (expected one of: ${keywords.slice(0, 6).join(', ')}). ` +
+        'Pick an asset whose title/source mentions the scene subject, or use an authored vector.',
+    );
   }
 };
 
@@ -159,6 +178,7 @@ export class AssetFetcher {
   async fetchCodexSelectedAsset(request: CodexAssetRequest): Promise<FetchedAsset> {
     assertPermissiveLicense(request.license);
     assertAttribution(request.license, request.attribution);
+    assertRelevantToScene(request);
     await this.validatePublicUrl(request.sourceUrl);
     const { buffer, contentType } = await this.download(request.downloadUrl, request.kind);
     const extension = request.kind === '3d-model' ? 'glb' : this.imageExtension(buffer, contentType);

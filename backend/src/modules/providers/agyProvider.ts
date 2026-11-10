@@ -26,7 +26,7 @@ export class AgyProvider extends BasePlanProvider {
   ): Promise<{ output: string; tokenUsage: TokenUsage; parsed: any }> {
     const remainingMs = Math.max(15000, deadlineAt - Date.now());
     const effectiveTimeoutMs = Math.min(timeoutMs, remainingMs);
-    const model = process.env.AGY_MODEL || 'gemini-3.8-flash-high';
+    const model = process.env.AGY_MODEL || 'gemini-3.8-flash-medium';
 
     console.log(`[AgyProvider] Executing agy CLI (model=${model}, timeout=${Math.round(effectiveTimeoutMs / 1000)}s)...`);
     if (projectId) {
@@ -41,7 +41,7 @@ export class AgyProvider extends BasePlanProvider {
 
     const { stdout, stderr, code } = await this.spawnAgy(prompt, model, effectiveTimeoutMs);
     if (code !== 0) {
-      throw new Error(`AGY CLI exited with code ${code}: ${stderr.slice(-300)}`);
+      throw this.extractProcessError('AGY', code, stdout, stderr);
     }
 
     let container: any;
@@ -81,7 +81,7 @@ export class AgyProvider extends BasePlanProvider {
           parsed = this.extractJson(rec.stdout);
         }
       } else {
-        throw new Error(`Failed to extract valid JSON plan from AGY response: ${parseErr?.message}`);
+        throw this.extractProcessError('AGY (recovery)', rec.code, rec.stdout, rec.stderr);
       }
     }
 
@@ -92,17 +92,36 @@ export class AgyProvider extends BasePlanProvider {
     };
   }
 
+  private extractProcessError(bin: string, code: number | null, stdout: string, stderr: string): Error {
+    let detail = (stderr || '').trim();
+    if (!detail && stdout) {
+      try {
+        const parsed = JSON.parse(stdout);
+        detail = parsed.error || parsed.message || (parsed.status && parsed.status !== 'SUCCESS' ? `status: ${parsed.status} ${parsed.response || ''}` : '') || '';
+      } catch {
+        detail = '';
+      }
+      if (!detail) {
+        detail = stdout.trim().slice(-400);
+      }
+    }
+    return new Error(`${bin} CLI exited with code ${code}${detail ? `: ${detail}` : ''}`);
+  }
+
   private async spawnAgy(
     prompt: string,
     model: string,
     timeoutMs: number
   ): Promise<{ stdout: string; stderr: string; code: number | null }> {
+    const printTimeoutMin = Math.max(5, Math.ceil(timeoutMs / 60000));
     return new Promise((resolve, reject) => {
       const child = spawn('agy', [
         '-p', prompt,
         '--model', model,
         '--output-format', 'json',
+        '--print-timeout', `${printTimeoutMin}m`,
         '--disable-slash-commands',
+        '--dangerously-skip-permissions',
       ], {
         cwd: projectPaths.root,
         stdio: ['ignore', 'pipe', 'pipe'],

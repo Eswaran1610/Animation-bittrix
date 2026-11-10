@@ -261,11 +261,11 @@ export const THEME_CATALOG: VideoTheme[] = [
     description: 'Inspired by packet journey animations: multi-layer OSI/TCP-IP stacked headers, virtual interface tunnels (tun0), animated ciphertext hex matrices, and routing hops with real-time indicators.',
     archetype: 'blueprint-technical',
     palette: {
-      bg: '#f5f5f0',
-      surface: '#ffffff',
-      primary: '#1a6fd4',
-      accent: '#6c3fb5',
-      text: '#2c2c2a',
+      bg: '#080c16',
+      surface: '#111827',
+      primary: '#00f0ff',
+      accent: '#a855f7',
+      text: '#f8fafc',
     },
     fonts: {
       heading: 'Inter, -apple-system, sans-serif',

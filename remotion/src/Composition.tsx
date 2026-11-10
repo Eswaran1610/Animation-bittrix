@@ -19,7 +19,8 @@ export const MainComposition: React.FC<SceneDataPayload> = (sceneData) => {
       {!masterAudioUrl &&
         scenes.map((scene, sceneIndex) => {
           const fromFrame = accumulatedFrame;
-          accumulatedFrame += scene.durationInFrames || 90;
+          const transOut = (scene as any).transitionOutFrames ?? (sceneIndex < scenes.length - 1 ? 10 : 0);
+          accumulatedFrame += (scene.durationInFrames || 90) - (sceneIndex < scenes.length - 1 ? transOut : 0);
 
           return (
             <React.Fragment key={`audio-scene-${scene.id || sceneIndex}`}>

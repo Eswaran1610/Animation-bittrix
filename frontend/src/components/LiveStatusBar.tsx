@@ -21,7 +21,7 @@ interface LiveStatusBarProps {
 export const LiveStatusBar: React.FC<LiveStatusBarProps> = ({ activeProvider, usage, liveUsage, progress, label, stage, connected }) => {
   const safeProgress = Math.max(0, Math.min(100, Math.round(progress)));
   const totalTokens = Number(usage?.total_tokens || 0);
-  const providerName = activeProvider === 'agy' ? 'AGY' : activeProvider === 'claude' ? 'Claude Code' : activeProvider === 'codex' ? 'Codex' : 'AI';
+  const providerName = activeProvider === 'agy' ? 'AGY' : activeProvider === 'claude' ? 'Claude Code' : 'AI';
 
   const isResearchDone = safeProgress >= 70 || stage === 'script_plan' || stage === 'script_ready' || stage === 'script_review' || stage === 'preview_review' || stage === 'completed';
   const isResearchActive = !isResearchDone && (stage === 'research' || (safeProgress > 0 && safeProgress < 70) || !!liveUsage?.active);

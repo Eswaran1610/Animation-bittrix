@@ -1,139 +1,63 @@
-import React from 'react';
-import { Composition, getInputProps } from 'remotion';
-import { MainComposition } from './Composition';
-import { SceneDataPayload } from './data/sceneTypes';
-import { ShortVideo } from './short-video/ShortVideo';
-import { SHORT_VIDEO_DEFAULT_PROPS, ShortVideoPropsSchema } from './short-video/shortVideoProps';
-import { collectMainCompositionQaIssues, collectShortVideoQaIssues } from './short-video/shortVideoQa';
-import { sceneTimelineDuration } from './short-video/sceneAdapter';
-import { MainVideo } from './MainVideo';
+import React from "react";
+import { Composition, getInputProps, getRemotionEnvironment } from "remotion";
+import { MainComposition } from "./Composition";
+import { SceneDataPayload } from "./data/sceneTypes";
+import { isPlaceholderPayload, normalizeSceneData } from "./data/normalizeSceneData";
 
-/**
- * Minimal default payload used to register MainComposition in Remotion Studio
- * and CLI composition listings when no live inputProps are provided. Real
- * renders pass a full SceneDataPayload via renderMedia({ inputProps }), which
- * overrides these defaults at render time.
- */
-const MAIN_COMPOSITION_DEFAULT_PROPS: SceneDataPayload = {
+const STUDIO_PLACEHOLDER_PROPS: SceneDataPayload = {
   video: {
-    title: 'Codex Preview',
+    title: "Studio Placeholder",
     width: 1080,
     height: 1920,
     fps: 30,
     durationInFrames: 150,
     targetDurationSec: 5,
-    style: 'cinematic-neon',
-    generatedBy: 'codex',
-    sourceProjectId: 'preview',
+    style: "cinematic-neon",
+    generatedBy: "codex",
+    sourceProjectId: "studio-placeholder",
     previewVersion: 1,
     scriptVersion: 1,
-    styleProfile: {
-      family: 'cinematic-neon',
-      motif: 'geometric',
-      background: '#05070f',
-      surface: '#0e1020',
-      text: '#e8eaf6',
-      primary: '#7c4dff',
-      secondary: '#00e5ff',
-      motion_language: 'spring-pop',
-      transition_language: 'slide',
-    },
   },
   scenes: [
     {
-      id: 'preview-1',
+      id: "studio-placeholder-1",
       scene_number: 1,
-      role: 'hook',
-      template: 'question-hook',
-      title: 'Preview Scene',
-      on_screen_text: 'Ready to render?',
-      subtitle: 'Codex MainComposition default preview',
-      key_takeaways: ['Scene 1 placeholder'],
-      visual_direction: 'bold typography with neon glow',
-      motion_cue: 'spring entrance from bottom',
-      continuity_to_next: 'None (final scene)',
+      role: "hook",
+      title: "Studio Placeholder",
+      on_screen_text: "STUDIO PLACEHOLDER",
       duration_sec: 5,
       durationInFrames: 150,
-      transitionOutFrames: 0,
-      visualType: 'blueprint',
-      themeColor: '#7c4dff',
-      narration: 'This is a preview scene for the Codex MainComposition.',
-      visualBlueprint: {
-        purpose: 'Opening hook preview',
-        layout: 'centered',
-        camera_motion: 'static',
-        asset_queries: [],
-        objects: [
-          {
-            id: 'obj_preview_1',
-            label: 'Neon Sphere',
-            x: 0.5,
-            y: 0.45,
-            scale: 1.2,
-            render_spec: { type: '3d', primitive: 'sphere' },
-          },
-        ],
-      },
+      themeColor: "#7c4dff",
+      narration: "Studio placeholder.",
     },
   ],
 };
 
+const calcTimelineDuration = (scenes: any[] = []) =>
+  scenes.reduce((total, scene, index) => total + (scene.durationInFrames || 90) - (index < scenes.length - 1 ? (scene.transitionOutFrames || 12) : 0), 0) || 900;
+
 export const Root: React.FC = () => {
-  const shortVideoQaIssues = collectShortVideoQaIssues(SHORT_VIDEO_DEFAULT_PROPS);
-  if (shortVideoQaIssues.length > 0) console.warn(`[ShortVideo QA] ${shortVideoQaIssues.join(' | ')}`);
-  const sceneData = getInputProps() as Partial<SceneDataPayload>;
-  const hasValidSceneData = Boolean(
-    sceneData.video &&
-    Array.isArray(sceneData.scenes) &&
-    sceneData.scenes.length > 0
-  );
-  if (hasValidSceneData) {
-    const mainQaIssues = collectMainCompositionQaIssues(sceneData as SceneDataPayload);
-    if (mainQaIssues.length > 0) console.warn(`[MainComposition QA] ${mainQaIssues.join(' | ')}`);
+  const isStudio = getRemotionEnvironment().isStudio;
+  const rawInput = getInputProps();
+  const realSceneData = normalizeSceneData(rawInput);
+
+  if (!isStudio && realSceneData && isPlaceholderPayload(realSceneData)) {
+    throw new Error("[Root] Scene data is the Studio placeholder. Refusing to render it as a real video.");
   }
 
-  // Use live input props when a real Codex render is in progress; fall back to
-  // the default preview payload so the composition is always registered and
-  // visible in Remotion Studio / CLI listings without props.
-  const resolvedProps: SceneDataPayload = hasValidSceneData
-    ? (sceneData as SceneDataPayload)
-    : MAIN_COMPOSITION_DEFAULT_PROPS;
-  const mainFps = resolvedProps.video.fps;
-  const mainDuration = sceneTimelineDuration(resolvedProps.scenes);
-  const codexComposition = (
+  const resolvedProps: SceneDataPayload = realSceneData ?? STUDIO_PLACEHOLDER_PROPS;
+  const mainFps = resolvedProps.video?.fps || 30;
+  const mainDuration = resolvedProps.video?.durationInFrames || calcTimelineDuration(resolvedProps.scenes);
+
+  return (
     <Composition
       id="MainComposition"
       component={MainComposition as unknown as React.FC<Record<string, unknown>>}
-      defaultProps={resolvedProps}
+      defaultProps={resolvedProps as unknown as Record<string, unknown>}
       durationInFrames={mainDuration}
       fps={mainFps}
-      width={resolvedProps.video.width}
-      height={resolvedProps.video.height}
+      width={resolvedProps.video?.width || 1080}
+      height={resolvedProps.video?.height || 1920}
     />
-  );
-
-  return (
-    <>
-      {codexComposition}
-      <Composition
-        id="MainVideo"
-        component={MainVideo as unknown as React.FC<Record<string, unknown>>}
-        defaultProps={{ sceneData: resolvedProps }}
-        durationInFrames={mainDuration}
-        fps={mainFps}
-        width={resolvedProps.video.width}
-        height={resolvedProps.video.height}
-      />
-      <Composition
-        id="ShortVideo"
-        component={ShortVideo}
-        defaultProps={SHORT_VIDEO_DEFAULT_PROPS}
-        schema={ShortVideoPropsSchema}
-        durationInFrames={SHORT_VIDEO_DEFAULT_PROPS.durationInFrames}
-        fps={SHORT_VIDEO_DEFAULT_PROPS.fps}
-        width={SHORT_VIDEO_DEFAULT_PROPS.width}
-        height={SHORT_VIDEO_DEFAULT_PROPS.height}
-      />
-    </>
   );
 };

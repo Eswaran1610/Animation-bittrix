@@ -25,23 +25,7 @@ export const api = {
     }>;
   },
 
-  async getCodexConnection() {
-    const res = await fetch(`${API_BASE}/auth/codex`);
-    if (!res.ok) throw new Error('Failed to check Codex connection');
-    return res.json() as Promise<CodexConnection>;
-  },
 
-  async connectCodex() {
-    const res = await fetch(`${API_BASE}/auth/codex`, { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to start Codex connection');
-    return res.json() as Promise<CodexConnection>;
-  },
-
-  async disconnectCodex() {
-    const res = await fetch(`${API_BASE}/auth/codex/disconnect`, { method: 'POST' });
-    if (!res.ok) throw new Error('Failed to disconnect Codex');
-    return res.json() as Promise<CodexConnection>;
-  },
 
   async listProjects(): Promise<Project[]> {
     const res = await fetch(`${API_BASE}/projects`);
@@ -218,7 +202,7 @@ export const api = {
     return res.json() as Promise<ActiveProviderStatus>;
   },
 
-  async setActiveProvider(provider: 'codex' | 'agy' | 'claude' | 'none') {
+  async setActiveProvider(provider: 'agy' | 'claude' | 'none') {
     const res = await fetch(`${API_BASE}/providers/active`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -228,7 +212,51 @@ export const api = {
       const err = await res.json().catch(() => ({}));
       throw new Error((err as any).error || 'Failed to set active provider');
     }
-    return res.json() as Promise<{ activeProvider: 'codex' | 'agy' | 'claude' | 'none'; message: string }>;
+    return res.json() as Promise<{ activeProvider: 'agy' | 'claude' | 'none'; message: string }>;
+  },
+
+  async getLatestAutonomous(): Promise<any> {
+    const res = await fetch(`${API_BASE}/pipeline/autonomous/latest`);
+    if (!res.ok) throw new Error('Failed to fetch latest autonomous video');
+    return res.json();
+  },
+
+  async runAutonomousPipeline(topic: string, fps = 60, resolution = '1080x1920', voice = 'en-US-ChristopherNeural', projectName?: string, durationSec?: number): Promise<any> {
+    const res = await fetch(`${API_BASE}/pipeline/autonomous/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic, fps, resolution, voice, projectName, durationSec }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to start autonomous pipeline');
+    }
+    return res.json();
+  },
+
+  async getAutonomousJobs(): Promise<any[]> {
+    const res = await fetch(`${API_BASE}/pipeline/autonomous/jobs`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getSfxCatalog(): Promise<any[]> {
+    const res = await fetch(`${API_BASE}/pipeline/sfx-catalog`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async reviseAutonomousJob(id: string, revision: { sceneIndex: number; title?: string; narration?: string; visual_type?: string; themeColor?: string }): Promise<any> {
+    const res = await fetch(`${API_BASE}/pipeline/autonomous/revise`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, revision }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to revise job');
+    }
+    return res.json();
   },
 };
 
@@ -245,9 +273,6 @@ export type CliConnection = {
 };
 
 export type ActiveProviderStatus = {
-  activeProvider: 'codex' | 'agy' | 'claude' | 'none';
-  available: Array<'codex' | 'agy' | 'claude' | 'none'>;
+  activeProvider: 'agy' | 'claude' | 'none';
+  available: Array<'agy' | 'claude' | 'none'>;
 };
-
-/** @deprecated Use CliConnection instead. */
-export type CodexConnection = CliConnection;

@@ -7,7 +7,8 @@
     "neo-brutalist",
     "glass-ui",
     "blueprint-technical",
-    "retro-terminal"
+    "retro-terminal",
+    "faceless-story"
   ],
   "motionPersonalities": ["snappy", "fluid", "bouncy", "precise"],
   "backgrounds": ["grid", "particles", "gradient-flow", "halftone", "lines"],

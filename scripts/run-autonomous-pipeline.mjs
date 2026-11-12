@@ -116,6 +116,7 @@ if (stageOnly === 3 && propsInputPath) {
 You are the world-class motion graphics director and deep technical research engine for Animation-Bittrix.
 Follow these rules strictly:
 1. Conduct research on the topic: "${topic}".
+   - SKILL REFERENCE: When planning story-based or faceless short videos, review and apply the skill instructions in .agents/skills/faceless-shorts/SKILL.md (Deep Dive 3D / Zack D. Films story arc: conversational hook, continuous camera push into mechanisms, surprising twist, and punchy captions).
 2. Ground all claims in real architectural concepts, technical mechanisms, and verified facts.
 3. Target duration is strictly ~23 seconds total: Plan 4 punchy content scenes (~18 seconds) + 1 mandatory closing Bittrix outro (~3 seconds).
 4. Each scene MUST have exactly ONE short, punchy sentence (8 to 12 words maximum per sentence). Total spoken words across all 4 content scenes must be 40 to 50 words so spoken runtime matches 18-20 seconds.
@@ -124,7 +125,8 @@ Follow these rules strictly:
    - For every scene, describe a unique, custom visual metaphor tailored specifically to this sentence.
    - Define:
      * "visual_metaphor": A vivid description of the physical visual metaphor (e.g. "Glowing cache barrier absorbing red lock packets and emitting blue authorized tokens").
-     * "visual_type": The best conceptual display archetype ("concept-diagram", "process-flow", "split-compare", "timeline", "stat-counter", "3d-showcase", or "callout").
+     * "visual_type": The best conceptual display archetype ("concept-diagram", "process-flow", "split-compare", "timeline", "stat-counter", "3d-showcase", "faceless-story", or "callout").
+     * For "faceless-story" / what-if videos: Craft a conversational storytelling arc (hook question "What if...", internal mechanism journey, unexpected twist, and payoff).
      * "nodes": 2 to 4 key visual objects/components with labels and technical subtitles.
      * "edges": Explicit connections or flows between those nodes.
      * "motion_action": The physical movement ("impact", "snap", "slide", "orbit", "pulse", "collide").
@@ -343,46 +345,59 @@ if (stageOnly === 3 && propsInputPath) {
     '--variants', '3',
   ]);
 
-  // Compute sentence frame bounds
+  // Map sentences to real word alignments sequentially
   let currentWordIdx = 0;
+  const sceneWordSlices = scriptPayload.scenes.map((sc) => {
+    const scWords = sc.narration.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/).filter(Boolean);
+    const count = scWords.length;
+    const slice = wordTimings.slice(currentWordIdx, currentWordIdx + count);
+    currentWordIdx += count;
+    return slice;
+  });
+
+  // Calculate scene boundaries tiling seamlessly from audio timestamps
   const sceneBounds = [0];
-
-  for (let i = 0; i < scriptPayload.scenes.length; i++) {
-    const scWords = scriptPayload.scenes[i].narration.split(/\s+/).filter(Boolean);
-    const sceneWordCount = scWords.length;
-    const endWordIdx = Math.min(currentWordIdx + sceneWordCount - 1, wordTimings.length - 1);
-    const endWord = wordTimings[endWordIdx];
-
-    const endSec = endWord ? Number(endWord.endSec ?? endWord.end_time) : (i + 1) * 3.5;
-    const endFrame = Math.round(endSec * targetFps);
-    sceneBounds.push(Math.max(sceneBounds[sceneBounds.length - 1] + Math.round(targetFps * 1.5), endFrame));
-    currentWordIdx += sceneWordCount;
+  for (let i = 0; i < scriptPayload.scenes.length - 1; i++) {
+    const currSlice = sceneWordSlices[i];
+    const nextSlice = sceneWordSlices[i + 1];
+    let boundarySec;
+    if (nextSlice && nextSlice.length > 0 && currSlice && currSlice.length > 0) {
+      const currEnd = Number(currSlice[currSlice.length - 1].endSec ?? currSlice[currSlice.length - 1].end_time);
+      const nextStart = Number(nextSlice[0].startSec ?? nextSlice[0].start_time);
+      boundarySec = nextStart > currEnd ? currEnd + (nextStart - currEnd) * 0.5 : currEnd + 0.1;
+    } else if (currSlice && currSlice.length > 0) {
+      boundarySec = Number(currSlice[currSlice.length - 1].endSec ?? currSlice[currSlice.length - 1].end_time) + 0.2;
+    } else {
+      boundarySec = (i + 1) * 3.5;
+    }
+    sceneBounds.push(Math.round(boundarySec * targetFps));
   }
 
   // Align final outro to audio length
   const lastAudioSec = wordTimings.length
     ? Number(wordTimings[wordTimings.length - 1].endSec ?? wordTimings[wordTimings.length - 1].end_time)
     : 20;
-  const totalFrames = Math.max(Math.round(lastAudioSec * targetFps) + Math.round(targetFps * 0.8), sceneBounds[sceneBounds.length - 1]);
-  sceneBounds[sceneBounds.length - 1] = totalFrames;
+  const totalFrames = Math.max(Math.round(lastAudioSec * targetFps) + Math.round(targetFps * 0.5), sceneBounds[sceneBounds.length - 1]);
+  sceneBounds.push(totalFrames);
 
   // Build Remotion Scene Payloads
   const remotionScenes = scriptPayload.scenes.map((sc, i) => {
     const fromFrame = sceneBounds[i];
     const toFrame = sceneBounds[i + 1];
-    const durationInFrames = toFrame - fromFrame;
+    const durationInFrames = Math.max(1, toFrame - fromFrame);
 
-    // Filter words in this scene
-    const wordsInScene = wordTimings
-      .filter((w) => {
-        const sFrame = Math.round(Number(w.startSec ?? w.start_time) * targetFps);
-        return sFrame >= fromFrame - 2 && sFrame < toFrame;
-      })
-      .map((w) => ({
-        word: w.word,
-        startFrame: Math.max(0, Math.round(Number(w.startSec ?? w.start_time) * targetFps) - fromFrame),
-        endFrame: Math.max(1, Math.round(Number(w.endSec ?? w.end_time) * targetFps) - fromFrame),
-      }));
+    const matchedWords = sceneWordSlices[i] || [];
+    const wordsInScene = matchedWords.length > 0
+      ? matchedWords.map((w) => ({
+          word: w.word,
+          startFrame: Math.max(0, Math.round(Number(w.startSec ?? w.start_time) * targetFps) - fromFrame),
+          endFrame: Math.max(1, Math.round(Number(w.endSec ?? w.end_time) * targetFps) - fromFrame),
+        }))
+      : sc.narration.split(/\s+/).filter(Boolean).map((w, wIdx) => ({
+          word: w,
+          startFrame: Math.round(wIdx * (durationInFrames / 5)),
+          endFrame: Math.round((wIdx + 1) * (durationInFrames / 5)),
+        }));
 
     // Map procedural sound effects (SFX) for object entrances and kinetic hits
     const audioCues = [
@@ -540,20 +555,35 @@ ${JSON.stringify(compactScenes, null, 2)}
 
 CREATIVE REQUIREMENTS:
 1. Export default: export default function GeneratedCliVideo(props: any) { ... }
-2. Import from 'remotion': AbsoluteFill, Sequence, spring, interpolate, useCurrentFrame, useVideoConfig
-3. Single continuous living canvas with continuous virtual camera (interpolate camX, camY, camScale across scenes).
-4. Topic-specific visual mechanics for "${scriptPayload.title || topic}". ZERO 50% border-radius circles or placeholder orbs!
+2. Import from 'remotion': AbsoluteFill, Sequence, spring, interpolate, useCurrentFrame, useVideoConfig, staticFile
+   - Optional 3D Animation: Import { ThreeCanvas } from '@remotion/three' and * as THREE from 'three'
+3. 3D & MOTION ARCHITECTURE:
+   - For 3D elements, use <ThreeCanvas width={1080} height={1920}> with <ambientLight />, <pointLight />, and 3D meshes (<boxGeometry />, <sphereGeometry />, <meshStandardMaterial /> or Three.js particle systems).
+   - Local high-quality open-source Three.js textures are ready in staticFile('assets/three/textures/...'): uv_grid.jpg, disc.png, spark1.png, carbon.png, matcap_white.jpg, cloud_noise.png.
+   - 3D models available: staticFile('assets/three/models/primary_ion_drive.glb'), staticFile('assets/three/models/shader_ball.glb').
+4. Single continuous living canvas with continuous virtual camera (interpolate camX, camY, camScale across scenes).
+5. Topic-specific visual mechanics for "${scriptPayload.title || topic}". ZERO 50% border-radius circles or placeholder orbs!
    - Tech/Code: Dark terminal windows, branching commit DAGs, syntax diff cards with green + and red - lines.
-   - Systems: Server racks, dynamic laser bus lines, packet queues, telemetry meters.
+   - Systems & 3D: 3D server racks, rotating data cylinders, dynamic laser bus lines, packet queues, particle fields.
    - Process/Architecture: Connected flow blocks, animated data vectors, balance scales.
-5. Synchronized kinetic karaoke captions matching scene.words with dynamic active-word scaling and accent glow.
-6. The FINAL SCENE (~last 3s) MUST render the exact Bittrix Technologies royal purple (#5b1a78) outro matching bittrix-reel(1).html:
+   - Faceless Story / What-If: Zack D. Films style storytelling with forward camera zooms, glowing internal cutaways (cross-sections of components/biology/mechanics), dark vignette edges, and single dramatic light source.
+6. MANDATORY 3 CONTENT IMAGES/VISUALS:
+   - Exactly 3 distinct, fresh content-based visual images or technical diagrams must appear across the video (staggered in scenes 2, 3, and 4) tailored directly to "${scriptPayload.title || topic}".
+   - Each image must enter dynamically with spring physics (anticipation + overshoot), subtle continuous float or rotation, and sound cue hits.
+7. ZERO-OFFSET KINETIC KARAOKE CAPTIONS:
+   - Each word in scene.words has exact startFrame and endFrame derived directly from millisecond speech alignment.
+   - Word highlight MUST activate strictly when: localFrame >= word.startFrame && localFrame <= word.endFrame.
+   - NEVER guess or finish early; captions must track the voice word-for-word in real time.
+8. DYNAMIC OBJECT SOUNDS & SFX HITS:
+   - Synchronize on-screen element entrances, popups, and card hits with sound cues (whoosh on entrance, pop/impact on element arrival).
+   - Place hits at -2 frames relative to visual contact for organic audiovisual punch.
+9. The FINAL SCENE (~last 3s) MUST render the exact Bittrix Technologies royal purple (#5b1a78) outro matching bittrix-reel(1).html:
    - 6-point radial gradient hexagon with spoke circles
    - Rolling chain link track and rotating 12-tooth gear with serif 'B'
    - Staggered letter italic bold "BITTRIX" and tracking "TECHNOLOGIES"
    - Purple underline and diagonal light sweep
    - Spoken narration aloud: "Follow Bittrix Technologies for more interesting concepts."
-7. Return ONLY valid, self-contained TypeScript/TSX in a \`\`\`tsx code fence.
+9. Return ONLY valid, self-contained TypeScript/TSX in a \`\`\`tsx code fence.
 `;
 
   const agyModel = process.env.AGY_MODEL || 'gemini-3.8-flash-medium';

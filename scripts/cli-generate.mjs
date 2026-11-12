@@ -87,52 +87,92 @@ await execFileAsync(pythonBin, [
 await fs.copyFile(audioFile, audioPublicPath);
 
 const alignment = JSON.parse(await fs.readFile(alignFile, 'utf8'));
+const wordTimings = alignment.words || [];
 const totalAudioSec = Number(alignment.duration || targetDuration);
 const totalFrames = Math.round(totalAudioSec * fps);
-const outroDurationFrames = Math.round(fps * 3.0); // 3.0s = 90f @ 30fps
-const contentFramesTotal = Math.max(1, totalFrames - outroDurationFrames);
-const contentScenesCount = sentences.length - 1;
-const perContentSceneFrames = Math.floor(contentFramesTotal / contentScenesCount);
 
-console.log(`✅ Audio: ${totalAudioSec.toFixed(2)}s (${totalFrames} frames)`);
-console.log(`   Content: ${(contentFramesTotal / fps).toFixed(2)}s | Outro: ${(outroDurationFrames / fps).toFixed(2)}s`);
+console.log(`✅ Audio: ${totalAudioSec.toFixed(2)}s (${totalFrames} frames @ ${fps}fps)`);
+console.log(`   Captured ${wordTimings.length} exact word timestamps from TTS`);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STEP 2 — Build Scene Plan (driven by alignment timestamps)
+// STEP 2 — Build Scene Plan (strictly driven by true audio alignment timestamps)
 // ─────────────────────────────────────────────────────────────────────────────
-console.log('\n📐 [2/5] Assembling Structured Scene Plan from Audio Timestamps...');
+console.log('\n📐 [2/5] Assembling Structured Scene Plan from True Audio Timestamps...');
+
+// Map sentences to real word alignments sequentially
+let currentWordIdx = 0;
+const sceneWordSlices = sentences.map((sentence) => {
+  const targetWords = sentence.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/).filter(Boolean);
+  const count = targetWords.length;
+  const slice = wordTimings.slice(currentWordIdx, currentWordIdx + count);
+  currentWordIdx += count;
+  return slice;
+});
+
+// Calculate scene boundaries tiling seamlessly from audio timestamps
+const sceneBounds = [0];
+for (let i = 0; i < sentences.length - 1; i++) {
+  const currSlice = sceneWordSlices[i];
+  const nextSlice = sceneWordSlices[i + 1];
+  let boundarySec;
+  if (nextSlice && nextSlice.length > 0 && currSlice && currSlice.length > 0) {
+    const currEnd = Number(currSlice[currSlice.length - 1].endSec);
+    const nextStart = Number(nextSlice[0].startSec);
+    boundarySec = nextStart > currEnd ? currEnd + (nextStart - currEnd) * 0.5 : currEnd + 0.1;
+  } else if (currSlice && currSlice.length > 0) {
+    boundarySec = Number(currSlice[currSlice.length - 1].endSec) + 0.2;
+  } else {
+    boundarySec = (i + 1) * (totalAudioSec / sentences.length);
+  }
+  sceneBounds.push(Math.round(boundarySec * fps));
+}
+sceneBounds.push(totalFrames);
 
 const scenes = sentences.map((narration, idx) => {
   const isOutro = idx === sentences.length - 1;
   const isHook = idx === 0;
-  const durationInFrames = isOutro
-    ? outroDurationFrames
-    : idx === contentScenesCount - 1
-      ? contentFramesTotal - perContentSceneFrames * (contentScenesCount - 1)
-      : perContentSceneFrames;
+  const startFrame = sceneBounds[idx];
+  const endFrame = sceneBounds[idx + 1];
+  const durationInFrames = Math.max(1, endFrame - startFrame);
 
-  const words = narration.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/).filter(Boolean);
-  const visualType = isOutro ? 'outro' : (idx % 2 === 0 ? 'concept-diagram' : 'process-flow');
+  const matchedWords = sceneWordSlices[idx] || [];
+  const words = matchedWords.length > 0
+    ? matchedWords.map((w) => ({
+        word: w.word,
+        startFrame: Math.max(0, Math.round(Number(w.startSec) * fps) - startFrame),
+        endFrame: Math.max(1, Math.round(Number(w.endSec) * fps) - startFrame),
+      }))
+    : narration.split(/\s+/).filter(Boolean).map((w, wIdx) => ({
+        word: w,
+        startFrame: Math.round(wIdx * (durationInFrames / 5)),
+        endFrame: Math.round((wIdx + 1) * (durationInFrames / 5)),
+      }));
+
+  // Dynamic SFX cues placed with -2 frame lead before first word and key middle word
+  const firstWordFrame = words[0]?.startFrame ?? 4;
+  const midWordFrame = words[Math.floor(words.length / 2)]?.startFrame ?? Math.round(durationInFrames * 0.4);
 
   const audioCues = [
     {
-      frame: Math.min(10, durationInFrames - 8),
-      hitFrame: Math.min(12, durationInFrames - 8),
+      frame: Math.max(0, firstWordFrame - 2),
+      hitFrame: Math.max(0, firstWordFrame - 2),
       src: 'sfx/whoosh_01.wav',
       role: 'whoosh',
-      volume: 0.5,
+      volume: 0.45,
       durationFrames: 25,
     },
     {
-      frame: Math.min(25, durationInFrames - 8),
-      hitFrame: Math.min(26, durationInFrames - 8),
-      src: isOutro ? 'sfx/chime_01.wav' : 'sfx/pop_01.wav',
-      role: isOutro ? 'chime' : 'pop',
-      volume: 0.6,
-      durationFrames: 20,
+      frame: Math.max(2, midWordFrame - 2),
+      hitFrame: Math.max(2, midWordFrame - 2),
+      src: isOutro ? 'sfx/chime_01.wav' : (idx % 2 === 0 ? 'sfx/pop_01.wav' : 'sfx/impact_01.wav'),
+      role: isOutro ? 'chime' : (idx % 2 === 0 ? 'pop' : 'impact'),
+      volume: 0.55,
+      durationFrames: 25,
     }
   ];
 
+  const wordList = words.map(w => w.word);
+  const visualType = isOutro ? 'outro' : (idx % 2 === 0 ? 'concept-diagram' : 'process-flow');
   const icons = ['⚡', '🛡️', '⚙️', '🚀', '🎯', '💡', '🔍', '🌐'];
   const nodeIconA = icons[idx % icons.length];
   const nodeIconB = icons[(idx + 3) % icons.length];
@@ -144,22 +184,19 @@ const scenes = sentences.map((narration, idx) => {
     template: isHook ? 'question-hook' : isOutro ? 'cta-outro' : 'steps-numbered',
     visual_type: visualType,
     themeColor: activeTheme.palette.primary,
+    startFrame,
     durationInFrames,
     narration,
-    title: words.slice(0, 4).join(' '),
+    title: wordList.slice(0, 4).join(' '),
     on_screen_text: narration,
-    emphasis_word: words[Math.floor(words.length / 2)] || words[0],
+    emphasis_word: wordList[Math.floor(wordList.length / 2)] || wordList[0] || topic,
     audioCues,
     nodes: [
-      { label: words.slice(0, Math.ceil(words.length / 2)).join(' ') || topic, sub: 'Core Engine', icon: nodeIconA },
-      { label: words.slice(Math.ceil(words.length / 2)).join(' ') || 'Scale Target', sub: 'High Throughput', icon: nodeIconB }
+      { label: wordList.slice(0, Math.ceil(wordList.length / 2)).join(' ') || topic, sub: 'Core Engine', icon: nodeIconA },
+      { label: wordList.slice(Math.ceil(wordList.length / 2)).join(' ') || 'Scale Target', sub: 'High Throughput', icon: nodeIconB }
     ],
-    labels: words.slice(0, 3),
-    words: words.map((w, wIdx) => ({
-      word: w,
-      startFrame: Math.round(wIdx * (durationInFrames / (words.length + 1))),
-      endFrame: Math.round((wIdx + 1) * (durationInFrames / (words.length + 1)))
-    }))
+    labels: wordList.slice(0, 3),
+    words,
   };
 });
 
@@ -183,18 +220,33 @@ ${JSON.stringify(scenes, null, 2)}
 CREATIVE REQUIREMENTS:
 1. Export default: export default function GeneratedCliVideo(props: any) { ... }
 2. Import from 'remotion': AbsoluteFill, Sequence, Audio, staticFile, spring, interpolate, useCurrentFrame, useVideoConfig
+   - Optional 3D Animation: Import { ThreeCanvas } from '@remotion/three' and * as THREE from 'three'
 3. Include master voiceover track:
    <Audio src={staticFile('audio/${audioFileName}')} volume={1.0} startFrom={0} />
-4. Single continuous living canvas with continuous virtual camera (interpolate camX, camY, camScale across scenes).
-5. Topic-specific visual mechanics for "${topic}". ZERO 50% border-radius circles or placeholder orbs!
-6. Synchronized kinetic karaoke captions matching scene.words with dynamic active-word scaling and accent glow.
-7. The FINAL SCENE (~last 3s) MUST render the exact Bittrix Technologies royal purple (#5b1a78) outro matching bittrix-reel(1).html:
+4. 3D & MOTION ARCHITECTURE:
+   - For 3D elements, use <ThreeCanvas width={1080} height={1920}> with <ambientLight />, <pointLight />, and 3D meshes (<boxGeometry />, <sphereGeometry />, <meshStandardMaterial /> or Three.js particle systems).
+   - Local open-source Three.js textures ready in staticFile('assets/three/textures/...'): uv_grid.jpg, disc.png, spark1.png, carbon.png, matcap_white.jpg, cloud_noise.png.
+   - 3D models available: staticFile('assets/three/models/primary_ion_drive.glb'), staticFile('assets/three/models/shader_ball.glb').
+5. Single continuous living canvas with continuous virtual camera (interpolate camX, camY, camScale across scenes).
+6. Topic-specific visual mechanics for "${topic}". ZERO 50% border-radius circles or placeholder orbs!
+   - For story / faceless shorts: Review and adhere to .agents/skills/faceless-shorts/SKILL.md (Zack D. Films style story-based animation, dramatic camera journeys through internal mechanisms, and punchy word captions).
+7. MANDATORY 3 CONTENT IMAGES/VISUALS:
+   - Exactly 3 distinct, fresh content-based visual images or technical diagrams must appear across the video (staggered in scenes 2, 3, and 4) tailored directly to "${topic}".
+   - Each image must enter dynamically with spring physics (anticipation + overshoot), subtle continuous float or rotation, and sound cue hits.
+8. ZERO-OFFSET KINETIC KARAOKE CAPTIONS:
+   - Each word in scene.words has exact startFrame and endFrame derived directly from millisecond speech alignment.
+   - Word highlight MUST activate strictly when: localFrame >= word.startFrame && localFrame <= word.endFrame.
+   - NEVER guess or finish early; captions must track the voice word-for-word in real time.
+9. DYNAMIC OBJECT SOUNDS & SFX HITS:
+   - Synchronize on-screen element entrances, popups, and card hits with sound cues (whoosh on entrance, pop/impact on element arrival).
+   - Place hits at -2 frames relative to visual contact for organic audiovisual punch.
+10. The FINAL SCENE (~last 3s) MUST render the exact Bittrix Technologies royal purple (#5b1a78) outro matching bittrix-reel(1).html:
    - 6-point radial gradient hexagon with spoke circles
    - Rolling chain link track and rotating 12-tooth gear with serif 'B'
    - Staggered letter italic bold "BITTRIX" and tracking "TECHNOLOGIES"
    - Purple underline and diagonal light sweep
    - Spoken narration aloud: "Accelerate your engineering with Bittrix Technologies."
-8. Return ONLY valid, self-contained TypeScript/TSX in a \`\`\`tsx code fence.
+11. Return ONLY valid, self-contained TypeScript/TSX in a \`\`\`tsx code fence.
 `;
 
 let tsxSource = null;
@@ -258,9 +310,10 @@ ${JSON.stringify(scenes, null, 2)}
 Requirements:
 1. export default function GeneratedCliVideo(props: any) { ... }
 2. Import from 'remotion': AbsoluteFill, Sequence, Audio, staticFile, spring, interpolate, useCurrentFrame, useVideoConfig
+   - Optional 3D: Import { ThreeCanvas } from '@remotion/three' and * as THREE from 'three'
 3. Master audio track: <Audio src={staticFile('audio/${audioFileName}')} volume={1.0} startFrom={0} />
 4. Single continuous living canvas with continuous camera motion.
-5. Topic-specific physical mechanics for "${topic}". ZERO generic 50% border radius circles!
+5. Topic-specific physical mechanics for "${topic}" (can use <ThreeCanvas> 3D meshes/particles or dynamic 2D SVGs).
 6. Kinetic karaoke captions from scene.words.
 7. Exact royal purple (#5b1a78) Bittrix outro in final scene with rotating gear and chain track.
 `;

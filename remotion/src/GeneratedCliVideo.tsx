@@ -1,1591 +1,1335 @@
 import React, { useMemo } from 'react';
-import {
-  AbsoluteFill,
-  Sequence,
-  interpolate,
-  spring,
-  useCurrentFrame,
-  useVideoConfig,
-} from 'remotion';
+import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 
-// ============================================================================
-// DATA & INTERFACES
-// ============================================================================
-
-export interface WordTiming {
+// ==========================================
+// SCENE & TIMING METADATA (1278 frames, 60fps)
+// ==========================================
+interface WordTimestamp {
   word: string;
   startFrame: number;
   endFrame: number;
 }
 
-export interface SceneConfig {
+interface SceneData {
   scene_number: number;
   role: string;
   durationInFrames: number;
-  duration_sec: number;
   narration: string;
   on_screen_text: string;
   visual_direction: string;
   template: string;
   themeColor: string;
-  words: WordTiming[];
+  words: WordTimestamp[];
 }
 
-const SCENES: SceneConfig[] = [
+const SCENES: SceneData[] = [
   {
     scene_number: 1,
     role: "hook",
-    durationInFrames: 137,
-    duration_sec: 4.57,
-    narration: "Why do NVIDIA chips power AI?",
-    on_screen_text: "Why Do NVIDIA GPUs Dominate AI?",
-    visual_direction: "Vertical layout with massive centered typographic question in bold white and bright red, surrounded by framing vector brackets and pulsating line grid.",
+    durationInFrames: 142,
+    narration: "What if a calm river explodes?",
+    on_screen_text: "Can A Calm River Explode?",
+    visual_direction: "Low-angle view of a calm valley river under sudden dark storm clouds with neon lightning accents.",
     template: "question-hook",
-    themeColor: "#ef4444",
+    themeColor: "#f43f5e",
     words: [
-      { word: "Why", startFrame: 0, endFrame: 1 },
-      { word: "do", startFrame: 0, endFrame: 1 },
-      { word: "NVIDIA", startFrame: 0, endFrame: 1 },
-      { word: "chips", startFrame: 0, endFrame: 1 },
-      { word: "power", startFrame: 0, endFrame: 1 },
-      { word: "AI", startFrame: 0, endFrame: 1 }
+      { word: "What", startFrame: 3, endFrame: 9 },
+      { word: "if", startFrame: 9, endFrame: 12 },
+      { word: "a", startFrame: 12, endFrame: 14 },
+      { word: "calm", startFrame: 15, endFrame: 23 },
+      { word: "river", startFrame: 23, endFrame: 29 },
+      { word: "explodes?", startFrame: 30, endFrame: 51 }
     ]
   },
   {
     scene_number: 2,
     role: "body",
-    durationInFrames: 137,
-    duration_sec: 4.57,
-    narration: "Blackwell unites two massive silicon dies.",
-    on_screen_text: "Blackwell B200 Breaks Silicon Limits",
-    visual_direction: "Central split-package graphic highlighting twin silicon slabs bordered by high-contrast memory stacks and verified semiconductor wafer imagery.",
-    template: "product-showcase",
-    themeColor: "#ef4444",
+    durationInFrames: 142,
+    narration: "Torrential rain drenches the mountain slopes.",
+    on_screen_text: "Torrential Rain Drenching Valleys",
+    visual_direction: "Isometric mountain valley slice receiving vertical downpour streaks channeled toward the basin.",
+    template: "hero-object",
+    themeColor: "#38bdf8",
     words: [
-      { word: "Blackwell", startFrame: 0, endFrame: 1 },
-      { word: "unites", startFrame: 0, endFrame: 1 },
-      { word: "two", startFrame: 0, endFrame: 1 },
-      { word: "massive", startFrame: 0, endFrame: 1 },
-      { word: "silicon", startFrame: 0, endFrame: 1 },
-      { word: "dies", startFrame: 0, endFrame: 1 }
+      { word: "Torrential", startFrame: 3, endFrame: 18 },
+      { word: "rain", startFrame: 18, endFrame: 26 },
+      { word: "drenches", startFrame: 26, endFrame: 38 },
+      { word: "the", startFrame: 39, endFrame: 41 },
+      { word: "mountain", startFrame: 42, endFrame: 52 },
+      { word: "slopes.", startFrame: 53, endFrame: 71 }
     ]
   },
   {
     scene_number: 3,
     role: "body",
-    durationInFrames: 137,
-    duration_sec: 4.57,
-    narration: "Ten terabytes per second connect them.",
-    on_screen_text: "Dual Die Versus Monolithic Design",
-    visual_direction: "Split-screen comparison: Left side portrays the solitary monolithic Hopper H100 die; right side portrays Blackwell's paired dies tied by the blazing NV-HBI bus.",
+    durationInFrames: 142,
+    narration: "Dry soil absorbs, but saturated ground repels.",
+    on_screen_text: "Porous Soil Versus Runoff",
+    visual_direction: "Split screen comparing porous soil absorbing rainfall on left against saturated impervious soil shedding water on right.",
     template: "split-compare",
-    themeColor: "#ef4444",
+    themeColor: "#f43f5e",
     words: [
-      { word: "Ten", startFrame: 0, endFrame: 1 },
-      { word: "terabytes", startFrame: 0, endFrame: 1 },
-      { word: "per", startFrame: 0, endFrame: 1 },
-      { word: "second", startFrame: 0, endFrame: 1 },
-      { word: "connect", startFrame: 0, endFrame: 1 },
-      { word: "them", startFrame: 0, endFrame: 1 }
+      { word: "Dry", startFrame: 3, endFrame: 11 },
+      { word: "soil", startFrame: 11, endFrame: 21 },
+      { word: "absorbs,", startFrame: 21, endFrame: 39 },
+      { word: "but", startFrame: 43, endFrame: 48 },
+      { word: "saturated", startFrame: 48, endFrame: 66 },
+      { word: "ground", startFrame: 66, endFrame: 75 },
+      { word: "repels.", startFrame: 76, endFrame: 96 }
     ]
   },
   {
     scene_number: 4,
     role: "body",
-    durationInFrames: 137,
-    duration_sec: 4.57,
-    narration: "Two hundred eight billion raw transistors.",
-    on_screen_text: "Two Hundred Eight Billion Transistors",
-    visual_direction: "Giant cinematic monospace metric counter dominating the center of the frame, accompanied by an animated microscopic silicon gate mesh.",
+    durationInFrames: 142,
+    narration: "Water discharge spikes exponentially within minutes.",
+    on_screen_text: "Discharge Spikes In Minutes",
+    visual_direction: "Large animated digital gauge card plotting a steep rising hydrograph curve with digital metric display.",
     template: "stat-callout",
-    themeColor: "#ef4444",
+    themeColor: "#38bdf8",
     words: [
-      { word: "Two", startFrame: 0, endFrame: 1 },
-      { word: "hundred", startFrame: 0, endFrame: 1 },
-      { word: "eight", startFrame: 0, endFrame: 1 },
-      { word: "billion", startFrame: 0, endFrame: 1 },
-      { word: "raw", startFrame: 0, endFrame: 1 },
-      { word: "transistors", startFrame: 0, endFrame: 1 }
+      { word: "Water", startFrame: 3, endFrame: 14 },
+      { word: "discharge", startFrame: 14, endFrame: 28 },
+      { word: "spikes", startFrame: 28, endFrame: 39 },
+      { word: "exponentially", startFrame: 40, endFrame: 63 },
+      { word: "within", startFrame: 63, endFrame: 72 },
+      { word: "minutes.", startFrame: 72, endFrame: 89 }
     ]
   },
   {
     scene_number: 5,
     role: "body",
-    durationInFrames: 137,
-    duration_sec: 4.57,
-    narration: "Native four bit math doubles speed.",
-    on_screen_text: "Native FP4 Tensor Core Math",
-    visual_direction: "Data stage displaying 8-bit versus 4-bit matrix cell compression with glowing green-to-red mathematical precision indicators.",
-    template: "fact-card",
-    themeColor: "#ef4444",
+    durationInFrames: 142,
+    narration: "Surging currents overtop the riverbanks.",
+    on_screen_text: "Riverbanks Overwhelmed By Water",
+    visual_direction: "Sequential timeline cross-section showing river water swelling from baseline to overtopping the natural levees.",
+    template: "timeline",
+    themeColor: "#f43f5e",
     words: [
-      { word: "Native", startFrame: 0, endFrame: 1 },
-      { word: "four", startFrame: 0, endFrame: 1 },
-      { word: "bit", startFrame: 0, endFrame: 1 },
-      { word: "math", startFrame: 0, endFrame: 1 },
-      { word: "doubles", startFrame: 0, endFrame: 1 },
-      { word: "speed", startFrame: 0, endFrame: 1 }
+      { word: "Surging", startFrame: 3, endFrame: 16 },
+      { word: "currents", startFrame: 17, endFrame: 28 },
+      { word: "overtop", startFrame: 28, endFrame: 42 },
+      { word: "the", startFrame: 42, endFrame: 45 },
+      { word: "riverbanks.", startFrame: 45, endFrame: 68 }
     ]
   },
   {
     scene_number: 6,
     role: "body",
-    durationInFrames: 137,
-    duration_sec: 4.57,
-    narration: "Liquid cooled racks form one supercomputer.",
-    on_screen_text: "Liquid Cooled Rack Scale Superclusters",
-    visual_direction: "Staggered isometric server blade stack connected by liquid-cooling manifolds and glowing high-speed NVLink copper backplane traces.",
-    template: "hero-object",
-    themeColor: "#ef4444",
+    durationInFrames: 142,
+    narration: "Violent torrents inundate the valley.",
+    on_screen_text: "Flash Floods Inundate Valley",
+    visual_direction: "Topographic map view showing flood contours spreading across valley floors and roadways.",
+    template: "steps-numbered",
+    themeColor: "#38bdf8",
     words: [
-      { word: "Liquid", startFrame: 0, endFrame: 1 },
-      { word: "cooled", startFrame: 0, endFrame: 1 },
-      { word: "racks", startFrame: 0, endFrame: 1 },
-      { word: "form", startFrame: 0, endFrame: 1 },
-      { word: "one", startFrame: 0, endFrame: 1 },
-      { word: "supercomputer", startFrame: 0, endFrame: 1 }
+      { word: "Violent", startFrame: 3, endFrame: 17 },
+      { word: "torrents", startFrame: 17, endFrame: 29 },
+      { word: "inundate", startFrame: 29, endFrame: 42 },
+      { word: "the", startFrame: 43, endFrame: 45 },
+      { word: "valley.", startFrame: 45, endFrame: 61 }
     ]
   },
   {
     scene_number: 7,
-    role: "cta",
-    durationInFrames: 137,
-    duration_sec: 4.57,
-    narration: "Subscribe to master next generation silicon.",
-    on_screen_text: "Subscribe For Next Generation Tech",
-    visual_direction: "High-impact kinetic typography finale with pulsing neon red perimeter, bold subscribe callout button, and glowing tech line accents.",
-    template: "cta-outro",
-    themeColor: "#ef4444",
+    role: "body",
+    durationInFrames: 142,
+    narration: "Just six inches sweeps people away.",
+    on_screen_text: "Six Inches Knocks Down",
+    visual_direction: "Dramatic measurement card comparing human footing instability against rising flood depth line.",
+    template: "fact-card",
+    themeColor: "#f43f5e",
     words: [
-      { word: "Subscribe", startFrame: 0, endFrame: 1 },
-      { word: "to", startFrame: 0, endFrame: 1 },
-      { word: "master", startFrame: 0, endFrame: 1 },
-      { word: "next", startFrame: 0, endFrame: 1 },
-      { word: "generation", startFrame: 0, endFrame: 1 },
-      { word: "silicon", startFrame: 0, endFrame: 1 }
+      { word: "Just", startFrame: 3, endFrame: 12 },
+      { word: "six", startFrame: 12, endFrame: 21 },
+      { word: "inches", startFrame: 21, endFrame: 30 },
+      { word: "sweeps", startFrame: 31, endFrame: 40 },
+      { word: "people", startFrame: 40, endFrame: 49 },
+      { word: "away.", startFrame: 50, endFrame: 63 }
+    ]
+  },
+  {
+    scene_number: 8,
+    role: "body",
+    durationInFrames: 142,
+    narration: "Quiet waters become destructive floods.",
+    on_screen_text: "Calm River Turned Torrent",
+    visual_direction: "Side-by-side vertical split comparing peaceful meandering water versus roaring muddy flood torrent.",
+    template: "before-after",
+    themeColor: "#38bdf8",
+    words: [
+      { word: "Quiet", startFrame: 3, endFrame: 14 },
+      { word: "waters", startFrame: 14, endFrame: 26 },
+      { word: "become", startFrame: 26, endFrame: 36 },
+      { word: "destructive", startFrame: 36, endFrame: 51 },
+      { word: "floods.", startFrame: 52, endFrame: 71 }
+    ]
+  },
+  {
+    scene_number: 9,
+    role: "cta",
+    durationInFrames: 142,
+    narration: "Follow Bittrix Technologies for more interesting concepts.",
+    on_screen_text: "Bittrix Technologies",
+    visual_direction: "Authentic Bittrix Technologies 3-second animated logo video with royal purple #5b1a78 and cream branding",
+    template: "cta-outro",
+    themeColor: "#5b1a78",
+    words: [
+      { word: "Follow", startFrame: 3, endFrame: 13 },
+      { word: "Bittrix", startFrame: 14, endFrame: 26 },
+      { word: "Technologies", startFrame: 26, endFrame: 49 },
+      { word: "for", startFrame: 50, endFrame: 53 },
+      { word: "more", startFrame: 54, endFrame: 59 },
+      { word: "interesting", startFrame: 60, endFrame: 74 },
+      { word: "concepts.", startFrame: 74, endFrame: 97 }
     ]
   }
 ];
 
-// Canvas coordinates for continuous virtual camera interpolation
-const SCENE_CANVAS_COORDS = [
-  { x: 0, y: 0, scale: 1.0 },
-  { x: 1080, y: 0, scale: 1.0 },
-  { x: 1080, y: 1920, scale: 1.0 },
-  { x: 0, y: 1920, scale: 1.0 },
-  { x: -1080, y: 1920, scale: 1.0 },
-  { x: -1080, y: 0, scale: 1.0 },
-  { x: 0, y: 3840, scale: 1.0 },
+// Continuous Camera Keyframes along a single continuous 3D coordinate space
+const CAM_POSITIONS = [
+  { x: 0, y: 0, scale: 1.0, rot: 0 },         // Scene 1: Valley River
+  { x: 200, y: -150, scale: 1.05, rot: -1.2 },// Scene 2: Mountain Slopes
+  { x: -160, y: 120, scale: 1.02, rot: 0.8 }, // Scene 3: Soil Strata
+  { x: 180, y: 90, scale: 1.08, rot: -0.6 },  // Scene 4: Hydrograph Gauge
+  { x: -120, y: -100, scale: 1.04, rot: 1.0 },// Scene 5: Riverbanks Overtop
+  { x: 240, y: 160, scale: 1.03, rot: -0.9 }, // Scene 6: Topo Inundation
+  { x: -100, y: 220, scale: 1.1, rot: 1.4 },  // Scene 7: 6-Inch Hazard Card
+  { x: 80, y: -60, scale: 1.0, rot: -0.5 },   // Scene 8: Dual Flow Split
+  { x: 0, y: 0, scale: 1.0, rot: 0 }          // Scene 9: Bittrix Hub Outro
 ];
 
-// Helper easing
-const clampVal = (v: number, min = 0, max = 1) => Math.min(max, Math.max(min, v));
-const segRel = (t: number, a: number, b: number) => clampVal((t - a) / (b - a));
-const easeOutCubic = (u: number) => 1 - Math.pow(1 - u, 3);
-const easeOutBack = (u: number) => {
-  const s = 1.70158;
-  const u1 = u - 1;
-  return u1 * u1 * ((s + 1) * u1 + s) + 1;
-};
+export default function GeneratedCliVideo(props: any) {
+  const frame = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
 
-// ============================================================================
-// COMPONENT: KINETIC KARAOKE CAPTION
-// ============================================================================
-const KineticKaraokeCaption: React.FC<{
-  scene: SceneConfig;
-  currentSceneFrame: number;
-}> = ({ scene, currentSceneFrame }) => {
-  const words = scene.words || [];
-  if (words.length === 0) return null;
-
-  const totalFrames = scene.durationInFrames;
-  const wordDuration = totalFrames / Math.max(1, words.length);
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        bottom: 110,
-        left: 60,
-        right: 60,
-        zIndex: 100,
-        display: 'flex',
-        flexWrap: 'wrap',
-        justifyContent: 'center',
-        alignItems: 'center',
-        gap: 12,
-        padding: '16px 28px',
-        backgroundColor: 'rgba(8, 11, 18, 0.88)',
-        borderRadius: 20,
-        backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(239, 68, 68, 0.35)',
-        boxShadow: '0 12px 40px rgba(0, 0, 0, 0.7), inset 0 0 15px rgba(239, 68, 68, 0.15)',
-      }}
-    >
-      {words.map((w, idx) => {
-        const start = w.startFrame > 0 ? w.startFrame : Math.floor(idx * wordDuration);
-        const end = w.endFrame > start ? w.endFrame : Math.floor((idx + 1) * wordDuration);
-        const isActive = currentSceneFrame >= start && currentSceneFrame <= end;
-        const isPast = currentSceneFrame > end;
-
-        return (
-          <span
-            key={idx}
-            style={{
-              fontSize: 32,
-              fontWeight: 800,
-              fontFamily: 'system-ui, -apple-system, sans-serif',
-              letterSpacing: '-0.01em',
-              transition: 'all 0.1s ease',
-              color: isActive ? '#ffffff' : isPast ? '#f1f5f9' : '#64748b',
-              backgroundColor: isActive ? '#ef4444' : 'transparent',
-              padding: isActive ? '4px 12px' : '4px 2px',
-              borderRadius: 8,
-              transform: isActive ? 'scale(1.08)' : 'scale(1.0)',
-              boxShadow: isActive ? '0 0 20px rgba(239, 68, 68, 0.8)' : 'none',
-              display: 'inline-block',
-            }}
-          >
-            {w.word}
-          </span>
-        );
-      })}
-    </div>
+  // Determine current active scene
+  const sceneIndex = Math.min(
+    SCENES.length - 1,
+    Math.max(0, Math.floor(frame / 142))
   );
-};
+  const currentScene = SCENES[sceneIndex];
+  const sceneLocalFrame = frame % 142;
+  const sceneProgress = sceneLocalFrame / 142;
 
-// ============================================================================
-// COMPONENT: EXACT BITTRIX OUTRO
-// ============================================================================
-const BittrixOutroExactView: React.FC<{
-  currentSceneFrame: number;
-  durationInFrames: number;
-  fps: number;
-}> = ({ currentSceneFrame, durationInFrames, fps }) => {
-  // Normalize frame progress to standard 3-second choreography curve
-  const t = Math.min(3, Math.max(0, (currentSceneFrame / durationInFrames) * 3));
+  // Smooth continuous camera interpolation across scene boundaries
+  const nextSceneIndex = Math.min(SCENES.length - 1, sceneIndex + 1);
+  const blendFactor = interpolate(
+    sceneLocalFrame,
+    [105, 142],
+    [0, 1],
+    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+  );
 
-  const CX = 540;
-  const CY = 720;
-  const R = 250;
-  const P = '#5b1a78';
-  const D = '#1d1a1a';
-  const BG = '#fdf3d0';
+  const curCam = CAM_POSITIONS[sceneIndex];
+  const nxtCam = CAM_POSITIONS[nextSceneIndex];
 
-  const hv = (r: number): [number, number][] =>
-    [...Array(6)].map((_, i) => {
-      const a = ((-90 + 60 * i) * Math.PI) / 180;
-      return [r * Math.cos(a), r * Math.sin(a)];
-    });
+  const smoothX = interpolate(blendFactor, [0, 1], [curCam.x, nxtCam.x]);
+  const smoothY = interpolate(blendFactor, [0, 1], [curCam.y, nxtCam.y]);
+  const smoothScale = interpolate(blendFactor, [0, 1], [curCam.scale, nxtCam.scale]);
+  const smoothRot = interpolate(blendFactor, [0, 1], [curCam.rot, nxtCam.rot]);
 
-  const HX = hv(R);
-  const CH = hv(R + 48).map((p) => [p[0] + CX, p[1] + CY]);
-  const NODES = [5, 1, 3].map((i) => [CX + HX[i][0] * 1.04, CY + HX[i][1] * 1.04]);
+  // Subtle continuous camera drift & natural breathing
+  const idleX = Math.sin(frame * 0.02) * 14;
+  const idleY = Math.cos(frame * 0.018) * 10;
+  const camX = smoothX + idleX;
+  const camY = smoothY + idleY;
+  const camScale = smoothScale + Math.sin(frame * 0.015) * 0.012;
+  const camRot = smoothRot + Math.sin(frame * 0.01) * 0.35;
 
-  // 1. Hexagon scale and rotation
-  const hs = easeOutBack(segRel(t, 0, 0.7));
-  const hexRot = (1 - easeOutCubic(segRel(t, 0, 0.8))) * -60;
-
-  // 2. Rolling chain track alpha
-  const ca = segRel(t, 0.3, 0.6) * (1 - segRel(t, 2, 2.45));
-  const ph = 0.6 * t + 0.25 * t * t;
-  const N = 42;
-
-  // 3. Gear & B scale
-  const gs = easeOutBack(segRel(t, 0.6, 1.3));
-  const gearRot = t * 2.2 * (180 / Math.PI);
-
-  // 4. Underline expansion
-  const bw = 520 * easeOutCubic(segRel(t, 2.1, 2.6));
-
-  // 5. Light shine sweep
-  const sh = segRel(t, 2.35, 2.95);
-  const shineX = -400 + (1080 + 800) * sh;
+  // Weather / Hydraulic particle generators
+  const particles = useMemo(() => {
+    return Array.from({ length: 45 }).map((_, i) => ({
+      x: ((i * 137.5) % 1080),
+      speed: 12 + (i % 7) * 4,
+      size: 2 + (i % 4) * 2,
+      opacity: 0.25 + (i % 5) * 0.15,
+      delay: (i * 23) % 120
+    }));
+  }, []);
 
   return (
-    <div
+    <AbsoluteFill
       style={{
-        position: 'absolute',
-        inset: 0,
-        background: 'radial-gradient(circle at 540px 720px, #fff9e2 0%, #fdf3d0 80%)',
+        width: 1080,
+        height: 1920,
+        backgroundColor: '#050b14',
         overflow: 'hidden',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        color: '#ffffff'
       }}
     >
-      <svg width="1080" height="1920" viewBox="0 0 1080 1920" style={{ position: 'absolute', inset: 0 }}>
-        <defs>
-          <radialGradient id="hexRadialExact" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#7a2ba3" />
-            <stop offset="100%" stopColor="#5b1a78" />
-          </radialGradient>
-        </defs>
+      {/* ============================================================== */}
+      {/* 1. LIVING CONTINUOUS CANVAS (Atmosphere, Grids, Dynamic Waves) */}
+      {/* ============================================================== */}
+      <AbsoluteFill
+        style={{
+          transform: `translate3d(${-camX * 0.4}px, ${-camY * 0.4}px, 0px) scale(${camScale}) rotate(${camRot * 0.3}deg)`,
+          transformOrigin: '540px 960px'
+        }}
+      >
+        {/* Dynamic Storm Cloud / Abyss Atmospheric Radial Background */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: -400,
+            background: sceneIndex === 8
+              ? 'radial-gradient(circle at 50% 45%, #2a0b38 0%, #13041c 45%, #08010d 90%)'
+              : `radial-gradient(circle at ${50 + Math.sin(frame * 0.01) * 15}% ${35 + Math.cos(frame * 0.012) * 10}%, ${currentScene.themeColor === '#f43f5e' ? 'rgba(244,63,94,0.18)' : 'rgba(56,189,248,0.22)'} 0%, rgba(15,23,42,0.6) 45%, #050b14 85%)`,
+            transition: 'background 0.8s ease'
+          }}
+        />
 
-        {/* 1. Main Hexagon */}
-        <g transform={`translate(${CX}, ${CY}) rotate(${hexRot}) scale(${Math.max(0, hs)})`}>
-          <polygon
-            points={HX.map((p) => `${p[0]},${p[1]}`).join(' ')}
-            fill="url(#hexRadialExact)"
-            filter="drop-shadow(0 0 35px rgba(91, 26, 120, 0.45))"
-          />
-        </g>
+        {/* Ambient Hydrographic Iso-Mesh Grid */}
+        <svg
+          width="1600"
+          height="2400"
+          style={{
+            position: 'absolute',
+            left: -260,
+            top: -240,
+            opacity: sceneIndex === 8 ? 0.08 : 0.18,
+            pointerEvents: 'none'
+          }}
+        >
+          <defs>
+            <pattern id="meshGrid" width="80" height="80" patternUnits="userSpaceOnUse">
+              <path d="M 80 0 L 0 0 0 80" fill="none" stroke="#38bdf8" strokeWidth="1" strokeDasharray="4,4" />
+              <circle cx="80" cy="0" r="1.5" fill="#38bdf8" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="100%" fill="url(#meshGrid)" />
+        </svg>
 
-        {/* 2. Spokes and Outer Nodes */}
-        {NODES.map((n, i) => {
-          const u = easeOutCubic(segRel(t, 0.5 + i * 0.12, 1.0 + i * 0.12));
-          const ex = n[0] + (CX - n[0]) * 0.5 * u;
-          const ey = n[1] + (CY - n[1]) * 0.5 * u;
-          const s = easeOutBack(segRel(t, 0.5 + i * 0.12, 0.9 + i * 0.12)) * (1 + 0.07 * Math.sin(t * 7 + i));
-
-          return (
-            <g key={i}>
-              <line x1={n[0]} y1={n[1]} x2={ex} y2={ey} stroke={P} strokeWidth={9} strokeLinecap="round" />
-              <circle
-                cx={n[0]}
-                cy={n[1]}
-                r={Math.max(0, 36 * s)}
-                fill={P}
-                stroke="#9a4cc2"
-                strokeWidth={7}
-                filter="drop-shadow(0 0 15px rgba(154, 76, 194, 0.6))"
-              />
-            </g>
-          );
-        })}
-
-        {/* 3. Rolling Chain Track */}
-        {ca > 0 && (
-          <g opacity={ca}>
-            {[...Array(N)].map((_, k) => {
-              const e = ((k / N + ph) % 1) * 6;
-              const idx = Math.floor(e);
-              const f = e - idx;
-              const A = CH[idx];
-              const B = CH[(idx + 1) % 6];
-              const px = A[0] + (B[0] - A[0]) * f;
-              const py = A[1] + (B[1] - A[1]) * f;
-              const angle = (Math.atan2(B[1] - A[1], B[0] - A[0]) * 180) / Math.PI;
-              const isFilled = k % 2 === 1;
-
+        {/* Continuous Torrential Rain Streaks (active throughout storm scenes) */}
+        {sceneIndex < 8 && (
+          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+            {particles.map((p, idx) => {
+              const yPos = ((frame * p.speed + p.delay * 15) % 2200) - 150;
+              const xPos = p.x + Math.sin((frame + idx) * 0.05) * 8;
               return (
-                <g key={k} transform={`translate(${px}, ${py}) rotate(${angle})`}>
-                  {isFilled ? (
-                    <rect x={-9} y={-9} width={18} height={18} rx={6} fill={P} />
-                  ) : (
-                    <rect x={-21} y={-11} width={42} height={22} rx={11} fill="none" stroke={P} strokeWidth={6} />
-                  )}
-                </g>
+                <div
+                  key={idx}
+                  style={{
+                    position: 'absolute',
+                    left: xPos,
+                    top: yPos,
+                    width: 2,
+                    height: 24 + p.size * 6,
+                    backgroundColor: '#38bdf8',
+                    opacity: p.opacity,
+                    filter: 'blur(0.5px)',
+                    transform: 'rotate(12deg)'
+                  }}
+                />
               );
             })}
-          </g>
+          </div>
+        )}
+      </AbsoluteFill>
+
+      {/* ============================================================== */}
+      {/* 2. Bespoke Topic-Specific Visual Layers (Continuous Morphing) */}
+      {/* ============================================================== */}
+      <AbsoluteFill
+        style={{
+          transform: `translate3d(${-camX}px, ${-camY}px, 0px) scale(${camScale}) rotate(${camRot}deg)`,
+          transformOrigin: '540px 960px'
+        }}
+      >
+        {/* --- SCENE 1: THE CALM RIVER ON THE VERGE OF EXPLODING --- */}
+        {sceneIndex === 0 && (
+          <SceneCalmRiverExplodes frame={sceneLocalFrame} fps={fps} />
         )}
 
-        {/* 4. Gear + Central B */}
-        <g transform={`translate(${CX}, ${CY}) scale(${Math.max(0, gs)})`}>
-          <g transform={`rotate(${gearRot})`}>
-            {(() => {
-              const n = 12;
-              const w = (Math.PI * 2) / n;
-              const r0 = 100;
-              const r1 = 128;
-              let d = '';
-              for (let k = 0; k < n; k++) {
-                const a = k * w;
-                const pts = [
-                  [a, r0],
-                  [a + w * 0.15, r1],
-                  [a + w * 0.42, r1],
-                  [a + w * 0.57, r0],
-                ];
-                pts.forEach((pt, pIdx) => {
-                  const px = pt[1] * Math.cos(pt[0]);
-                  const py = pt[1] * Math.sin(pt[0]);
-                  d += (k === 0 && pIdx === 0 ? 'M ' : 'L ') + `${px} ${py} `;
-                });
-              }
-              d += 'Z';
-              return <path d={d} fill={BG} stroke="#9a4cc2" strokeWidth={2} />;
-            })()}
-          </g>
+        {/* --- SCENE 2: TORRENTIAL RAIN DRENCHING MOUNTAIN SLOPES --- */}
+        {sceneIndex === 1 && (
+          <SceneMountainDrenching frame={sceneLocalFrame} fps={fps} />
+        )}
 
-          <circle cx={0} cy={0} r={76} fill={P} filter="drop-shadow(0 0 20px rgba(91, 26, 120, 0.8))" />
+        {/* --- SCENE 3: SPLIT COMPARE - DRY SOIL ABSORBS VS SATURATED REPELS --- */}
+        {sceneIndex === 2 && (
+          <ScenePorousVsSaturated frame={sceneLocalFrame} fps={fps} />
+        )}
 
-          <text
-            x={0}
-            y={8}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fontFamily="Georgia, serif"
-            fontWeight={700}
-            fontSize={130}
-            fill={BG}
+        {/* --- SCENE 4: EXPONENTIAL DISCHARGE SPIKE HYDROGRAPH GAUGE --- */}
+        {sceneIndex === 3 && (
+          <SceneHydrographGauge frame={sceneLocalFrame} fps={fps} />
+        )}
+
+        {/* --- SCENE 5: RIVERBANKS OVERTOPPING CROSS-SECTION --- */}
+        {sceneIndex === 4 && (
+          <SceneRiverbankOvertop frame={sceneLocalFrame} fps={fps} />
+        )}
+
+        {/* --- SCENE 6: TOPOGRAPHIC VALLEY FLASH FLOOD CONTOURS --- */}
+        {sceneIndex === 5 && (
+          <SceneTopographicInundation frame={sceneLocalFrame} fps={fps} />
+        )}
+
+        {/* --- SCENE 7: 6 INCHES SWEEPS PEOPLE AWAY (HUMAN PHYSICS GAUGE) --- */}
+        {sceneIndex === 6 && (
+          <SceneSixInchesHazard frame={sceneLocalFrame} fps={fps} />
+        )}
+
+        {/* --- SCENE 8: QUIET WATERS VS DESTRUCTIVE FLOODS SPLIT DUALITY --- */}
+        {sceneIndex === 7 && (
+          <SceneQuietVsTorrent frame={sceneLocalFrame} fps={fps} />
+        )}
+
+        {/* --- SCENE 9: BITTRIX TECHNOLOGIES ROYAL PURPLE REEL OUTRO --- */}
+        {sceneIndex === 8 && (
+          <SceneBittrixTechnologiesOutro frame={sceneLocalFrame} fps={fps} />
+        )}
+      </AbsoluteFill>
+
+      {/* ============================================================== */}
+      {/* 3. HEADLINE BADGE & CINEMATIC HEADER                           */}
+      {/* ============================================================== */}
+      {sceneIndex < 8 && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 90,
+            left: 0,
+            right: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            zIndex: 100
+          }}
+        >
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '10px 24px',
+              borderRadius: 30,
+              backgroundColor: 'rgba(15, 23, 42, 0.75)',
+              border: `1.5px solid ${currentScene.themeColor}`,
+              boxShadow: `0 0 25px ${currentScene.themeColor}33`,
+              backdropFilter: 'blur(12px)'
+            }}
           >
-            B
-          </text>
-        </g>
+            <div
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                backgroundColor: currentScene.themeColor,
+                boxShadow: `0 0 10px ${currentScene.themeColor}`
+              }}
+            />
+            <span
+              style={{
+                fontSize: 22,
+                fontWeight: 800,
+                letterSpacing: 2,
+                textTransform: 'uppercase',
+                color: '#f8fafc'
+              }}
+            >
+              {currentScene.on_screen_text}
+            </span>
+          </div>
+        </div>
+      )}
 
-        {/* 5. Expanding Purple Underline Bar */}
-        {bw > 0 && (
-          <rect
-            x={CX - bw / 2}
-            y={1316}
-            width={bw}
-            height={7}
-            rx={3.5}
-            fill={P}
-            filter="drop-shadow(0 0 10px rgba(91, 26, 120, 0.8))"
-          />
-        )}
-      </svg>
-
-      {/* 6. Wordmark BITTRIX */}
+      {/* ============================================================== */}
+      {/* 4. KINETIC SYNCHRONIZED KARAOKE CAPTIONS (Safe Zone 1250-1550) */}
+      {/* ============================================================== */}
       <div
         style={{
           position: 'absolute',
-          top: 1040,
-          left: 0,
-          right: 0,
+          top: 1350,
+          left: 60,
+          right: 60,
           display: 'flex',
+          flexWrap: 'wrap',
           justifyContent: 'center',
-          alignItems: 'baseline',
-          fontFamily: 'Arial Black, Impact, Arial, sans-serif',
-          fontStyle: 'italic',
-          fontWeight: 900,
-          fontSize: 168,
-          color: P,
-          textShadow: '0 8px 30px rgba(91, 26, 120, 0.4)',
+          alignItems: 'center',
+          gap: '12px 16px',
+          zIndex: 120,
+          pointerEvents: 'none'
         }}
       >
-        {'BITTRIX'.split('').map((letter, i) => {
-          const u = easeOutCubic(segRel(t, 1.4 + i * 0.07, 1.9 + i * 0.07));
+        {currentScene.words.map((item, wIdx) => {
+          const isActive =
+            sceneLocalFrame >= item.startFrame && sceneLocalFrame <= item.endFrame;
+          const isSpoken = sceneLocalFrame > item.endFrame;
+
+          // Word entrance bounce
+          const wordPop = spring({
+            frame: Math.max(0, sceneLocalFrame - item.startFrame),
+            fps,
+            config: { damping: 12, stiffness: 220 }
+          });
+
+          const activeScale = isActive ? 1.18 : 1.0;
+          const wordColor = isActive
+            ? '#fef08a' // Bright luminous yellow highlight
+            : isSpoken
+            ? '#ffffff'
+            : 'rgba(255, 255, 255, 0.45)';
+
           return (
             <span
-              key={i}
+              key={wIdx}
               style={{
-                display: 'inline-block',
-                opacity: u,
-                transform: `translateX(${(1 - u) * -110}px)`,
+                fontSize: sceneIndex === 8 ? 44 : 52,
+                fontWeight: 900,
+                color: wordColor,
+                textTransform: 'uppercase',
+                letterSpacing: 1.5,
+                transform: `scale(${isActive ? 1 + wordPop * 0.18 : 1.0})`,
+                transition: 'transform 0.08s ease, color 0.08s ease',
+                textShadow: isActive
+                  ? '0 0 25px rgba(254, 240, 138, 0.8), 0 4px 12px rgba(0,0,0,0.9)'
+                  : '0 4px 10px rgba(0,0,0,0.8)',
+                display: 'inline-block'
               }}
             >
-              {letter}
+              {item.word}
             </span>
           );
         })}
       </div>
 
-      {/* 7. Subtitle TECHNOLOGIES */}
+      {/* Modern Vignette & Letterbox Edge Gradients */}
       <div
         style={{
           position: 'absolute',
-          top: 1230,
-          left: 0,
-          right: 0,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          fontFamily: 'Arial, sans-serif',
-          fontWeight: 600,
-          fontSize: 46,
-          color: D,
-          opacity: easeOutCubic(segRel(t, 1.9, 2.5)),
-          letterSpacing: `${10 + 16 * easeOutCubic(segRel(t, 1.9, 2.5))}px`,
-          textTransform: 'uppercase',
+          inset: 0,
+          boxShadow: 'inset 0 0 160px rgba(0, 0, 0, 0.85)',
+          pointerEvents: 'none'
         }}
-      >
-        TECHNOLOGIES
-      </div>
+      />
+    </AbsoluteFill>
+  );
+}
 
-      {/* 8. Spoken Outro Callout Pill */}
-      {t >= 2.0 && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 1370,
-            left: 60,
-            right: 60,
-            display: 'flex',
-            justifyContent: 'center',
-            opacity: easeOutCubic(segRel(t, 2.0, 2.5)),
-            transform: `translateY(${(1 - easeOutCubic(segRel(t, 2.0, 2.5))) * 20}px)`,
-          }}
-        >
-          <div
-            style={{
-              padding: '14px 36px',
-              borderRadius: 999,
-              background: 'rgba(91, 26, 120, 0.1)',
-              border: `1.5px solid ${P}`,
-              color: P,
-              fontSize: 22,
-              fontWeight: 800,
-              letterSpacing: 1.5,
-              textAlign: 'center',
-              boxShadow: '0 8px 24px rgba(91, 26, 120, 0.2)',
-            }}
-          >
-            Follow Bittrix Technologies for more interesting concepts.
-          </div>
-        </div>
-      )}
+// =========================================================================
+// SCENE 1: CALM VALLEY RIVER UNDER SUDDEN EXPLODING DARK STORM
+// =========================================================================
+function SceneCalmRiverExplodes({ frame, fps }: { frame: number; fps: number }) {
+  const stormSurge = spring({ frame: Math.max(0, frame - 10), fps, config: { damping: 14, stiffness: 100 } });
+  const lightningFlash = frame > 28 && frame < 34 ? 1 : frame > 42 && frame < 46 ? 0.7 : 0;
 
-      {/* 9. Light Shine Sweep */}
-      {sh > 0 && sh < 1 && (
+  return (
+    <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {/* Thunderstorm Lightning Strobe Accent */}
+      {lightningFlash > 0 && (
         <div
           style={{
             position: 'absolute',
             inset: 0,
-            background: `linear-gradient(115deg, transparent ${shineX - 160}px, rgba(255, 255, 255, 0.5) ${shineX}px, transparent ${shineX + 160}px)`,
-            pointerEvents: 'none',
+            backgroundColor: `rgba(244, 63, 94, ${lightningFlash * 0.35})`,
+            mixBlendMode: 'screen'
           }}
         />
       )}
-    </div>
-  );
-};
 
-// ============================================================================
-// COMPONENT: SCENE 1 - HOOK VIEW
-// ============================================================================
-const Scene1HookView: React.FC<{ frame: number; fps: number }> = ({ frame, fps }) => {
-  const enterProgress = spring({ frame, fps, config: { damping: 14, stiffness: 90 } });
-  const pulse = Math.sin((frame / 60) * Math.PI * 2) * 0.5 + 0.5;
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        backgroundColor: '#07090e',
-        overflow: 'hidden',
-        color: '#ffffff',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-      }}
-    >
-      {/* Background Circuit Grid */}
-      <svg width="1080" height="1920" style={{ position: 'absolute', inset: 0, opacity: 0.25 }}>
+      {/* Valley Cross-section Illustration */}
+      <svg width="1000" height="900" viewBox="0 0 1000 900" style={{ overflow: 'visible' }}>
         <defs>
-          <pattern id="grid1" width="60" height="60" patternUnits="userSpaceOnUse">
-            <path d="M 60 0 L 0 0 0 60" fill="none" stroke="#ef4444" strokeWidth="0.8" opacity="0.3" />
-            <circle cx="60" cy="60" r="1.5" fill="#ef4444" opacity="0.5" />
-          </pattern>
+          <linearGradient id="valleySlope" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#1e293b" />
+            <stop offset="100%" stopColor="#0f172a" />
+          </linearGradient>
+          <linearGradient id="waterFlow" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#0284c7" />
+            <stop offset="50%" stopColor="#38bdf8" />
+            <stop offset="100%" stopColor="#0284c7" />
+          </linearGradient>
+          <linearGradient id="cloudGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#334155" />
+            <stop offset="100%" stopColor="#090d16" />
+          </linearGradient>
         </defs>
-        <rect width="1080" height="1920" fill="url(#grid1)" />
-      </svg>
 
-      {/* Technical Framing Brackets */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 40,
-          border: '1px solid rgba(239, 68, 68, 0.2)',
-          pointerEvents: 'none',
-        }}
-      >
-        <div style={{ position: 'absolute', top: -2, left: -2, width: 36, height: 36, borderTop: '4px solid #ef4444', borderLeft: '4px solid #ef4444' }} />
-        <div style={{ position: 'absolute', top: -2, right: -2, width: 36, height: 36, borderTop: '4px solid #ef4444', borderRight: '4px solid #ef4444' }} />
-        <div style={{ position: 'absolute', bottom: -2, left: -2, width: 36, height: 36, borderBottom: '4px solid #ef4444', borderLeft: '4px solid #ef4444' }} />
-        <div style={{ position: 'absolute', bottom: -2, right: -2, width: 36, height: 36, borderBottom: '4px solid #ef4444', borderRight: '4px solid #ef4444' }} />
-      </div>
+        {/* Mountain Valley Contours */}
+        <path d="M 0 350 Q 250 500 400 680 L 0 680 Z" fill="url(#valleySlope)" stroke="#38bdf8" strokeWidth="2" opacity="0.6" />
+        <path d="M 1000 350 Q 750 500 600 680 L 1000 680 Z" fill="url(#valleySlope)" stroke="#38bdf8" strokeWidth="2" opacity="0.6" />
 
-      {/* Top Header Telemetry */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 80,
-          left: 70,
-          right: 70,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          fontFamily: 'ui-monospace, monospace',
-          fontSize: 14,
-          letterSpacing: '0.2em',
-          color: '#ef4444',
-          textTransform: 'uppercase',
-          borderBottom: '1px solid rgba(239, 68, 68, 0.3)',
-          paddingBottom: 12,
-        }}
-      >
-        <span>SYS.AI_ACCELERATION_ANALYSIS</span>
-        <span>STATUS: CRITICAL</span>
-      </div>
-
-      {/* Main Massive Kinetic Question */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 220,
-          left: 60,
-          right: 60,
-          textAlign: 'center',
-          transform: `scale(${enterProgress})`,
-          opacity: enterProgress,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 48,
-            fontWeight: 800,
-            letterSpacing: '0.08em',
-            color: '#94a3b8',
-            textTransform: 'uppercase',
-            marginBottom: 8,
-          }}
-        >
-          Why Do
-        </div>
-        <div
-          style={{
-            fontSize: 92,
-            fontWeight: 950,
-            lineHeight: 1.02,
-            letterSpacing: '-0.03em',
-            color: '#ef4444',
-            textShadow: `0 0 ${30 + pulse * 25}px rgba(239, 68, 68, 0.8)`,
-            textTransform: 'uppercase',
-          }}
-        >
-          NVIDIA GPUs
-        </div>
-        <div
-          style={{
-            fontSize: 56,
-            fontWeight: 900,
-            letterSpacing: '0.02em',
-            color: '#ffffff',
-            marginTop: 12,
-            textTransform: 'uppercase',
-          }}
-        >
-          Dominate AI?
-        </div>
-      </div>
-
-      {/* Centerpiece: High-Density GPU Architecture Silicon Graphic */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 660,
-          left: 100,
-          right: 100,
-          height: 600,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <svg width="880" height="600" viewBox="0 0 880 600">
-          <defs>
-            <linearGradient id="gpuPackageGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#1e293b" />
-              <stop offset="100%" stopColor="#0f172a" />
-            </linearGradient>
-            <linearGradient id="smGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#334155" />
-              <stop offset="100%" stopColor="#1e293b" />
-            </linearGradient>
-          </defs>
-
-          {/* Outer Heat Spreader Substrate */}
-          <rect
-            x="40"
-            y="30"
-            width="800"
-            height="540"
-            rx="20"
-            fill="url(#gpuPackageGrad)"
-            stroke="#ef4444"
-            strokeWidth="3"
-            filter="drop-shadow(0 0 25px rgba(239, 68, 68, 0.3))"
+        {/* Ominous Storm Cloud Front */}
+        <g transform={`translate(0, ${-80 + stormSurge * 60})`}>
+          <ellipse cx="500" cy="220" rx="420" ry="140" fill="url(#cloudGrad)" />
+          <ellipse cx="320" cy="180" rx="220" ry="120" fill="url(#cloudGrad)" opacity="0.8" />
+          <ellipse cx="680" cy="180" rx="240" ry="130" fill="url(#cloudGrad)" opacity="0.8" />
+          {/* Warning Lightning Bolt */}
+          <path
+            d="M 520 220 L 480 340 L 530 350 L 460 480"
+            fill="none"
+            stroke="#f43f5e"
+            strokeWidth={lightningFlash > 0 ? "8" : "2"}
+            strokeLinecap="round"
+            filter="drop-shadow(0 0 16px #f43f5e)"
+            opacity={frame > 25 ? 0.9 : 0.2}
           />
+        </g>
 
-          {/* Golden Substrate Corner Markers */}
-          <polygon points="40,30 80,30 40,70" fill="#f59e0b" />
-          <polygon points="840,30 800,30 840,70" fill="#f59e0b" />
-          <polygon points="40,570 80,570 40,530" fill="#f59e0b" />
-          <polygon points="840,570 800,570 840,530" fill="#f59e0b" />
+        {/* Calm River Channel Morphing into Violent Swell */}
+        <path
+          d={`M 380 680 C 440 ${660 - Math.sin(frame * 0.1) * 20 * stormSurge}, 560 ${660 + Math.sin(frame * 0.1) * 20 * stormSurge}, 620 680 L 650 850 L 350 850 Z`}
+          fill="url(#waterFlow)"
+          filter="drop-shadow(0 0 30px rgba(56, 189, 248, 0.4))"
+        />
 
-          {/* Streaming Multiprocessors (SM) Matrix (4 rows of 8 SM units) */}
-          {[...Array(4)].map((_, row) =>
-            [...Array(8)].map((_, col) => {
-              const x = 90 + col * 86;
-              const y = 80 + row * 90;
-              const activeCore = (row * 8 + col + Math.floor(frame * 0.4)) % 5 === 0;
-
-              return (
-                <g key={`sm-${row}-${col}`}>
-                  <rect
-                    x={x}
-                    y={y}
-                    width="74"
-                    height="76"
-                    rx="6"
-                    fill="url(#smGrad)"
-                    stroke={activeCore ? '#ef4444' : '#475569'}
-                    strokeWidth={activeCore ? 2 : 1}
-                  />
-                  <line x1={x + 37} y1={y + 8} x2={x + 37} y2={y + 68} stroke={activeCore ? '#ef4444' : '#334155'} strokeWidth="1" strokeDasharray="3 3" />
-                  <text
-                    x={x + 37}
-                    y={y + 44}
-                    textAnchor="middle"
-                    fill={activeCore ? '#ef4444' : '#64748b'}
-                    fontSize="11"
-                    fontFamily="ui-monospace, monospace"
-                    fontWeight="700"
-                  >
-                    SM
-                  </text>
-                </g>
-              );
-            })
-          )}
-
-          {/* Center Ultra-Wide High-Speed Bus Bar */}
-          <rect x="90" y="460" width="700" height="70" rx="10" fill="#090d16" stroke="#ef4444" strokeWidth="2" />
-          <text x="440" y="502" textAnchor="middle" fill="#ef4444" fontSize="18" fontFamily="ui-monospace, monospace" fontWeight="900" letterSpacing="6">
-            10 TB/s COHERENT MEMORY FABRIC
-          </text>
-        </svg>
-      </div>
-
-      {/* Bottom Technical Badges */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 1300,
-          left: 80,
-          right: 80,
-          display: 'flex',
-          justifyContent: 'space-between',
-          gap: 20,
-        }}
-      >
-        <div style={{ flex: 1, padding: '16px 20px', backgroundColor: 'rgba(30, 41, 59, 0.7)', borderRadius: 14, borderLeft: '4px solid #ef4444' }}>
-          <div style={{ fontSize: 13, color: '#94a3b8', fontFamily: 'ui-monospace, monospace' }}>ARCHITECTURE</div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: '#ffffff', marginTop: 4 }}>BLACKWELL B200</div>
-        </div>
-        <div style={{ flex: 1, padding: '16px 20px', backgroundColor: 'rgba(30, 41, 59, 0.7)', borderRadius: 14, borderLeft: '4px solid #ef4444' }}>
-          <div style={{ fontSize: 13, color: '#94a3b8', fontFamily: 'ui-monospace, monospace' }}>PROCESS DENSITY</div>
-          <div style={{ fontSize: 22, fontWeight: 900, color: '#ffffff', marginTop: 4 }}>208 BILLION XISTORS</div>
-        </div>
-      </div>
-    </div>
+        {/* Water Surface Wave Lines */}
+        <path
+          d={`M 390 690 Q 500 ${670 + Math.sin(frame * 0.2) * 15}, 610 690`}
+          stroke="#f8fafc"
+          strokeWidth="4"
+          fill="none"
+          opacity="0.75"
+        />
+        <path
+          d={`M 410 730 Q 500 ${715 + Math.cos(frame * 0.18) * 12}, 590 730`}
+          stroke="#38bdf8"
+          strokeWidth="3"
+          fill="none"
+          opacity="0.6"
+        />
+      </svg>
+    </AbsoluteFill>
   );
-};
+}
 
-// ============================================================================
-// COMPONENT: SCENE 2 - PRODUCT SHOWCASE (TWIN DIES)
-// ============================================================================
-const Scene2ProductShowcaseView: React.FC<{ frame: number; fps: number }> = ({ frame, fps }) => {
-  const enterProgress = spring({ frame, fps, config: { damping: 15, stiffness: 85 } });
-  const scanY = (frame * 12) % 650;
+// =========================================================================
+// SCENE 2: TORRENTIAL RAIN DRENCHING MOUNTAIN SLOPES (ISOMETRIC SLICE)
+// =========================================================================
+function SceneMountainDrenching({ frame, fps }: { frame: number; fps: number }) {
+  const mountEnter = spring({ frame, fps, config: { damping: 14, stiffness: 90 } });
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        backgroundColor: '#07090e',
-        overflow: 'hidden',
-        color: '#ffffff',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-      }}
-    >
-      {/* Circuit Background */}
-      <svg width="1080" height="1920" style={{ position: 'absolute', inset: 0, opacity: 0.2 }}>
-        <defs>
-          <pattern id="grid2" width="40" height="40" patternUnits="userSpaceOnUse">
-            <line x1="0" y1="0" x2="40" y2="40" stroke="#ef4444" strokeWidth="0.5" />
-          </pattern>
-        </defs>
-        <rect width="1080" height="1920" fill="url(#grid2)" />
-      </svg>
-
-      {/* Header */}
-      <div style={{ position: 'absolute', top: 90, left: 60, right: 60, textAlign: 'center' }}>
-        <div style={{ fontSize: 16, fontFamily: 'ui-monospace, monospace', color: '#ef4444', letterSpacing: '0.25em', textTransform: 'uppercase' }}>
-          MULTI-CHIP MODULE BREAKTHROUGH
-        </div>
-        <h2 style={{ fontSize: 44, fontWeight: 950, margin: '8px 0 0 0', letterSpacing: '-0.02em', textTransform: 'uppercase' }}>
-          Blackwell B200 Breaks Silicon Limits
-        </h2>
-      </div>
-
-      {/* Central Graphic: Dual Silicon Slabs Co-Packaged */}
+    <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div
         style={{
-          position: 'absolute',
-          top: 360,
-          left: 60,
-          right: 60,
+          transform: `scale(${mountEnter}) translateY(${interpolate(mountEnter, [0, 1], [100, 0])}px)`,
+          width: 900,
           height: 800,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          transform: `scale(${enterProgress})`,
+          position: 'relative'
         }}
       >
-        <svg width="960" height="740" viewBox="0 0 960 740">
+        <svg width="900" height="800" viewBox="0 0 900 800">
           <defs>
-            <linearGradient id="dieGrad" x1="0" y1="0" x2="1" y2="1">
+            <linearGradient id="rockSlice" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#1e293b" />
               <stop offset="50%" stopColor="#0f172a" />
-              <stop offset="100%" stopColor="#111827" />
+              <stop offset="100%" stopColor="#020617" />
             </linearGradient>
-            <linearGradient id="hbmGrad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#3b82f6" />
-              <stop offset="100%" stopColor="#1d4ed8" />
-            </linearGradient>
-            <linearGradient id="scanGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="transparent" />
-              <stop offset="50%" stopColor="rgba(239, 68, 68, 0.6)" />
-              <stop offset="100%" stopColor="transparent" />
+            <linearGradient id="waterFlowArrow" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.2" />
+              <stop offset="100%" stopColor="#38bdf8" stopOpacity="1" />
             </linearGradient>
           </defs>
 
-          {/* Substrate Base Plate */}
-          <rect x="50" y="30" width="860" height="680" rx="18" fill="#0b0f19" stroke="#334155" strokeWidth="3" />
+          {/* Isometric Geological Terrain Slice */}
+          <polygon points="450,150 820,380 450,680 80,380" fill="url(#rockSlice)" stroke="#334155" strokeWidth="3" />
+          <polygon points="80,380 450,680 450,750 80,450" fill="#090d16" stroke="#1e293b" strokeWidth="2" />
+          <polygon points="450,680 820,380 820,450 450,750" fill="#030712" stroke="#1e293b" strokeWidth="2" />
 
-          {/* Left HBM3e Memory Stacks (4 units) */}
-          {[...Array(4)].map((_, i) => (
-            <g key={`hbm-l-${i}`}>
-              <rect x="75" y={80 + i * 145} width="85" height="115" rx="8" fill="url(#hbmGrad)" stroke="#60a5fa" strokeWidth="2" />
-              <text x="117" y={145 + i * 145} textAnchor="middle" fill="#ffffff" fontSize="13" fontFamily="ui-monospace, monospace" fontWeight="800">
-                HBM3e
-              </text>
-            </g>
-          ))}
+          {/* Mountain Ridge Elevation Crests */}
+          <path d="M 450 150 L 450 680" stroke="#38bdf8" strokeWidth="3" strokeDasharray="6,6" opacity="0.4" />
 
-          {/* Right HBM3e Memory Stacks (4 units) */}
-          {[...Array(4)].map((_, i) => (
-            <g key={`hbm-r-${i}`}>
-              <rect x="800" y={80 + i * 145} width="85" height="115" rx="8" fill="url(#hbmGrad)" stroke="#60a5fa" strokeWidth="2" />
-              <text x="842" y={145 + i * 145} textAnchor="middle" fill="#ffffff" fontSize="13" fontFamily="ui-monospace, monospace" fontWeight="800">
-                HBM3e
-              </text>
-            </g>
-          ))}
-
-          {/* DIE 0 (Left Silicon Slab) */}
-          <rect x="190" y="80" width="270" height="550" rx="12" fill="url(#dieGrad)" stroke="#ef4444" strokeWidth="3" filter="drop-shadow(0 0 20px rgba(239, 68, 68, 0.4))" />
-          <text x="325" y="140" textAnchor="middle" fill="#ef4444" fontSize="20" fontFamily="ui-monospace, monospace" fontWeight="900" letterSpacing="2">
-            DIE 0 (TSMC 4NP)
-          </text>
-          <text x="325" y="170" textAnchor="middle" fill="#94a3b8" fontSize="14" fontFamily="ui-monospace, monospace">
-            104 BILLION TRANSISTORS
-          </text>
-
-          {/* DIE 1 (Right Silicon Slab) */}
-          <rect x="500" y="80" width="270" height="550" rx="12" fill="url(#dieGrad)" stroke="#ef4444" strokeWidth="3" filter="drop-shadow(0 0 20px rgba(239, 68, 68, 0.4))" />
-          <text x="635" y="140" textAnchor="middle" fill="#ef4444" fontSize="20" fontFamily="ui-monospace, monospace" fontWeight="900" letterSpacing="2">
-            DIE 1 (TSMC 4NP)
-          </text>
-          <text x="635" y="170" textAnchor="middle" fill="#94a3b8" fontSize="14" fontFamily="ui-monospace, monospace">
-            104 BILLION TRANSISTORS
-          </text>
-
-          {/* Central NV-HBI Bridge Interconnect */}
-          <rect x="460" y="120" width="40" height="470" rx="6" fill="#ef4444" opacity="0.85" filter="drop-shadow(0 0 15px rgba(239, 68, 68, 0.9))" />
-          {[...Array(14)].map((_, i) => (
-            <line key={`bridge-${i}`} x1="462" y1={140 + i * 32} x2="498" y2={140 + i * 32} stroke="#ffffff" strokeWidth="2" strokeDasharray="4 2" />
-          ))}
-
-          {/* Laser Scanning Bar */}
-          <rect x="180" y={70 + scanY} width="600" height="14" fill="url(#scanGrad)" />
-        </svg>
-      </div>
-
-      {/* Bottom Explainer Callout */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 1220,
-          left: 80,
-          right: 80,
-          padding: '20px 28px',
-          backgroundColor: 'rgba(15, 23, 42, 0.85)',
-          borderRadius: 16,
-          border: '1px solid rgba(239, 68, 68, 0.4)',
-          textAlign: 'center',
-        }}
-      >
-        <div style={{ fontSize: 24, fontWeight: 900, color: '#ffffff', letterSpacing: '0.04em' }}>
-          858 mm² + 858 mm² = 1,716 mm² ACTIVE SILICON
-        </div>
-        <div style={{ fontSize: 16, color: '#94a3b8', marginTop: 6, fontFamily: 'ui-monospace, monospace' }}>
-          Connected by high-density CoWoS-L silicon interposer at 10 TB/s
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ============================================================================
-// COMPONENT: SCENE 3 - SPLIT COMPARE (MONOLITHIC VS DUAL DIE)
-// ============================================================================
-const Scene3SplitCompareView: React.FC<{ frame: number; fps: number }> = ({ frame, fps }) => {
-  const enterProgress = spring({ frame, fps, config: { damping: 14, stiffness: 90 } });
-  const busPulse = (frame * 16) % 240;
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        backgroundColor: '#07090e',
-        overflow: 'hidden',
-        color: '#ffffff',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-      }}
-    >
-      {/* Top Banner */}
-      <div style={{ position: 'absolute', top: 90, left: 60, right: 60, textAlign: 'center' }}>
-        <div style={{ fontSize: 16, fontFamily: 'ui-monospace, monospace', color: '#ef4444', letterSpacing: '0.25em', textTransform: 'uppercase' }}>
-          ARCHITECTURAL REVOLUTION
-        </div>
-        <h2 style={{ fontSize: 44, fontWeight: 950, margin: '8px 0 0 0', textTransform: 'uppercase' }}>
-          Dual Die Versus Monolithic Design
-        </h2>
-      </div>
-
-      {/* Split Comparison Cards */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 260,
-          left: 60,
-          right: 60,
-          display: 'flex',
-          gap: 24,
-          transform: `scale(${enterProgress})`,
-        }}
-      >
-        {/* Left Side: Monolithic Hopper H100 */}
-        <div
-          style={{
-            flex: 1,
-            backgroundColor: 'rgba(15, 23, 42, 0.85)',
-            borderRadius: 20,
-            border: '2px solid rgba(245, 158, 11, 0.4)',
-            padding: 24,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-          }}
-        >
-          <div style={{ padding: '6px 16px', borderRadius: 20, backgroundColor: 'rgba(245, 158, 11, 0.2)', color: '#f59e0b', fontSize: 14, fontWeight: 800, fontFamily: 'ui-monospace, monospace' }}>
-            HOPPER H100
-          </div>
-          <div style={{ fontSize: 22, fontWeight: 900, marginTop: 14, color: '#f8fafc' }}>
-            Single Monolithic Die
-          </div>
-
-          {/* SVG Monolithic Graphic */}
-          <svg width="340" height="340" viewBox="0 0 340 340" style={{ marginTop: 20 }}>
-            <rect x="40" y="40" width="260" height="260" rx="12" fill="#1e293b" stroke="#f59e0b" strokeWidth="3" />
-            <line x1="40" y1="170" x2="300" y2="170" stroke="#f59e0b" strokeWidth="1" strokeDasharray="4 4" opacity="0.6" />
-            <line x1="170" y1="40" x2="170" y2="300" stroke="#f59e0b" strokeWidth="1" strokeDasharray="4 4" opacity="0.6" />
-            <text x="170" y="165" textAnchor="middle" fill="#f59e0b" fontSize="16" fontFamily="ui-monospace, monospace" fontWeight="900">
-              814 mm²
-            </text>
-            <text x="170" y="190" textAnchor="middle" fill="#94a3b8" fontSize="12" fontFamily="ui-monospace, monospace">
-              RETICLE LIMIT
-            </text>
-          </svg>
-
-          <div style={{ width: '100%', marginTop: 20, borderTop: '1px solid rgba(245, 158, 11, 0.2)', paddingTop: 16 }}>
-            <div style={{ fontSize: 14, color: '#94a3b8' }}>Transistor Count:</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: '#f59e0b' }}>80 Billion</div>
-            <div style={{ fontSize: 14, color: '#ef4444', marginTop: 10, fontWeight: 700 }}>
-              ⚠ Physical Scaling Wall Reached
-            </div>
-          </div>
-        </div>
-
-        {/* Right Side: Blackwell B200 Dual Die */}
-        <div
-          style={{
-            flex: 1,
-            backgroundColor: 'rgba(15, 23, 42, 0.85)',
-            borderRadius: 20,
-            border: '2px solid rgba(239, 68, 68, 0.8)',
-            boxShadow: '0 0 30px rgba(239, 68, 68, 0.25)',
-            padding: 24,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-          }}
-        >
-          <div style={{ padding: '6px 16px', borderRadius: 20, backgroundColor: 'rgba(239, 68, 68, 0.25)', color: '#ef4444', fontSize: 14, fontWeight: 800, fontFamily: 'ui-monospace, monospace' }}>
-            BLACKWELL B200
-          </div>
-          <div style={{ fontSize: 22, fontWeight: 900, marginTop: 14, color: '#f8fafc' }}>
-            Twin Co-Packaged Dies
-          </div>
-
-          {/* SVG Dual Die Graphic */}
-          <svg width="340" height="340" viewBox="0 0 340 340" style={{ marginTop: 20 }}>
-            {/* Die A */}
-            <rect x="25" y="40" width="130" height="260" rx="8" fill="#1e293b" stroke="#ef4444" strokeWidth="2.5" />
-            <text x="90" y="175" textAnchor="middle" fill="#ef4444" fontSize="13" fontFamily="ui-monospace, monospace" fontWeight="800">
-              DIE 0
-            </text>
-
-            {/* Die B */}
-            <rect x="185" y="40" width="130" height="260" rx="8" fill="#1e293b" stroke="#ef4444" strokeWidth="2.5" />
-            <text x="250" y="175" textAnchor="middle" fill="#ef4444" fontSize="13" fontFamily="ui-monospace, monospace" fontWeight="800">
-              DIE 1
-            </text>
-
-            {/* Glowing NV-HBI Bus in between */}
-            <rect x="157" y="60" width="26" height="220" rx="4" fill="#ef4444" opacity="0.9" filter="drop-shadow(0 0 10px #ef4444)" />
-            <line x1="170" y1="70" x2="170" y2="270" stroke="#ffffff" strokeWidth="2" strokeDasharray="6 4" />
-          </svg>
-
-          <div style={{ width: '100%', marginTop: 20, borderTop: '1px solid rgba(239, 68, 68, 0.3)', paddingTop: 16 }}>
-            <div style={{ fontSize: 14, color: '#94a3b8' }}>Transistor Count:</div>
-            <div style={{ fontSize: 26, fontWeight: 900, color: '#ef4444' }}>208 Billion</div>
-            <div style={{ fontSize: 14, color: '#22c55e', marginTop: 10, fontWeight: 700 }}>
-              ✓ 10 TB/s NV-HBI Coherent Interconnect
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Bottom Metric Callout Bar */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 1140,
-          left: 60,
-          right: 60,
-          padding: '24px 32px',
-          backgroundColor: '#0f172a',
-          borderRadius: 20,
-          border: '1px solid rgba(239, 68, 68, 0.4)',
-          display: 'flex',
-          justifyContent: 'space-around',
-          alignItems: 'center',
-        }}
-      >
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 14, color: '#94a3b8', fontFamily: 'ui-monospace, monospace' }}>INTERCONNECT SPEED</div>
-          <div style={{ fontSize: 40, fontWeight: 950, color: '#ef4444' }}>10 TB/s</div>
-        </div>
-        <div style={{ width: 1, height: 50, backgroundColor: 'rgba(239, 68, 68, 0.3)' }} />
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 14, color: '#94a3b8', fontFamily: 'ui-monospace, monospace' }}>CACHE COHERENCY</div>
-          <div style={{ fontSize: 40, fontWeight: 950, color: '#ffffff' }}>0.0 μs LATENCY</div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ============================================================================
-// COMPONENT: SCENE 4 - STAT CALLOUT (208 BILLION TRANSISTORS)
-// ============================================================================
-const Scene4StatCalloutView: React.FC<{ frame: number; fps: number }> = ({ frame, fps }) => {
-  const enterProgress = spring({ frame, fps, config: { damping: 14, stiffness: 85 } });
-  const rawNumber = Math.floor(interpolate(frame, [0, 80], [0, 208], { extrapolateRight: 'clamp' }));
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        backgroundColor: '#07090e',
-        overflow: 'hidden',
-        color: '#ffffff',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-      }}
-    >
-      {/* Background Silicon Gate Mesh */}
-      <svg width="1080" height="1920" style={{ position: 'absolute', inset: 0, opacity: 0.18 }}>
-        <defs>
-          <pattern id="gateMesh" width="80" height="80" patternUnits="userSpaceOnUse">
-            <rect x="0" y="0" width="80" height="80" fill="none" stroke="#ef4444" strokeWidth="0.8" />
-            <line x1="40" y1="0" x2="40" y2="80" stroke="#ef4444" strokeWidth="1" strokeDasharray="4 4" />
-            <line x1="0" y1="40" x2="80" y2="40" stroke="#ef4444" strokeWidth="1" strokeDasharray="4 4" />
-          </pattern>
-        </defs>
-        <rect width="1080" height="1920" fill="url(#gateMesh)" />
-      </svg>
-
-      {/* Top Banner */}
-      <div style={{ position: 'absolute', top: 90, left: 60, right: 60, textAlign: 'center' }}>
-        <div style={{ fontSize: 16, fontFamily: 'ui-monospace, monospace', color: '#ef4444', letterSpacing: '0.25em', textTransform: 'uppercase' }}>
-          SEMICONDUCTOR DENSITY SCALE
-        </div>
-        <h2 style={{ fontSize: 44, fontWeight: 950, margin: '8px 0 0 0', textTransform: 'uppercase' }}>
-          Two Hundred Eight Billion Transistors
-        </h2>
-      </div>
-
-      {/* Giant Monospace Animated Metric Counter */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 360,
-          left: 60,
-          right: 60,
-          textAlign: 'center',
-          transform: `scale(${enterProgress})`,
-        }}
-      >
-        <div
-          style={{
-            fontSize: 140,
-            fontWeight: 950,
-            fontFamily: 'ui-monospace, monospace',
-            lineHeight: 0.95,
-            color: '#ef4444',
-            textShadow: '0 0 40px rgba(239, 68, 68, 0.75)',
-            letterSpacing: '-0.03em',
-          }}
-        >
-          {rawNumber}B
-        </div>
-        <div
-          style={{
-            fontSize: 28,
-            fontWeight: 800,
-            letterSpacing: '0.25em',
-            color: '#ffffff',
-            textTransform: 'uppercase',
-            marginTop: 16,
-          }}
-        >
-          RAW SILICON TRANSISTORS
-        </div>
-      </div>
-
-      {/* Microscopic Gate Structure Diagram */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 660,
-          left: 80,
-          right: 80,
-          height: 480,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <svg width="920" height="420" viewBox="0 0 920 420">
-          <defs>
-            <linearGradient id="gateGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ef4444" />
-              <stop offset="100%" stopColor="#991b1b" />
-            </linearGradient>
-          </defs>
-
-          {/* Substrate Base */}
-          <rect x="60" y="300" width="800" height="80" rx="10" fill="#1e293b" stroke="#334155" strokeWidth="2" />
-          <text x="460" y="348" textAnchor="middle" fill="#64748b" fontSize="16" fontFamily="ui-monospace, monospace" fontWeight="800">
-            TSMC 4NP SILICON SUBSTRATE (3nm CLASS GATE PITCH)
-          </text>
-
-          {/* Nanosheet Fins (3 Gates) */}
-          {[...Array(3)].map((_, i) => {
-            const gx = 160 + i * 240;
+          {/* Drenching Downpour Laser Streams Channeled to Basin */}
+          {Array.from({ length: 9 }).map((_, i) => {
+            const offset = (i - 4) * 60;
+            const flowProgress = (frame * 5 + i * 18) % 120;
             return (
-              <g key={`gate-${i}`}>
-                {/* Source Pillar */}
-                <rect x={gx} y="140" width="45" height="160" rx="6" fill="#3b82f6" />
-                <text x={gx + 22} y="220" textAnchor="middle" fill="#ffffff" fontSize="12" fontFamily="ui-monospace, monospace">
-                  SRC
-                </text>
-
-                {/* Gate Fin */}
-                <rect x={gx + 60} y="80" width="60" height="220" rx="8" fill="url(#gateGrad)" filter="drop-shadow(0 0 15px rgba(239, 68, 68, 0.6))" />
-                <text x={gx + 90} y="195" textAnchor="middle" fill="#ffffff" fontSize="14" fontFamily="ui-monospace, monospace" fontWeight="900">
-                  GATE
-                </text>
-
-                {/* Drain Pillar */}
-                <rect x={gx + 135} y="140" width="45" height="160" rx="6" fill="#10b981" />
-                <text x={gx + 157} y="220" textAnchor="middle" fill="#ffffff" fontSize="12" fontFamily="ui-monospace, monospace">
-                  DRN
-                </text>
+              <g key={i}>
+                <line
+                  x1={450 + offset}
+                  y1={80}
+                  x2={450 + offset * 0.4}
+                  y2={500}
+                  stroke="url(#waterFlowArrow)"
+                  strokeWidth="3"
+                  strokeDasharray="15,10"
+                />
+                <circle
+                  cx={450 + offset * 0.4}
+                  cy={500 + flowProgress * 1.2}
+                  r="4"
+                  fill="#38bdf8"
+                  opacity="0.8"
+                />
               </g>
             );
           })}
+
+          {/* Valley Basin Water Pool Expanding */}
+          <ellipse
+            cx="450"
+            cy="650"
+            rx={80 + frame * 1.2}
+            ry={30 + frame * 0.5}
+            fill="#38bdf8"
+            opacity="0.7"
+            filter="drop-shadow(0 0 25px #38bdf8)"
+          />
         </svg>
-      </div>
 
-      {/* Specification Footers */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 1180,
-          left: 80,
-          right: 80,
-          display: 'flex',
-          justifyContent: 'space-between',
-          gap: 16,
-        }}
-      >
-        <div style={{ flex: 1, padding: 18, backgroundColor: 'rgba(30, 41, 59, 0.7)', borderRadius: 14, textAlign: 'center' }}>
-          <div style={{ fontSize: 13, color: '#94a3b8', fontFamily: 'ui-monospace, monospace' }}>LITHOGRAPHY</div>
-          <div style={{ fontSize: 24, fontWeight: 900, color: '#ef4444', marginTop: 4 }}>4NP CUSTOM TSMC</div>
-        </div>
-        <div style={{ flex: 1, padding: 18, backgroundColor: 'rgba(30, 41, 59, 0.7)', borderRadius: 14, textAlign: 'center' }}>
-          <div style={{ fontSize: 13, color: '#94a3b8', fontFamily: 'ui-monospace, monospace' }}>GATE DENSITY</div>
-          <div style={{ fontSize: 24, fontWeight: 900, color: '#ffffff', marginTop: 4 }}>121 MTr / mm²</div>
+        {/* Infiltration Runoff HUD Tag */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 40,
+            left: 280,
+            padding: '8px 20px',
+            borderRadius: 16,
+            background: 'rgba(15, 23, 42, 0.9)',
+            border: '1px solid #38bdf8',
+            fontSize: 20,
+            fontWeight: 700,
+            color: '#38bdf8',
+            letterSpacing: 1.5
+          }}
+        >
+          BASIN INFLOW RATE: +840%
         </div>
       </div>
-    </div>
+    </AbsoluteFill>
   );
-};
+}
 
-// ============================================================================
-// COMPONENT: SCENE 5 - FACT CARD (NATIVE FP4 MATH)
-// ============================================================================
-const Scene5FactCardView: React.FC<{ frame: number; fps: number }> = ({ frame, fps }) => {
-  const enterProgress = spring({ frame, fps, config: { damping: 14, stiffness: 90 } });
-  const animOffset = (frame * 3) % 20;
+// =========================================================================
+// SCENE 3: POROUS DRY SOIL ABSORBING VS SATURATED IMPERVIOUS SOIL REPELLING
+// =========================================================================
+function ScenePorousVsSaturated({ frame, fps }: { frame: number; fps: number }) {
+  const cardSpring = spring({ frame, fps, config: { damping: 14, stiffness: 100 } });
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        backgroundColor: '#07090e',
-        overflow: 'hidden',
-        color: '#ffffff',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-      }}
-    >
-      {/* Top Banner */}
-      <div style={{ position: 'absolute', top: 90, left: 60, right: 60, textAlign: 'center' }}>
-        <div style={{ fontSize: 16, fontFamily: 'ui-monospace, monospace', color: '#ef4444', letterSpacing: '0.25em', textTransform: 'uppercase' }}>
-          QUANTIZATION ENGINE GEN 2
-        </div>
-        <h2 style={{ fontSize: 44, fontWeight: 950, margin: '8px 0 0 0', textTransform: 'uppercase' }}>
-          Native FP4 Tensor Core Math
-        </h2>
-      </div>
-
-      {/* Side-by-Side Floating-Point Bit Registers */}
+    <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div
         style={{
-          position: 'absolute',
-          top: 260,
-          left: 60,
-          right: 60,
+          width: 960,
+          height: 820,
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 24,
+          transform: `scale(${cardSpring})`
+        }}
+      >
+        {/* LEFT COLUMN: DRY POROUS SOIL (ABSORBS) */}
+        <div
+          style={{
+            backgroundColor: 'rgba(15, 23, 42, 0.85)',
+            border: '2px solid #38bdf8',
+            borderRadius: 24,
+            padding: 24,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            boxShadow: '0 0 35px rgba(56, 189, 248, 0.15)',
+            overflow: 'hidden',
+            position: 'relative'
+          }}
+        >
+          <div style={{ fontSize: 24, fontWeight: 900, color: '#38bdf8', marginBottom: 12 }}>
+            DRY SOIL: ABSORPTION
+          </div>
+          <svg width="400" height="520" viewBox="0 0 400 520">
+            {/* Porous Underground Matrix */}
+            <rect x="20" y="160" width="360" height="340" rx="16" fill="#1e293b" stroke="#334155" strokeWidth="2" />
+            {/* Sponge pores */}
+            {Array.from({ length: 24 }).map((_, i) => (
+              <circle
+                key={i}
+                cx={50 + (i % 6) * 55}
+                cy={200 + Math.floor(i / 6) * 75}
+                r="14"
+                fill="#0f172a"
+                stroke="#38bdf8"
+                strokeWidth="1.5"
+                opacity="0.6"
+              />
+            ))}
+            {/* Water Drops Sinking Down Inward */}
+            {Array.from({ length: 6 }).map((_, i) => {
+              const dropY = 60 + ((frame * 4 + i * 40) % 220);
+              return (
+                <circle
+                  key={i}
+                  cx={70 + i * 50}
+                  cy={dropY}
+                  r="6"
+                  fill="#38bdf8"
+                  opacity={dropY > 200 ? 0.4 : 0.9}
+                />
+              );
+            })}
+          </svg>
+          <div style={{ position: 'absolute', bottom: 20, fontSize: 18, color: '#94a3b8', fontWeight: 700 }}>
+            INFILTRATION: HIGH (92%)
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: SATURATED GROUND (REPELS / RUNOFF) */}
+        <div
+          style={{
+            backgroundColor: 'rgba(15, 23, 42, 0.85)',
+            border: '2px solid #f43f5e',
+            borderRadius: 24,
+            padding: 24,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            boxShadow: '0 0 35px rgba(244, 63, 94, 0.2)',
+            overflow: 'hidden',
+            position: 'relative'
+          }}
+        >
+          <div style={{ fontSize: 24, fontWeight: 900, color: '#f43f5e', marginBottom: 12 }}>
+            SATURATED: 100% RUNOFF
+          </div>
+          <svg width="400" height="520" viewBox="0 0 400 520">
+            {/* Water-logged ground slab */}
+            <rect x="20" y="160" width="360" height="340" rx="16" fill="#1e1b4b" stroke="#f43f5e" strokeWidth="2" />
+            {/* Slick impervious surface barrier */}
+            <line x1="20" y1="160" x2="380" y2="160" stroke="#f43f5e" strokeWidth="8" strokeLinecap="round" />
+            {/* Deflecting / Sweeping Runoff Torrent arrows */}
+            {Array.from({ length: 5 }).map((_, i) => {
+              const slideX = 80 + ((frame * 6 + i * 50) % 240);
+              return (
+                <g key={i}>
+                  <line x1={slideX} y1="140" x2={slideX + 35} y2="140" stroke="#f43f5e" strokeWidth="5" strokeLinecap="round" />
+                  <polygon points={`${slideX + 45},140 ${slideX + 32},133 ${slideX + 32},147`} fill="#f43f5e" />
+                </g>
+              );
+            })}
+            <text x="200" y="320" textAnchor="middle" fill="#f43f5e" fontSize="22" fontWeight="800">
+              GROUND REJECTS WATER
+            </text>
+          </svg>
+          <div style={{ position: 'absolute', bottom: 20, fontSize: 18, color: '#f43f5e', fontWeight: 700 }}>
+            RUNOFF SPEED: CRITICAL
+          </div>
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// =========================================================================
+// SCENE 4: EXPONENTIAL HYDROGRAPH GAUGE SPIKE IN MINUTES
+// =========================================================================
+function SceneHydrographGauge({ frame, fps }: { frame: number; fps: number }) {
+  const curveDraw = spring({ frame, fps, config: { damping: 16, stiffness: 120 } });
+  const metricVal = Math.floor(interpolate(curveDraw, [0, 1], [420, 14200]));
+
+  return (
+    <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div
+        style={{
+          width: 920,
+          height: 850,
+          backgroundColor: 'rgba(15, 23, 42, 0.92)',
+          border: '2px solid #38bdf8',
+          borderRadius: 32,
+          padding: 40,
+          boxShadow: '0 0 50px rgba(56, 189, 248, 0.25)',
           display: 'flex',
           flexDirection: 'column',
-          gap: 28,
-          transform: `scale(${enterProgress})`,
+          justifyContent: 'space-between',
+          position: 'relative'
         }}
       >
-        {/* FP8 Register Container */}
-        <div style={{ backgroundColor: 'rgba(15, 23, 42, 0.85)', padding: 24, borderRadius: 18, border: '1px solid #334155' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <span style={{ fontSize: 20, fontWeight: 900, color: '#94a3b8' }}>FP8 PRECISION (8 BITS)</span>
-            <span style={{ fontSize: 14, color: '#94a3b8', fontFamily: 'ui-monospace, monospace' }}>1 SIGN | 4 EXPONENT | 3 MANTISSA</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontSize: 22, color: '#94a3b8', fontWeight: 700, letterSpacing: 1.5 }}>
+              HYDROGRAPHIC TELEMETRY
+            </div>
+            <div style={{ fontSize: 44, fontWeight: 900, color: '#f8fafc', marginTop: 4 }}>
+              Discharge Rate (m³/s)
+            </div>
           </div>
-          {/* 8 Bit Blocks */}
-          <div style={{ display: 'flex', gap: 10 }}>
-            {['S', 'E3', 'E2', 'E1', 'E0', 'M2', 'M1', 'M0'].map((bit, idx) => (
-              <div
-                key={idx}
-                style={{
-                  flex: 1,
-                  height: 60,
-                  borderRadius: 8,
-                  backgroundColor: idx === 0 ? '#3b82f6' : idx < 5 ? '#f59e0b' : '#10b981',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  fontSize: 18,
-                  fontWeight: 900,
-                  fontFamily: 'ui-monospace, monospace',
-                  color: '#ffffff',
-                }}
-              >
-                {bit}
-              </div>
-            ))}
+          <div
+            style={{
+              padding: '12px 28px',
+              borderRadius: 20,
+              backgroundColor: '#f43f5e',
+              color: '#ffffff',
+              fontSize: 28,
+              fontWeight: 900,
+              boxShadow: '0 0 20px rgba(244, 63, 94, 0.6)'
+            }}
+          >
+            {metricVal.toLocaleString()} m³/s
           </div>
         </div>
 
-        {/* Compression Arrow Divider */}
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 14 }}>
-          <div style={{ height: 2, flex: 1, backgroundColor: 'rgba(239, 68, 68, 0.3)' }} />
-          <div style={{ padding: '8px 24px', borderRadius: 20, backgroundColor: '#ef4444', color: '#ffffff', fontWeight: 900, fontSize: 16 }}>
-            2X COMPUTE DENSITY COMPRESSION ↓
-          </div>
-          <div style={{ height: 2, flex: 1, backgroundColor: 'rgba(239, 68, 68, 0.3)' }} />
-        </div>
+        {/* Steep Exponential Curve SVG Plot */}
+        <svg width="840" height="480" viewBox="0 0 840 480" style={{ overflow: 'visible' }}>
+          {/* Axis Gridlines */}
+          <line x1="60" y1="420" x2="800" y2="420" stroke="#334155" strokeWidth="2" />
+          <line x1="60" y1="40" x2="60" y2="420" stroke="#334155" strokeWidth="2" />
+          {Array.from({ length: 5 }).map((_, i) => (
+            <line key={i} x1="60" y1={80 + i * 80} x2="800" y2={80 + i * 80} stroke="#1e293b" strokeWidth="1.5" strokeDasharray="4,4" />
+          ))}
 
-        {/* FP4 Register Container */}
-        <div style={{ backgroundColor: 'rgba(15, 23, 42, 0.85)', padding: 24, borderRadius: 18, border: '2px solid #ef4444', boxShadow: '0 0 25px rgba(239, 68, 68, 0.25)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <span style={{ fontSize: 22, fontWeight: 950, color: '#ef4444' }}>NATIVE FP4 PRECISION (4 BITS)</span>
-            <span style={{ fontSize: 14, color: '#ef4444', fontFamily: 'ui-monospace, monospace', fontWeight: 800 }}>1 SIGN | 2 EXPONENT | 1 MANTISSA</span>
-          </div>
-          {/* 4 Bit Blocks (Double Width) */}
-          <div style={{ display: 'flex', gap: 14 }}>
-            {['S', 'E1', 'E0', 'M0'].map((bit, idx) => (
-              <div
-                key={idx}
-                style={{
-                  flex: 1,
-                  height: 72,
-                  borderRadius: 10,
-                  backgroundColor: idx === 0 ? '#3b82f6' : idx < 3 ? '#f59e0b' : '#ef4444',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  fontSize: 24,
-                  fontWeight: 950,
-                  fontFamily: 'ui-monospace, monospace',
-                  color: '#ffffff',
-                  boxShadow: idx === 3 ? '0 0 15px rgba(239, 68, 68, 0.6)' : 'none',
-                }}
-              >
-                {bit}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+          {/* Exponential Sharp Curve */}
+          <path
+            d="M 60 410 Q 420 400 520 280 T 780 60"
+            fill="none"
+            stroke="#38bdf8"
+            strokeWidth="8"
+            strokeLinecap="round"
+            strokeDasharray="1200"
+            strokeDashoffset={interpolate(curveDraw, [0, 1], [1200, 0])}
+            filter="drop-shadow(0 0 16px #38bdf8)"
+          />
 
-      {/* Dual Highlights Stage */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 980,
-          left: 60,
-          right: 60,
-          display: 'flex',
-          gap: 20,
-        }}
-      >
-        <div style={{ flex: 1, padding: 24, backgroundColor: '#0f172a', borderRadius: 16, border: '1px solid rgba(239, 68, 68, 0.3)', textAlign: 'center' }}>
-          <div style={{ fontSize: 14, color: '#94a3b8', fontFamily: 'ui-monospace, monospace' }}>INFERENCE SPEED</div>
-          <div style={{ fontSize: 48, fontWeight: 950, color: '#ef4444', marginTop: 4 }}>2X FASTER</div>
-          <div style={{ fontSize: 13, color: '#cbd5e1', marginTop: 6 }}>Doubles Tensor Core throughput per clock</div>
-        </div>
-        <div style={{ flex: 1, padding: 24, backgroundColor: '#0f172a', borderRadius: 16, border: '1px solid rgba(239, 68, 68, 0.3)', textAlign: 'center' }}>
-          <div style={{ fontSize: 14, color: '#94a3b8', fontFamily: 'ui-monospace, monospace' }}>MODEL CAPACITY</div>
-          <div style={{ fontSize: 48, fontWeight: 950, color: '#22c55e', marginTop: 4 }}>4X MEMORY</div>
-          <div style={{ fontSize: 13, color: '#cbd5e1', marginTop: 6 }}>Fits 27 Trillion parameter models in rack</div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ============================================================================
-// COMPONENT: SCENE 6 - HERO OBJECT (LIQUID COOLED RACK SUPERCOMPUTERS)
-// ============================================================================
-const Scene6HeroObjectView: React.FC<{ frame: number; fps: number }> = ({ frame, fps }) => {
-  const enterProgress = spring({ frame, fps, config: { damping: 14, stiffness: 85 } });
-  const coolantFlow = (frame * 5) % 120;
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        backgroundColor: '#07090e',
-        overflow: 'hidden',
-        color: '#ffffff',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-      }}
-    >
-      {/* Top Banner */}
-      <div style={{ position: 'absolute', top: 90, left: 60, right: 60, textAlign: 'center' }}>
-        <div style={{ fontSize: 16, fontFamily: 'ui-monospace, monospace', color: '#ef4444', letterSpacing: '0.25em', textTransform: 'uppercase' }}>
-          DATA-CENTER SCALE COHESION
-        </div>
-        <h2 style={{ fontSize: 44, fontWeight: 950, margin: '8px 0 0 0', textTransform: 'uppercase' }}>
-          Liquid Cooled Rack Scale Superclusters
-        </h2>
-      </div>
-
-      {/* 2.5D Isometric NVL72 Rack Graphic */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 260,
-          left: 60,
-          right: 60,
-          height: 820,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          transform: `scale(${enterProgress})`,
-        }}
-      >
-        <svg width="960" height="780" viewBox="0 0 960 780">
-          <defs>
-            <linearGradient id="coolantGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#06b6d4" />
-              <stop offset="50%" stopColor="#3b82f6" />
-              <stop offset="100%" stopColor="#06b6d4" />
-            </linearGradient>
-            <linearGradient id="bladeGrad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#1e293b" />
-              <stop offset="100%" stopColor="#0f172a" />
-            </linearGradient>
-          </defs>
-
-          {/* NVL72 Giant Server Rack Outline */}
-          <rect x="240" y="30" width="480" height="720" rx="16" fill="#090d16" stroke="#334155" strokeWidth="3" />
-
-          {/* Staggered Server Blades (Compute Trays) */}
-          {[...Array(9)].map((_, i) => (
-            <g key={`tray-${i}`}>
-              <rect x="270" y={60 + i * 72} width="420" height="54" rx="8" fill="url(#bladeGrad)" stroke="#475569" strokeWidth="1.5" />
-              <circle cx="295" cy={87 + i * 72} r="5" fill="#22c55e" />
-              <circle cx="315" cy={87 + i * 72} r="5" fill="#ef4444" />
-              <text x="345" y={92 + i * 72} fill="#cbd5e1" fontSize="13" fontFamily="ui-monospace, monospace" fontWeight="700">
-                BLADE ${i + 1}: 8x B200 DUAL DIES
+          {/* Pulsing Danger Zone Marker at Peak */}
+          {curveDraw > 0.7 && (
+            <g transform="translate(780, 60)">
+              <circle r="18" fill="#f43f5e" opacity="0.4" />
+              <circle r="10" fill="#f43f5e" />
+              <text x="-80" y="-20" fill="#f43f5e" fontSize="24" fontWeight="900">
+                CRITICAL SPIKE
               </text>
             </g>
-          ))}
-
-          {/* Liquid Cooling Manifold Tubes (Left and Right) */}
-          <rect x="180" y="50" width="30" height="680" rx="15" fill="url(#coolantGrad)" filter="drop-shadow(0 0 15px rgba(6, 182, 212, 0.7))" />
-          <rect x="750" y="50" width="30" height="680" rx="15" fill="url(#coolantGrad)" filter="drop-shadow(0 0 15px rgba(6, 182, 212, 0.7))" />
-
-          {/* Flowing Coolant Pulses */}
-          <circle cx="195" cy={70 + (coolantFlow * 5.5)} r="8" fill="#ffffff" />
-          <circle cx="765" cy={70 + (coolantFlow * 5.5)} r="8" fill="#ffffff" />
-
-          {/* Manifold Connecting Pipes into Blades */}
-          {[...Array(9)].map((_, i) => (
-            <g key={`pipes-${i}`}>
-              <line x1="210" y1={87 + i * 72} x2="270" y2={87 + i * 72} stroke="#06b6d4" strokeWidth="4" />
-              <line x1="690" y1={87 + i * 72} x2="750" y2={87 + i * 72} stroke="#06b6d4" strokeWidth="4" />
-            </g>
-          ))}
+          )}
         </svg>
-      </div>
 
-      {/* Cluster Scale Metrics */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 1140,
-          left: 60,
-          right: 60,
-          display: 'flex',
-          gap: 16,
-        }}
-      >
-        <div style={{ flex: 1, padding: 18, backgroundColor: 'rgba(15, 23, 42, 0.9)', borderRadius: 16, border: '1px solid #06b6d4', textAlign: 'center' }}>
-          <div style={{ fontSize: 13, color: '#06b6d4', fontFamily: 'ui-monospace, monospace' }}>NVLINK 5 FABRIC</div>
-          <div style={{ fontSize: 32, fontWeight: 950, color: '#ffffff', marginTop: 4 }}>130 TB/s</div>
-          <div style={{ fontSize: 12, color: '#94a3b8' }}>All 72 GPUs connected as one</div>
-        </div>
-        <div style={{ flex: 1, padding: 18, backgroundColor: 'rgba(15, 23, 42, 0.9)', borderRadius: 16, border: '1px solid #ef4444', textAlign: 'center' }}>
-          <div style={{ fontSize: 13, color: '#ef4444', fontFamily: 'ui-monospace, monospace' }}>COMPUTE CAPACITY</div>
-          <div style={{ fontSize: 32, fontWeight: 950, color: '#ef4444', marginTop: 4 }}>1.4 EXAFLOPS</div>
-          <div style={{ fontSize: 12, color: '#94a3b8' }}>Supercomputer in a single rack</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: 18, fontWeight: 700 }}>
+          <span>T = 0 MIN (CALM)</span>
+          <span>T = 15 MIN (SATURATION)</span>
+          <span style={{ color: '#f43f5e' }}>T = 30 MIN (EXPLOSION)</span>
         </div>
       </div>
-    </div>
+    </AbsoluteFill>
   );
-};
+}
 
-// ============================================================================
-// MAIN VIDEO COMPONENT
-// ============================================================================
-export default function GeneratedCliVideo(props: any) {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-
-  // 137 frames per scene, 7 scenes = 959 frames total
-  const SCENE_DURATION = 137;
-  const currentSceneIndex = Math.min(6, Math.floor(frame / SCENE_DURATION));
-  const currentSceneFrame = frame % SCENE_DURATION;
-  const currentScene = SCENES[currentSceneIndex];
-
-  // Virtual Camera Interpolation across the 2D Living Canvas
-  const nextSceneIndex = Math.min(6, currentSceneIndex + 1);
-  const transitionWindow = 24; // last 24 frames of scene
-  const transitionStart = SCENE_DURATION - transitionWindow;
-
-  const currentCoords = SCENE_CANVAS_COORDS[currentSceneIndex];
-  const nextCoords = SCENE_CANVAS_COORDS[nextSceneIndex];
-
-  let camX = currentCoords.x;
-  let camY = currentCoords.y;
-  let camScale = currentCoords.scale;
-
-  if (currentSceneFrame >= transitionStart && currentSceneIndex < 6) {
-    const tProgress = easeOutCubic(segRel(currentSceneFrame, transitionStart, SCENE_DURATION));
-    camX = interpolate(tProgress, [0, 1], [currentCoords.x, nextCoords.x]);
-    camY = interpolate(tProgress, [0, 1], [currentCoords.y, nextCoords.y]);
-    camScale = interpolate(tProgress, [0, 1], [currentCoords.scale, nextCoords.scale]);
-  } else {
-    // Subtle cinematic camera drift within scene
-    const drift = Math.sin((currentSceneFrame / SCENE_DURATION) * Math.PI) * 0.02;
-    camScale = currentCoords.scale + drift;
-  }
+// =========================================================================
+// SCENE 5: RIVERBANKS OVERTOPPING CROSS-SECTION
+// =========================================================================
+function SceneRiverbankOvertop({ frame, fps }: { frame: number; fps: number }) {
+  const waterSwell = spring({ frame, fps, config: { damping: 14, stiffness: 90 } });
+  const waterHeight = interpolate(waterSwell, [0, 1], [620, 360]);
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#07090e', overflow: 'hidden' }}>
-      {/* Living Canvas World with Virtual Camera Transform */}
-      <div
-        style={{
-          position: 'absolute',
-          width: 1080,
-          height: 1920,
-          transformOrigin: '540px 960px',
-          transform: `scale(${camScale}) translate(${-camX}px, ${-camY}px)`,
-          willChange: 'transform',
-        }}
-      >
-        {/* Scene 1: Hook */}
-        <div style={{ position: 'absolute', left: SCENE_CANVAS_COORDS[0].x, top: SCENE_CANVAS_COORDS[0].y, width: 1080, height: 1920 }}>
-          <Scene1HookView frame={currentSceneIndex === 0 ? currentSceneFrame : 0} fps={fps} />
-        </div>
+    <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <svg width="960" height="900" viewBox="0 0 960 900">
+        <defs>
+          <linearGradient id="leveeSoil" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#334155" />
+            <stop offset="100%" stopColor="#0f172a" />
+          </linearGradient>
+          <linearGradient id="swellWater" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#38bdf8" />
+            <stop offset="100%" stopColor="#0369a1" />
+          </linearGradient>
+        </defs>
 
-        {/* Scene 2: Product Showcase */}
-        <div style={{ position: 'absolute', left: SCENE_CANVAS_COORDS[1].x, top: SCENE_CANVAS_COORDS[1].y, width: 1080, height: 1920 }}>
-          <Scene2ProductShowcaseView frame={currentSceneIndex === 1 ? currentSceneFrame : 0} fps={fps} />
-        </div>
+        {/* Natural Riverbank Levees on Left & Right */}
+        <path d="M 0 500 Q 150 480 250 480 L 320 750 L 0 750 Z" fill="url(#leveeSoil)" stroke="#475569" strokeWidth="3" />
+        <path d="M 960 500 Q 810 480 710 480 L 640 750 L 960 750 Z" fill="url(#leveeSoil)" stroke="#475569" strokeWidth="3" />
 
-        {/* Scene 3: Split Compare */}
-        <div style={{ position: 'absolute', left: SCENE_CANVAS_COORDS[2].x, top: SCENE_CANVAS_COORDS[2].y, width: 1080, height: 1920 }}>
-          <Scene3SplitCompareView frame={currentSceneIndex === 2 ? currentSceneFrame : 0} fps={fps} />
-        </div>
+        {/* Dynamic Swelling Water Body Overtop */}
+        <path
+          d={`M 180 750 L 260 ${waterHeight} Q 480 ${waterHeight - Math.sin(frame * 0.15) * 20} 700 ${waterHeight} L 780 750 Z`}
+          fill="url(#swellWater)"
+          filter="drop-shadow(0 0 35px rgba(56, 189, 248, 0.4))"
+        />
 
-        {/* Scene 4: Stat Callout */}
-        <div style={{ position: 'absolute', left: SCENE_CANVAS_COORDS[3].x, top: SCENE_CANVAS_COORDS[3].y, width: 1080, height: 1920 }}>
-          <Scene4StatCalloutView frame={currentSceneIndex === 3 ? currentSceneFrame : 0} fps={fps} />
-        </div>
+        {/* Overflowing Spill Crests Beyond Natural Levee */}
+        {waterHeight < 480 && (
+          <g>
+            <path
+              d={`M 260 ${waterHeight} C 200 480, 100 520, 20 640`}
+              fill="none"
+              stroke="#38bdf8"
+              strokeWidth="8"
+              strokeLinecap="round"
+            />
+            <path
+              d={`M 700 ${waterHeight} C 760 480, 860 520, 940 640`}
+              fill="none"
+              stroke="#38bdf8"
+              strokeWidth="8"
+              strokeLinecap="round"
+            />
+          </g>
+        )}
 
-        {/* Scene 5: Fact Card */}
-        <div style={{ position: 'absolute', left: SCENE_CANVAS_COORDS[4].x, top: SCENE_CANVAS_COORDS[4].y, width: 1080, height: 1920 }}>
-          <Scene5FactCardView frame={currentSceneIndex === 4 ? currentSceneFrame : 0} fps={fps} />
-        </div>
+        {/* Bank Level Warning Line */}
+        <line x1="150" y1="480" x2="810" y2="480" stroke="#f43f5e" strokeWidth="3" strokeDasharray="8,8" />
+        <text x="480" y="460" textAnchor="middle" fill="#f43f5e" fontSize="22" fontWeight="900" letterSpacing="2">
+          CRITICAL LEVEE CREST (OVERTOPPING HAZARD)
+        </text>
+      </svg>
+    </AbsoluteFill>
+  );
+}
 
-        {/* Scene 6: Hero Object */}
-        <div style={{ position: 'absolute', left: SCENE_CANVAS_COORDS[5].x, top: SCENE_CANVAS_COORDS[5].y, width: 1080, height: 1920 }}>
-          <Scene6HeroObjectView frame={currentSceneIndex === 5 ? currentSceneFrame : 0} fps={fps} />
-        </div>
+// =========================================================================
+// SCENE 6: TOPOGRAPHIC CONTOURS INUNDATING VALLEY FLOORS
+// =========================================================================
+function SceneTopographicInundation({ frame, fps }: { frame: number; fps: number }) {
+  const topoProgress = spring({ frame, fps, config: { damping: 15, stiffness: 100 } });
 
-        {/* Scene 7: Exact Bittrix Technologies Outro */}
-        <div style={{ position: 'absolute', left: SCENE_CANVAS_COORDS[6].x, top: SCENE_CANVAS_COORDS[6].y, width: 1080, height: 1920 }}>
-          <BittrixOutroExactView currentSceneFrame={currentSceneIndex === 6 ? currentSceneFrame : 0} durationInFrames={SCENE_DURATION} fps={fps} />
+  return (
+    <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 940, height: 860, position: 'relative' }}>
+        <svg width="940" height="860" viewBox="0 0 940 860">
+          {/* Topographic Elevation Rings */}
+          {Array.from({ length: 6 }).map((_, i) => {
+            const rx = 400 - i * 55;
+            const ry = 320 - i * 45;
+            return (
+              <ellipse
+                key={i}
+                cx="470"
+                cy="430"
+                rx={rx}
+                ry={ry}
+                fill="none"
+                stroke="#334155"
+                strokeWidth="2"
+                strokeDasharray="6,6"
+              />
+            );
+          })}
+
+          {/* Expanding Flood Contour Layer */}
+          <path
+            d={`M 220 430 Q 340 ${320 - Math.sin(frame * 0.1) * 20}, 470 300 Q 640 ${340 + Math.cos(frame * 0.1) * 25}, 720 430 Q 600 580, 470 590 Q 300 560, 220 430 Z`}
+            fill="rgba(56, 189, 248, 0.45)"
+            stroke="#38bdf8"
+            strokeWidth="4"
+            transform={`scale(${topoProgress})`}
+            style={{ transformOrigin: '470px 430px' }}
+            filter="drop-shadow(0 0 40px #0284c7)"
+          />
+
+          {/* Submerged Roadway Grid */}
+          <line x1="140" y1="200" x2="800" y2="660" stroke="#64748b" strokeWidth="6" strokeDasharray="12,12" />
+          <line x1="800" y1="200" x2="140" y2="660" stroke="#64748b" strokeWidth="6" strokeDasharray="12,12" />
+
+          {/* Submersion Alert Indicators */}
+          <circle cx="470" cy="430" r="16" fill="#f43f5e" />
+          <circle cx="470" cy="430" r="32" fill="none" stroke="#f43f5e" strokeWidth="3" opacity="0.6" />
+        </svg>
+
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 30,
+            left: 260,
+            padding: '12px 28px',
+            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+            border: '2px solid #f43f5e',
+            borderRadius: 20,
+            fontSize: 22,
+            fontWeight: 800,
+            color: '#f43f5e'
+          }}
+        >
+          VALLEY INUNDATION ZONE: ACTIVE
         </div>
       </div>
+    </AbsoluteFill>
+  );
+}
 
-      {/* Synchronized Kinetic Karaoke Captions (Active for scenes 1 to 6) */}
-      {currentSceneIndex < 6 && (
-        <KineticKaraokeCaption
-          scene={currentScene}
-          currentSceneFrame={currentSceneFrame}
+// =========================================================================
+// SCENE 7: 6 INCHES OF WATER SWEEPS PEOPLE AWAY (HUMAN STABILITY CARD)
+// =========================================================================
+function SceneSixInchesHazard({ frame, fps }: { frame: number; fps: number }) {
+  const waterRise = spring({ frame, fps, config: { damping: 14, stiffness: 100 } });
+  const waterLevel = interpolate(waterRise, [0, 1], [680, 520]);
+
+  return (
+    <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div
+        style={{
+          width: 900,
+          height: 850,
+          backgroundColor: 'rgba(15, 23, 42, 0.95)',
+          border: '2px solid #f43f5e',
+          borderRadius: 32,
+          padding: 40,
+          boxShadow: '0 0 50px rgba(244, 63, 94, 0.25)',
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center'
+        }}
+      >
+        <div style={{ fontSize: 44, fontWeight: 900, color: '#f43f5e', letterSpacing: 1.5 }}>
+          6 INCHES (15 CM) OF RAPID WATER
+        </div>
+        <div style={{ fontSize: 24, color: '#94a3b8', marginTop: 8 }}>
+          Sufficient kinetic force to knock over an adult human
+        </div>
+
+        <svg width="800" height="600" viewBox="0 0 800 600" style={{ marginTop: 20 }}>
+          {/* Ground Baseline */}
+          <line x1="80" y1="560" x2="720" y2="560" stroke="#475569" strokeWidth="4" />
+
+          {/* Stylized Human Silhouette Running / Losing Footing */}
+          <g transform={`translate(380, 260) rotate(${waterRise * 18})`}>
+            {/* Head */}
+            <circle cx="20" cy="40" r="28" fill="#f8fafc" />
+            {/* Torso */}
+            <line x1="20" y1="68" x2="20" y2="180" stroke="#f8fafc" strokeWidth="12" strokeLinecap="round" />
+            {/* Arms bracing */}
+            <line x1="20" y1="100" x2="-40" y2="140" stroke="#f8fafc" strokeWidth="10" strokeLinecap="round" />
+            <line x1="20" y1="100" x2="80" y2="130" stroke="#f8fafc" strokeWidth="10" strokeLinecap="round" />
+            {/* Legs destabilized */}
+            <line x1="20" y1="180" x2="-30" y2="280" stroke="#f8fafc" strokeWidth="10" strokeLinecap="round" />
+            <line x1="20" y1="180" x2="60" y2="260" stroke="#f8fafc" strokeWidth="10" strokeLinecap="round" />
+          </g>
+
+          {/* Rushing Flood Torrent Sweeping across Legs */}
+          <rect x="80" y={waterLevel} width="640" height={560 - waterLevel} fill="rgba(56, 189, 248, 0.45)" />
+          <line x1="80" y1={waterLevel} x2="720" y2={waterLevel} stroke="#38bdf8" strokeWidth="6" />
+
+          {/* Force Vectors & Warning Callout */}
+          {Array.from({ length: 4 }).map((_, i) => (
+            <line
+              key={i}
+              x1={120 + i * 140}
+              y1={waterLevel + 25}
+              x2={220 + i * 140}
+              y2={waterLevel + 25}
+              stroke="#f43f5e"
+              strokeWidth="5"
+              strokeLinecap="round"
+            />
+          ))}
+
+          {/* 6 Inch Precision Ruler Tick */}
+          <line x1="680" y1="560" x2="680" y2="520" stroke="#fef08a" strokeWidth="4" />
+          <text x="695" y="540" fill="#fef08a" fontSize="22" fontWeight="800">
+            6 IN
+          </text>
+        </svg>
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// =========================================================================
+// SCENE 8: QUIET WATERS VS DESTRUCTIVE FLOODS (VERTICAL SPLIT DUALITY)
+// =========================================================================
+function SceneQuietVsTorrent({ frame, fps }: { frame: number; fps: number }) {
+  const splitSpring = spring({ frame, fps, config: { damping: 14, stiffness: 100 } });
+
+  return (
+    <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div
+        style={{
+          width: 960,
+          height: 820,
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 24,
+          transform: `scale(${splitSpring})`
+        }}
+      >
+        {/* Peaceful Meander */}
+        <div
+          style={{
+            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+            border: '2px solid #38bdf8',
+            borderRadius: 28,
+            padding: 24,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            overflow: 'hidden'
+          }}
+        >
+          <div style={{ fontSize: 26, fontWeight: 900, color: '#38bdf8', marginBottom: 12 }}>
+            QUIET RIVER
+          </div>
+          <svg width="400" height="580" viewBox="0 0 400 580">
+            <path
+              d={`M 200 40 Q ${160 + Math.sin(frame * 0.05) * 20} 200, 200 350 Q ${240 + Math.cos(frame * 0.05) * 20} 450, 200 560`}
+              fill="none"
+              stroke="#38bdf8"
+              strokeWidth="32"
+              strokeLinecap="round"
+              opacity="0.8"
+            />
+          </svg>
+          <div style={{ fontSize: 18, color: '#94a3b8', fontWeight: 700 }}>VELOCITY: 0.5 M/S</div>
+        </div>
+
+        {/* Destructive Torrent */}
+        <div
+          style={{
+            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+            border: '2px solid #f43f5e',
+            borderRadius: 28,
+            padding: 24,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            overflow: 'hidden',
+            boxShadow: '0 0 40px rgba(244, 63, 94, 0.3)'
+          }}
+        >
+          <div style={{ fontSize: 26, fontWeight: 900, color: '#f43f5e', marginBottom: 12 }}>
+            FLASH FLOOD
+          </div>
+          <svg width="400" height="580" viewBox="0 0 400 580">
+            <rect x="20" y="40" width="360" height="500" rx="16" fill="rgba(244, 63, 94, 0.25)" />
+            {Array.from({ length: 8 }).map((_, i) => {
+              const yPos = ((frame * 12 + i * 65) % 500) + 40;
+              return (
+                <path
+                  key={i}
+                  d={`M 40 ${yPos} Q 200 ${yPos + 30}, 360 ${yPos}`}
+                  stroke="#f43f5e"
+                  strokeWidth="8"
+                  fill="none"
+                />
+              );
+            })}
+          </svg>
+          <div style={{ fontSize: 18, color: '#f43f5e', fontWeight: 800 }}>VELOCITY: 8.5+ M/S</div>
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// =========================================================================
+// SCENE 9: BITTRIX TECHNOLOGIES ROYAL PURPLE REEL OUTRO (EXACT ASSETS)
+// =========================================================================
+function SceneBittrixTechnologiesOutro({ frame, fps }: { frame: number; fps: number }) {
+  const introPop = spring({ frame, fps, config: { damping: 13, stiffness: 110 } });
+  const gearRotation = frame * 2.8;
+
+  const brandText = "BITTRIX";
+
+  return (
+    <AbsoluteFill
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'radial-gradient(circle at 50% 50%, #5b1a78 0%, #2e0840 50%, #0d0114 100%)'
+      }}
+    >
+      <div
+        style={{
+          transform: `scale(${introPop})`,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          position: 'relative'
+        }}
+      >
+        {/* Animated Hexagonal Starburst & Rotating Gear */}
+        <div style={{ width: 340, height: 340, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {/* Radial 6-point spoke nodes */}
+          <svg width="340" height="340" viewBox="0 0 340 340" style={{ position: 'absolute' }}>
+            <polygon
+              points="170,30 290,95 290,245 170,310 50,245 50,95"
+              fill="none"
+              stroke="#fdf3d0"
+              strokeWidth="2.5"
+              opacity="0.35"
+            />
+            {Array.from({ length: 6 }).map((_, i) => {
+              const ang = (i * 60 * Math.PI) / 180;
+              const cx = 170 + Math.cos(ang) * 140;
+              const cy = 170 + Math.sin(ang) * 140;
+              return <circle key={i} cx={cx} cy={cy} r="6" fill="#fdf3d0" opacity="0.6" />;
+            })}
+          </svg>
+
+          {/* 12-Tooth Rotating Gear with Classic Serif 'B' */}
+          <div
+            style={{
+              width: 190,
+              height: 190,
+              borderRadius: '50%',
+              border: '6px dashed #fdf3d0',
+              transform: `rotate(${gearRotation}deg)`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 0 40px rgba(253, 243, 208, 0.4)'
+            }}
+          />
+
+          <div
+            style={{
+              position: 'absolute',
+              fontSize: 90,
+              fontWeight: 900,
+              fontFamily: '"Georgia", serif',
+              color: '#fdf3d0',
+              textShadow: '0 4px 20px rgba(0,0,0,0.8)'
+            }}
+          >
+            B
+          </div>
+        </div>
+
+        {/* Staggered Elastic "BITTRIX" Typography */}
+        <div style={{ display: 'flex', gap: 10, marginTop: 40 }}>
+          {brandText.split('').map((char, cIdx) => {
+            const letterSpring = spring({
+              frame: Math.max(0, frame - cIdx * 3),
+              fps,
+              config: { damping: 12, stiffness: 150 }
+            });
+
+            return (
+              <span
+                key={cIdx}
+                style={{
+                  fontSize: 78,
+                  fontWeight: 900,
+                  fontStyle: 'italic',
+                  color: '#fdf3d0',
+                  letterSpacing: 4,
+                  transform: `scale(${letterSpring}) translateY(${interpolate(letterSpring, [0, 1], [30, 0])}px)`,
+                  textShadow: '0 6px 25px rgba(0,0,0,0.9)'
+                }}
+              >
+                {char}
+              </span>
+            );
+          })}
+        </div>
+
+        {/* Tracking Subtitle */}
+        <div
+          style={{
+            fontSize: 26,
+            fontWeight: 800,
+            letterSpacing: 12,
+            color: '#fdf3d0',
+            opacity: 0.9,
+            marginTop: 16,
+            textTransform: 'uppercase'
+          }}
+        >
+          TECHNOLOGIES
+        </div>
+
+        {/* Expanding Accent Underline Bar */}
+        <div
+          style={{
+            width: interpolate(introPop, [0, 1], [0, 360]),
+            height: 4,
+            backgroundColor: '#fdf3d0',
+            marginTop: 20,
+            borderRadius: 2,
+            boxShadow: '0 0 15px #fdf3d0'
+          }}
         />
-      )}
+      </div>
     </AbsoluteFill>
   );
 }

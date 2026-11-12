@@ -1,3 +1,5 @@
+import path from 'path';
+import { readFile } from 'fs/promises';
 import { TokenUsage, ResearchAndScriptRequest } from './providerAdapter.js';
 import { BasePlanProvider } from './basePlanProvider.js';
 import { activeProviderService, ProviderId } from './activeProviderService.js';
@@ -319,9 +321,20 @@ export class UnifiedCliProvider extends BasePlanProvider {
 
     const totalFrames = compactScenes.reduce((sum, s) => sum + s.durationInFrames, 0);
 
+    let facelessSkillContext = '';
+    const isFacelessArchetype = input.styleBrief?.archetype === 'faceless-story' || /\b(story|thief|police|chase|heist|drama|what if)\b/i.test(input.projectTitle || '');
+    if (isFacelessArchetype) {
+      try {
+        facelessSkillContext = await readFile(path.join(projectPaths.root, '.agents/skills/faceless-shorts/SKILL.md'), 'utf8');
+      } catch (err: any) {
+        console.warn(`[CliProvider] Note: faceless-shorts skill could not be read: ${err?.message}`);
+      }
+    }
+
     const prompt = `You are an elite Motion Graphics Software Engineer & Creative Animation Director.
 Your task is to author 100% CUSTOM, TOPIC-SPECIFIC Remotion TSX code for this vertical 1080x1920 (9:16) video.
 
+${facelessSkillContext ? `SPECIALIZED PRODUCTION SKILL LOADED (.agents/skills/faceless-shorts/SKILL.md):\n"""\n${facelessSkillContext}\n"""\nCRITICAL INSTRUCTION: Apply the above faceless-shorts story mechanics, dramatic pacing, character silhouettes/props, lighting, and camera pans.\n` : ''}
 PROJECT: "${input.projectTitle}" (ID: ${input.projectId}), Script v${input.scriptVersion}
 OUTPUT FORMAT: 1080 x 1920, 60 FPS, Total Duration: ${totalFrames} frames (${(totalFrames / 60).toFixed(2)}s).
 
@@ -337,6 +350,7 @@ CRITICAL CREATIVE DIRECTIVE — LIVING CONTINUOUS CINEMA (NO SLIDE SHOWS, NO REP
 2. BAN REPETITIVE CIRCLES & PLACEHOLDER ORBS:
    - NEVER draw generic circular badges for everything (no 50% border radius balls).
    - Every visual must represent literal topic mechanics:
+     * Story & Character Narrative (faceless-story / what-if): Animate the actual story actions! If the story is about a bank heist and police chase, animate literal scene objects: the bank vault cracking open, running character silhouette in sprint, police jeep pursuing with flashing red/blue strobe lights, neon city road perspective, and street blockades. NEVER replace a story with abstract CAD blueprints or server racks! Follow .agents/skills/faceless-shorts/SKILL.md.
      * Code/Tech: Dark terminal windows ($ git commit), branching commit graphs (DAGs), syntax diff cards with green + and red - lines, bytecode registers.
      * Tools/Software: Real UI artboards, snapping alignment guides, precision Bezier pen tools with tangent handles, multi-layer stacks.
      * Systems/Cloud: Server racks, dynamic laser bus lines, packet queues, telemetry meters.

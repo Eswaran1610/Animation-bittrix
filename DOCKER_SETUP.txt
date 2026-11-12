@@ -1,0 +1,69 @@
+====================================================================
+           ANIMATION BITTRIX & FACELESS SHORTS - DOCKER SETUP
+====================================================================
+
+This Docker setup packages everything (Node 22, FFmpeg, Chromium,
+Python 3, Kokoro Voice, Whisper, and PostgreSQL) so you do NOT have
+to install audio tools or AI models manually on any system.
+
+Works on: Arch Linux, Ubuntu/Debian, macOS, and Windows.
+
+--------------------------------------------------------------------
+1. FIRST TIME SETUP ON ANY COMPUTER
+--------------------------------------------------------------------
+
+Prerequisites:
+- Git
+- Docker and Docker Compose (Docker Desktop or docker-ce)
+
+Steps:
+1. Clone the repository:
+   git clone https://github.com/Eswaran1610/Animation-bittrix.git
+   cd Animation-bittrix
+
+2. Build and start the container (one command):
+   docker compose up --build -d
+
+   * This builds the image, installs Node/Python packages,
+     and pre-downloads Whisper and Kokoro voice models.
+
+3. Verify Faceless Shorts test inside Docker:
+   docker compose run --rm app bash .agents/skills/faceless-shorts/scripts/selftest.sh
+
+--------------------------------------------------------------------
+2. HOW AUTOMATIC UPDATES WORK
+--------------------------------------------------------------------
+
+Whenever you push new code or models to GitHub, you do NOT need to
+reconfigure anything manually on other systems.
+
+Just run the one-command updater:
+   ./update.sh
+
+Or manually:
+   git pull
+   docker compose build --pull
+   docker compose up -d
+
+What this does automatically:
+- Pulls your newest code from GitHub.
+- Updates any new dependencies or AI audio models.
+- Rebuilds and restarts the Docker container with zero manual intervention.
+
+--------------------------------------------------------------------
+3. USEFUL COMMANDS
+--------------------------------------------------------------------
+
+- Open an interactive shell inside the container:
+  docker compose run --rm app bash
+
+- Run pipeline video generation:
+  docker compose run --rm app node scripts/run-autonomous-pipeline.mjs
+
+- View real-time logs:
+  docker compose logs -f app
+
+- Stop all containers:
+  docker compose down
+
+====================================================================

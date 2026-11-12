@@ -92,6 +92,7 @@ export const styleProfileFromBrief = (brief: StyleBrief): StyleProfile => {
     'glass-ui': 'cinematic-neon',
     'blueprint-technical': 'technical-terminal',
     'retro-terminal': 'technical-terminal',
+    'faceless-story': 'cinematic-neon',
   };
   return {
     family: familyByArchetype[toSupportedArchetype(brief.archetype)],
@@ -1023,7 +1024,8 @@ export abstract class BasePlanProvider implements AIProvider {
     researchSkill: string,
     rendererContract: Record<string, unknown>,
     shouldKeepNarration: boolean,
-    trendBrief?: TrendBriefResult
+    trendBrief?: TrendBriefResult,
+    facelessSkill?: string
   ): string {
     const isRevision = !!req.changeRequestFeedback;
     const requestedDuration = this.requestedDurationSec(req);
@@ -1052,7 +1054,16 @@ MANDATORY THEME COMPLIANCE:
 - Set styleBrief.sfxPack to "${selectedThemeObj.sfxPack}".
 - Set styleBrief.bedMood to "${selectedThemeObj.bedMood}".
 - Set styleBrief.palette to bg="${selectedThemeObj.palette.bg}", primary="${selectedThemeObj.palette.primary}", accent="${selectedThemeObj.palette.accent}", text="${selectedThemeObj.palette.text}".
-- All visual scenes and blueprints MUST follow this theme's layout and asset guidance.`
+- All visual scenes and blueprints MUST follow this theme's layout and asset guidance.
+${selectedThemeObj.archetype === 'faceless-story' ? `
+FACELESS STORY & NARRATIVE SHORT DIRECTIVE (Governed by .agents/skills/faceless-shorts/SKILL.md):
+- The user has submitted a STORY! Preserve the narrative storyline, suspense, actions, and characters (e.g. thief, foot pursuit, police jeep, flashing sirens, roadblock trap).
+- STRICTLY FORBIDDEN: NEVER convert narrative stories, character pursuits, or real-world events into abstract CAD blueprint engineering schematics, dials, or database servers!
+- Depict the actual story beats and physical entities:
+  * Hook: The core dramatic incident or "What happens if..." opening.
+  * Escalation: The character journey and pursuit across streets/environments with dramatic single-light cinematography and forward camera push.
+  * Climax: The tactical confrontation, escape obstacle, or turning point.
+  * Resolution: The payoff leading cleanly into the continuous outro.` : ''}`
       : '';
 
     const taskDirective = researchRequired
@@ -1091,7 +1102,7 @@ MANDATORY THEME COMPLIANCE:
 
 REQUIRED ORDER: First read and follow the repository video-production skill, the deep-researcher skill (if research-required), and the project renderer contract below. The actual project renderer contract is authoritative where the skill lists generic defaults. Use the separate research brief below when available; otherwise conduct the required web research before planning. Verify only facts/assets that need confirmation when the brief is complete, then create the scene plan using supported project capabilities.
 
-${researchSkill ? `REPOSITORY DEEP-RESEARCHER SKILL (.agents/skills/deep-researcher/SKILL.md):\n${researchSkill}\n\n` : ''}REPOSITORY VIDEO-PRODUCTION SKILL (.agents/skills/video-production-director/SKILL.md):
+${facelessSkill ? `MANDATORY FACELESS-SHORTS SKILL (.agents/skills/faceless-shorts/SKILL.md):\n${facelessSkill}\n\n` : ''}${researchSkill ? `REPOSITORY DEEP-RESEARCHER SKILL (.agents/skills/deep-researcher/SKILL.md):\n${researchSkill}\n\n` : ''}REPOSITORY VIDEO-PRODUCTION SKILL (.agents/skills/video-production-director/SKILL.md):
 ${productionSkill}
 
 ACTUAL PROJECT RENDERER CONTRACT (generated from the installed Remotion project and backend validators):
@@ -1309,7 +1320,17 @@ Before responding, validate the first and final scene against these rules. Do no
       });
     }
 
-    const prompt = this.buildProductionPrompt(req, productionSkill, researchSkill, rendererContract, shouldKeepNarration, trendBrief);
+    let facelessSkill = '';
+    const isFacelessReq = req.selectedTheme === 'faceless-story' || /\b(story|thief|police|chase|heist|character|drama|faceless)\b/i.test(contentStr);
+    if (isFacelessReq) {
+      try {
+        facelessSkill = await readFile(path.join(projectPaths.root, '.agents/skills/faceless-shorts/SKILL.md'), 'utf8');
+      } catch (err: any) {
+        console.warn(`[${this.name}] Note: faceless-shorts skill could not be read: ${err?.message}`);
+      }
+    }
+
+    const prompt = this.buildProductionPrompt(req, productionSkill, researchSkill, rendererContract, shouldKeepNarration, trendBrief, facelessSkill);
 
     try {
       const contentStr = req.topicOrContent || (req as any).topic || 'Untitled Topic';

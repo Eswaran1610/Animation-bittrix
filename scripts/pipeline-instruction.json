@@ -39,7 +39,8 @@
       "branching-tree",
       "split-compare",
       "stat-counter",
-      "3d-showcase"
+      "3d-showcase",
+      "faceless-story"
     ]
   },
   "audio_sfx": {
@@ -47,6 +48,24 @@
     "roles": ["clock_tick", "shutter_click", "card_slap", "punch_hit", "whoosh", "pop", "click", "ding", "count", "impact"],
     "lead_frames": -2,
     "dense_hits": true
+  },
+  "threejs_3d_pipeline": {
+    "enabled": true,
+    "canvas_component": "ThreeCanvas",
+    "supported_packages": ["@remotion/three", "@react-three/fiber", "three"],
+    "local_asset_catalog": "remotion/public/assets/three/catalog.json",
+    "capabilities": [
+      "realtime_3d_meshes",
+      "procedural_wireframe_geometries",
+      "particle_streams_and_pointclouds",
+      "pbr_materials_with_matcaps",
+      "dynamic_lighting_and_continuous_camera_drift"
+    ]
+  },
+  "content_visual_assets": {
+    "required_count": 3,
+    "rule": "Every video must feature at least 3 distinct, fresh visual assets/images that appear dynamically across scenes based directly on the topic content (e.g. architecture diagrams, technical components, 3D/SVG illustrations).",
+    "timing": "Staggered across body scenes with smooth spring entrance, continuous idle motion, and matching audio whoosh/pop cues."
   },
   "visuals": {
     "quality_gate": {

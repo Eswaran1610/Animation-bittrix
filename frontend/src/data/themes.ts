@@ -4,7 +4,7 @@ export interface VideoTheme {
   icon: string;
   tagline: string;
   description: string;
-  archetype: 'kinetic-type' | 'isometric-diagram' | 'data-story' | 'paper-cutout' | 'neo-brutalist' | 'glass-ui' | 'blueprint-technical' | 'retro-terminal' | '3d-isometric' | 'minimal-editorial' | 'cyber-glow' | 'corporate-clean' | 'luxury-gold' | 'matrix-code' | 'cosmic-space' | 'claymorphism' | 'chalk-board' | 'comic-pop' | 'clean-vector' | 'neon-arcade';
+  archetype: 'kinetic-type' | 'isometric-diagram' | 'data-story' | 'paper-cutout' | 'neo-brutalist' | 'glass-ui' | 'blueprint-technical' | 'retro-terminal' | '3d-isometric' | 'minimal-editorial' | 'cyber-glow' | 'corporate-clean' | 'luxury-gold' | 'matrix-code' | 'cosmic-space' | 'claymorphism' | 'chalk-board' | 'comic-pop' | 'clean-vector' | 'neon-arcade' | 'faceless-story';
   palette: {
     bg: string;
     surface: string;
@@ -528,5 +528,28 @@ export const THEME_CATALOG: VideoTheme[] = [
     background: 'grid',
     sfxPack: 'cinematic',
     bedMood: 'driving dark synthwave cyberpunk beat',
+  },
+  {
+    id: 'faceless-story',
+    name: 'Faceless Story & What-If 3D Short',
+    icon: '🎬',
+    tagline: 'Zack D. Films story-driven "What happens if..." explainer with 3D journeys',
+    description: 'Story-driven YouTube Shorts / Reels style inspired by Zack D. Films and faceless mystery explainers. Features conversational storytelling, provocative "What happens if...?" hook, internal x-ray/mechanical cutaways, dramatic single-light cinematography, continuous camera push into mechanisms, and punchy 1-3 word karaoke captions.',
+    archetype: 'faceless-story',
+    palette: {
+      bg: '#07080e',
+      surface: '#121422',
+      primary: '#f43f5e',
+      accent: '#38bdf8',
+      text: '#ffffff',
+    },
+    fonts: {
+      heading: 'Impact, Arial Black, sans-serif',
+      body: 'Inter, system-ui, sans-serif',
+    },
+    motionPersonality: 'fluid',
+    background: 'particles',
+    sfxPack: 'cinematic',
+    bedMood: 'cinematic suspenseful mystery narrative pulse',
   },
 ];

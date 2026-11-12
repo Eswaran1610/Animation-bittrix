@@ -1,4 +1,24 @@
 services:
+  app:
+    build: .
+    volumes:
+      - .:/app
+      - /app/node_modules
+      - /app/backend/node_modules
+      - /app/frontend/node_modules
+      - /app/remotion/node_modules
+    environment:
+      - CHROME_BIN=/usr/bin/chromium
+      - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/animation_pipeline
+    ports:
+      - "5000:5000"
+      - "5173:5173"
+      - "5050:5050"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped

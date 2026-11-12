@@ -157,7 +157,7 @@ export interface StyleProfile {
 }
 
 export interface StyleBrief {
-  archetype: 'kinetic-type' | 'isometric-diagram' | 'data-story' | 'paper-cutout' | 'neo-brutalist' | 'glass-ui' | 'blueprint-technical' | 'retro-terminal';
+  archetype: 'kinetic-type' | 'isometric-diagram' | 'data-story' | 'paper-cutout' | 'neo-brutalist' | 'glass-ui' | 'blueprint-technical' | 'retro-terminal' | 'faceless-story';
   palette: { bg: string; primary: string; accent: string; text: string };
   fonts: { heading: string; body: string };
   motionPersonality: 'snappy' | 'fluid' | 'bouncy' | 'precise';

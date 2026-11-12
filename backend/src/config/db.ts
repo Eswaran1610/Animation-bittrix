@@ -9,8 +9,19 @@ dotenv.config();
 
 const { Pool } = pg;
 
+const rawConnectionString = process.env.DATABASE_URL || 'postgres://postgres:postgres@127.0.0.1:5434/animation_pipeline';
+
+let dbPassword = process.env.PGPASSWORD || 'postgres';
+try {
+  const parsed = new URL(rawConnectionString);
+  if (parsed.password) {
+    dbPassword = decodeURIComponent(parsed.password);
+  }
+} catch {}
+
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgres://postgres:postgres@127.0.0.1:5434/animation_pipeline',
+  connectionString: rawConnectionString,
+  password: dbPassword,
 });
 
 pool.on('error', (err) => {

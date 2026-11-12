@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 
 // ==========================================
-// SCENE & TIMING METADATA (1278 frames, 60fps)
+// SCENE METADATA & WORD TIMESTAMPS
 // ==========================================
 interface WordTimestamp {
   word: string;
@@ -26,483 +26,450 @@ const SCENES: SceneData[] = [
   {
     scene_number: 1,
     role: "hook",
-    durationInFrames: 142,
-    narration: "What if a calm river explodes?",
-    on_screen_text: "Can A Calm River Explode?",
-    visual_direction: "Low-angle view of a calm valley river under sudden dark storm clouds with neon lightning accents.",
+    durationInFrames: 137,
+    narration: "What happens when Nvidia's titan falls?",
+    on_screen_text: "What Shook Nvidia's Leadership?",
+    visual_direction: "Dramatic low-angle camera push towards a fractured silicon monolith bathed in crimson danger light with drifting ambient ember particles.",
     template: "question-hook",
     themeColor: "#f43f5e",
     words: [
       { word: "What", startFrame: 3, endFrame: 9 },
-      { word: "if", startFrame: 9, endFrame: 12 },
-      { word: "a", startFrame: 12, endFrame: 14 },
-      { word: "calm", startFrame: 15, endFrame: 23 },
-      { word: "river", startFrame: 23, endFrame: 29 },
-      { word: "explodes?", startFrame: 30, endFrame: 51 }
+      { word: "happens", startFrame: 10, endFrame: 23 },
+      { word: "when", startFrame: 23, endFrame: 28 },
+      { word: "Nvidia's", startFrame: 29, endFrame: 43 },
+      { word: "titan", startFrame: 43, endFrame: 53 },
+      { word: "falls?", startFrame: 53, endFrame: 72 },
     ]
   },
   {
     scene_number: 2,
     role: "body",
-    durationInFrames: 142,
-    narration: "Torrential rain drenches the mountain slopes.",
-    on_screen_text: "Torrential Rain Drenching Valleys",
-    visual_direction: "Isometric mountain valley slice receiving vertical downpour streaks channeled toward the basin.",
+    durationInFrames: 137,
+    narration: "Well, Jensen Huang suddenly resigned.",
+    on_screen_text: "Jensen Huang Steps Down",
+    visual_direction: "High-contrast portrait frame illuminated by dramatic cyan key light with a crimson drop shadow.",
     template: "hero-object",
     themeColor: "#38bdf8",
     words: [
-      { word: "Torrential", startFrame: 3, endFrame: 18 },
-      { word: "rain", startFrame: 18, endFrame: 26 },
-      { word: "drenches", startFrame: 26, endFrame: 38 },
-      { word: "the", startFrame: 39, endFrame: 41 },
-      { word: "mountain", startFrame: 42, endFrame: 52 },
-      { word: "slopes.", startFrame: 53, endFrame: 71 }
+      { word: "Well,", startFrame: 3, endFrame: 16 },
+      { word: "Jensen", startFrame: 19, endFrame: 31 },
+      { word: "Huang", startFrame: 32, endFrame: 41 },
+      { word: "suddenly", startFrame: 42, endFrame: 54 },
+      { word: "resigned.", startFrame: 54, endFrame: 73 },
     ]
   },
   {
     scene_number: 3,
     role: "body",
-    durationInFrames: 142,
-    narration: "Dry soil absorbs, but saturated ground repels.",
-    on_screen_text: "Porous Soil Versus Runoff",
-    visual_direction: "Split screen comparing porous soil absorbing rainfall on left against saturated impervious soil shedding water on right.",
-    template: "split-compare",
+    durationInFrames: 137,
+    narration: "Unexpectedly, board scrutiny triggered investigations.",
+    on_screen_text: "Inquiry Sparks Sudden Crisis",
+    visual_direction: "Dark confidential audit dossier visual with glowing stamp and digital check vectors.",
+    template: "fact-card",
     themeColor: "#f43f5e",
     words: [
-      { word: "Dry", startFrame: 3, endFrame: 11 },
-      { word: "soil", startFrame: 11, endFrame: 21 },
-      { word: "absorbs,", startFrame: 21, endFrame: 39 },
-      { word: "but", startFrame: 43, endFrame: 48 },
-      { word: "saturated", startFrame: 48, endFrame: 66 },
-      { word: "ground", startFrame: 66, endFrame: 75 },
-      { word: "repels.", startFrame: 76, endFrame: 96 }
+      { word: "Unexpectedly,", startFrame: 3, endFrame: 32 },
+      { word: "board", startFrame: 36, endFrame: 45 },
+      { word: "scrutiny", startFrame: 45, endFrame: 56 },
+      { word: "triggered", startFrame: 57, endFrame: 67 },
+      { word: "investigations.", startFrame: 68, endFrame: 100 },
     ]
   },
   {
     scene_number: 4,
     role: "body",
-    durationInFrames: 142,
-    narration: "Water discharge spikes exponentially within minutes.",
-    on_screen_text: "Discharge Spikes In Minutes",
-    visual_direction: "Large animated digital gauge card plotting a steep rising hydrograph curve with digital metric display.",
-    template: "stat-callout",
+    durationInFrames: 137,
+    narration: "Now, CFO Colette Kress takes charge.",
+    on_screen_text: "Interim Chief Takes Helm",
+    visual_direction: "Split dual-pillar composition highlighting financial stability on left and executive authority on right.",
+    template: "split-compare",
     themeColor: "#38bdf8",
     words: [
-      { word: "Water", startFrame: 3, endFrame: 14 },
-      { word: "discharge", startFrame: 14, endFrame: 28 },
-      { word: "spikes", startFrame: 28, endFrame: 39 },
-      { word: "exponentially", startFrame: 40, endFrame: 63 },
-      { word: "within", startFrame: 63, endFrame: 72 },
-      { word: "minutes.", startFrame: 72, endFrame: 89 }
+      { word: "Now,", startFrame: 3, endFrame: 18 },
+      { word: "CFO", startFrame: 23, endFrame: 37 },
+      { word: "Colette", startFrame: 37, endFrame: 48 },
+      { word: "Kress", startFrame: 48, endFrame: 57 },
+      { word: "takes", startFrame: 57, endFrame: 65 },
+      { word: "charge.", startFrame: 65, endFrame: 83 },
     ]
   },
   {
     scene_number: 5,
     role: "body",
-    durationInFrames: 142,
-    narration: "Surging currents overtop the riverbanks.",
-    on_screen_text: "Riverbanks Overwhelmed By Water",
-    visual_direction: "Sequential timeline cross-section showing river water swelling from baseline to overtopping the natural levees.",
+    durationInFrames: 137,
+    narration: "Harvey Jones leads the executive search.",
+    on_screen_text: "Independent Chair Leads Search",
+    visual_direction: "Branching governance node network linking the Independent Chair to dual talent search pipelines.",
     template: "timeline",
-    themeColor: "#f43f5e",
+    themeColor: "#38bdf8",
     words: [
-      { word: "Surging", startFrame: 3, endFrame: 16 },
-      { word: "currents", startFrame: 17, endFrame: 28 },
-      { word: "overtop", startFrame: 28, endFrame: 42 },
-      { word: "the", startFrame: 42, endFrame: 45 },
-      { word: "riverbanks.", startFrame: 45, endFrame: 68 }
+      { word: "Harvey", startFrame: 3, endFrame: 14 },
+      { word: "Jones", startFrame: 14, endFrame: 27 },
+      { word: "leads", startFrame: 27, endFrame: 34 },
+      { word: "the", startFrame: 35, endFrame: 37 },
+      { word: "executive", startFrame: 37, endFrame: 54 },
+      { word: "search.", startFrame: 55, endFrame: 71 },
     ]
   },
   {
     scene_number: 6,
     role: "body",
-    durationInFrames: 142,
-    narration: "Violent torrents inundate the valley.",
-    on_screen_text: "Flash Floods Inundate Valley",
-    visual_direction: "Topographic map view showing flood contours spreading across valley floors and roadways.",
-    template: "steps-numbered",
-    themeColor: "#38bdf8",
+    durationInFrames: 137,
+    narration: "Billions in value hang in balance.",
+    on_screen_text: "Markets Demand Total Stability",
+    visual_direction: "Dynamic high-tech market ticker HUD with animated radial meter and pulsing alert needle.",
+    template: "stat-callout",
+    themeColor: "#f43f5e",
     words: [
-      { word: "Violent", startFrame: 3, endFrame: 17 },
-      { word: "torrents", startFrame: 17, endFrame: 29 },
-      { word: "inundate", startFrame: 29, endFrame: 42 },
-      { word: "the", startFrame: 43, endFrame: 45 },
-      { word: "valley.", startFrame: 45, endFrame: 61 }
+      { word: "Billions", startFrame: 3, endFrame: 17 },
+      { word: "in", startFrame: 18, endFrame: 21 },
+      { word: "value", startFrame: 21, endFrame: 32 },
+      { word: "hang", startFrame: 32, endFrame: 39 },
+      { word: "in", startFrame: 39, endFrame: 42 },
+      { word: "balance.", startFrame: 42, endFrame: 61 },
     ]
   },
   {
     scene_number: 7,
-    role: "body",
-    durationInFrames: 142,
-    narration: "Just six inches sweeps people away.",
-    on_screen_text: "Six Inches Knocks Down",
-    visual_direction: "Dramatic measurement card comparing human footing instability against rising flood depth line.",
-    template: "fact-card",
-    themeColor: "#f43f5e",
-    words: [
-      { word: "Just", startFrame: 3, endFrame: 12 },
-      { word: "six", startFrame: 12, endFrame: 21 },
-      { word: "inches", startFrame: 21, endFrame: 30 },
-      { word: "sweeps", startFrame: 31, endFrame: 40 },
-      { word: "people", startFrame: 40, endFrame: 49 },
-      { word: "away.", startFrame: 50, endFrame: 63 }
-    ]
-  },
-  {
-    scene_number: 8,
-    role: "body",
-    durationInFrames: 142,
-    narration: "Quiet waters become destructive floods.",
-    on_screen_text: "Calm River Turned Torrent",
-    visual_direction: "Side-by-side vertical split comparing peaceful meandering water versus roaring muddy flood torrent.",
-    template: "before-after",
-    themeColor: "#38bdf8",
-    words: [
-      { word: "Quiet", startFrame: 3, endFrame: 14 },
-      { word: "waters", startFrame: 14, endFrame: 26 },
-      { word: "become", startFrame: 26, endFrame: 36 },
-      { word: "destructive", startFrame: 36, endFrame: 51 },
-      { word: "floods.", startFrame: 52, endFrame: 71 }
-    ]
-  },
-  {
-    scene_number: 9,
     role: "cta",
-    durationInFrames: 142,
+    durationInFrames: 137,
     narration: "Follow Bittrix Technologies for more interesting concepts.",
-    on_screen_text: "Bittrix Technologies",
-    visual_direction: "Authentic Bittrix Technologies 3-second animated logo video with royal purple #5b1a78 and cream branding",
+    on_screen_text: "BITTRIX TECHNOLOGIES",
+    visual_direction: "Signature royal purple geometric hexagon, precision gear, and staggered luxury wordmark outro.",
     template: "cta-outro",
     themeColor: "#5b1a78",
     words: [
-      { word: "Follow", startFrame: 3, endFrame: 13 },
-      { word: "Bittrix", startFrame: 14, endFrame: 26 },
-      { word: "Technologies", startFrame: 26, endFrame: 49 },
-      { word: "for", startFrame: 50, endFrame: 53 },
-      { word: "more", startFrame: 54, endFrame: 59 },
-      { word: "interesting", startFrame: 60, endFrame: 74 },
-      { word: "concepts.", startFrame: 74, endFrame: 97 }
+      { word: "Follow", startFrame: 3, endFrame: 14 },
+      { word: "Bittrix", startFrame: 15, endFrame: 30 },
+      { word: "Technologies", startFrame: 31, endFrame: 56 },
+      { word: "for", startFrame: 57, endFrame: 66 },
+      { word: "more", startFrame: 67, endFrame: 79 },
+      { word: "interesting", startFrame: 80, endFrame: 104 },
+      { word: "concepts.", startFrame: 105, endFrame: 130 },
     ]
   }
 ];
 
-// Continuous Camera Keyframes along a single continuous 3D coordinate space
-const CAM_POSITIONS = [
-  { x: 0, y: 0, scale: 1.0, rot: 0 },         // Scene 1: Valley River
-  { x: 200, y: -150, scale: 1.05, rot: -1.2 },// Scene 2: Mountain Slopes
-  { x: -160, y: 120, scale: 1.02, rot: 0.8 }, // Scene 3: Soil Strata
-  { x: 180, y: 90, scale: 1.08, rot: -0.6 },  // Scene 4: Hydrograph Gauge
-  { x: -120, y: -100, scale: 1.04, rot: 1.0 },// Scene 5: Riverbanks Overtop
-  { x: 240, y: 160, scale: 1.03, rot: -0.9 }, // Scene 6: Topo Inundation
-  { x: -100, y: 220, scale: 1.1, rot: 1.4 },  // Scene 7: 6-Inch Hazard Card
-  { x: 80, y: -60, scale: 1.0, rot: -0.5 },   // Scene 8: Dual Flow Split
-  { x: 0, y: 0, scale: 1.0, rot: 0 }          // Scene 9: Bittrix Hub Outro
+// Continuous Camera Path per scene [camX, camY, camScale, rotDeg]
+const CAMERA_KEYFRAMES = [
+  { x: 0, y: 30, scale: 1.05, rot: -0.6 },    // Scene 1: Low-angle dramatic look up
+  { x: -25, y: -10, scale: 1.12, rot: 0.8 },  // Scene 2: Push-in slightly left on hero
+  { x: 30, y: 15, scale: 1.08, rot: -0.4 },   // Scene 3: Skew right onto dossier table
+  { x: 0, y: -20, scale: 1.02, rot: 0.5 },    // Scene 4: Wide dual-pillar perspective
+  { x: -35, y: 25, scale: 1.15, rot: -0.9 },  // Scene 5: Tracking right-down along org nodes
+  { x: 20, y: -15, scale: 1.1, rot: 0.6 },    // Scene 6: Tension jitter camera over stock dial
+  { x: 0, y: 0, scale: 1.0, rot: 0.0 }        // Scene 7: Centered royal isometric outro
 ];
 
 export default function GeneratedCliVideo(props: any) {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
 
-  // Determine current active scene
-  const sceneIndex = Math.min(
-    SCENES.length - 1,
-    Math.max(0, Math.floor(frame / 142))
-  );
-  const currentScene = SCENES[sceneIndex];
-  const sceneLocalFrame = frame % 142;
-  const sceneProgress = sceneLocalFrame / 142;
+  // Determine current active scene and relative local frame
+  const { currentSceneIndex, localFrame, sceneStartFrame } = useMemo(() => {
+    let accumulated = 0;
+    for (let i = 0; i < SCENES.length; i++) {
+      const dur = SCENES[i].durationInFrames;
+      if (frame < accumulated + dur || i === SCENES.length - 1) {
+        return {
+          currentSceneIndex: i,
+          localFrame: frame - accumulated,
+          sceneStartFrame: accumulated,
+        };
+      }
+      accumulated += dur;
+    }
+    return { currentSceneIndex: 0, localFrame: 0, sceneStartFrame: 0 };
+  }, [frame]);
 
-  // Smooth continuous camera interpolation across scene boundaries
-  const nextSceneIndex = Math.min(SCENES.length - 1, sceneIndex + 1);
-  const blendFactor = interpolate(
-    sceneLocalFrame,
-    [105, 142],
-    [0, 1],
-    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-  );
+  const activeScene = SCENES[currentSceneIndex];
 
-  const curCam = CAM_POSITIONS[sceneIndex];
-  const nxtCam = CAM_POSITIONS[nextSceneIndex];
+  // -------------------------------------------------------------
+  // CONTINUOUS GLOBAL CAMERA INTERPOLATION (Zero abrupt cuts)
+  // -------------------------------------------------------------
+  const { camX, camY, camScale, camRot } = useMemo(() => {
+    const curCam = CAMERA_KEYFRAMES[currentSceneIndex];
+    const nextIndex = Math.min(currentSceneIndex + 1, CAMERA_KEYFRAMES.length - 1);
+    const nextCam = CAMERA_KEYFRAMES[nextIndex];
 
-  const smoothX = interpolate(blendFactor, [0, 1], [curCam.x, nxtCam.x]);
-  const smoothY = interpolate(blendFactor, [0, 1], [curCam.y, nxtCam.y]);
-  const smoothScale = interpolate(blendFactor, [0, 1], [curCam.scale, nxtCam.scale]);
-  const smoothRot = interpolate(blendFactor, [0, 1], [curCam.rot, nxtCam.rot]);
+    const transitionProgress = interpolate(
+      localFrame,
+      [activeScene.durationInFrames - 24, activeScene.durationInFrames],
+      [0, 1],
+      { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+    );
 
-  // Subtle continuous camera drift & natural breathing
-  const idleX = Math.sin(frame * 0.02) * 14;
-  const idleY = Math.cos(frame * 0.018) * 10;
-  const camX = smoothX + idleX;
-  const camY = smoothY + idleY;
-  const camScale = smoothScale + Math.sin(frame * 0.015) * 0.012;
-  const camRot = smoothRot + Math.sin(frame * 0.01) * 0.35;
+    // Natural spring smoothing over transition
+    const smoothT = transitionProgress * transitionProgress * (3 - 2 * transitionProgress);
 
-  // Weather / Hydraulic particle generators
-  const particles = useMemo(() => {
-    return Array.from({ length: 45 }).map((_, i) => ({
-      x: ((i * 137.5) % 1080),
-      speed: 12 + (i % 7) * 4,
-      size: 2 + (i % 4) * 2,
-      opacity: 0.25 + (i % 5) * 0.15,
-      delay: (i * 23) % 120
-    }));
+    // Subtle continuous cinematic breathe drift
+    const driftX = Math.sin((frame / 60) * 1.5) * 8;
+    const driftY = Math.cos((frame / 60) * 1.2) * 6;
+
+    return {
+      camX: interpolate(smoothT, [0, 1], [curCam.x, nextCam.x]) + driftX,
+      camY: interpolate(smoothT, [0, 1], [curCam.y, nextCam.y]) + driftY,
+      camScale: interpolate(smoothT, [0, 1], [curCam.scale, nextCam.scale]),
+      camRot: interpolate(smoothT, [0, 1], [curCam.rot, nextCam.rot]),
+    };
+  }, [currentSceneIndex, localFrame, activeScene.durationInFrames, frame]);
+
+  // Ambient Ember / Silicon particle generation
+  const ambientParticles = useMemo(() => {
+    return Array.from({ length: 32 }).map((_, i) => {
+      const x = (i * 37) % 1080;
+      const initialY = (i * 91) % 1920;
+      const size = 3 + (i % 5) * 2.5;
+      const speed = 0.8 + (i % 4) * 0.45;
+      const opacity = 0.25 + (i % 6) * 0.12;
+      return { id: i, x, initialY, size, speed, opacity };
+    });
   }, []);
 
   return (
     <AbsoluteFill
       style={{
-        width: 1080,
-        height: 1920,
-        backgroundColor: '#050b14',
+        backgroundColor: '#070a12',
+        color: '#f8fafc',
+        fontFamily: '"JetBrains Mono", "SF Pro Display", -apple-system, system-ui, sans-serif',
         overflow: 'hidden',
-        fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        color: '#ffffff'
       }}
     >
-      {/* ============================================================== */}
-      {/* 1. LIVING CONTINUOUS CANVAS (Atmosphere, Grids, Dynamic Waves) */}
-      {/* ============================================================== */}
+      {/* =========================================================
+          GLOBAL LIVING CANVAS LAYER (Never clears to blank/white)
+      ========================================================= */}
       <AbsoluteFill
         style={{
-          transform: `translate3d(${-camX * 0.4}px, ${-camY * 0.4}px, 0px) scale(${camScale}) rotate(${camRot * 0.3}deg)`,
-          transformOrigin: '540px 960px'
+          transform: `translate3d(${camX}px, ${camY}px, 0px) scale(${camScale}) rotate(${camRot}deg)`,
+          transformOrigin: '50% 50%',
         }}
       >
-        {/* Dynamic Storm Cloud / Abyss Atmospheric Radial Background */}
+        {/* Dynamic Deep Cyber Atmosphere Grid */}
         <div
           style={{
             position: 'absolute',
             inset: -400,
-            background: sceneIndex === 8
-              ? 'radial-gradient(circle at 50% 45%, #2a0b38 0%, #13041c 45%, #08010d 90%)'
-              : `radial-gradient(circle at ${50 + Math.sin(frame * 0.01) * 15}% ${35 + Math.cos(frame * 0.012) * 10}%, ${currentScene.themeColor === '#f43f5e' ? 'rgba(244,63,94,0.18)' : 'rgba(56,189,248,0.22)'} 0%, rgba(15,23,42,0.6) 45%, #050b14 85%)`,
-            transition: 'background 0.8s ease'
+            backgroundImage: `
+              radial-gradient(circle at 50% 45%, ${
+                currentSceneIndex === 6
+                  ? 'rgba(91, 26, 120, 0.45)'
+                  : activeScene.themeColor === '#f43f5e'
+                  ? 'rgba(244, 63, 94, 0.22)'
+                  : 'rgba(56, 189, 248, 0.22)'
+              } 0%, transparent 68%),
+              linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+              linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px)
+            `,
+            backgroundSize: '100% 100%, 72px 72px, 72px 72px',
+            transform: `perspective(1000px) rotateX(24deg) translateY(${-(frame * 0.9) % 72}px)`,
+            opacity: 0.85,
           }}
         />
 
-        {/* Ambient Hydrographic Iso-Mesh Grid */}
-        <svg
-          width="1600"
-          height="2400"
-          style={{
-            position: 'absolute',
-            left: -260,
-            top: -240,
-            opacity: sceneIndex === 8 ? 0.08 : 0.18,
-            pointerEvents: 'none'
-          }}
-        >
-          <defs>
-            <pattern id="meshGrid" width="80" height="80" patternUnits="userSpaceOnUse">
-              <path d="M 80 0 L 0 0 0 80" fill="none" stroke="#38bdf8" strokeWidth="1" strokeDasharray="4,4" />
-              <circle cx="80" cy="0" r="1.5" fill="#38bdf8" />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#meshGrid)" />
-        </svg>
-
-        {/* Continuous Torrential Rain Streaks (active throughout storm scenes) */}
-        {sceneIndex < 8 && (
-          <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-            {particles.map((p, idx) => {
-              const yPos = ((frame * p.speed + p.delay * 15) % 2200) - 150;
-              const xPos = p.x + Math.sin((frame + idx) * 0.05) * 8;
-              return (
-                <div
-                  key={idx}
-                  style={{
-                    position: 'absolute',
-                    left: xPos,
-                    top: yPos,
-                    width: 2,
-                    height: 24 + p.size * 6,
-                    backgroundColor: '#38bdf8',
-                    opacity: p.opacity,
-                    filter: 'blur(0.5px)',
-                    transform: 'rotate(12deg)'
-                  }}
-                />
-              );
-            })}
-          </div>
-        )}
-      </AbsoluteFill>
-
-      {/* ============================================================== */}
-      {/* 2. Bespoke Topic-Specific Visual Layers (Continuous Morphing) */}
-      {/* ============================================================== */}
-      <AbsoluteFill
-        style={{
-          transform: `translate3d(${-camX}px, ${-camY}px, 0px) scale(${camScale}) rotate(${camRot}deg)`,
-          transformOrigin: '540px 960px'
-        }}
-      >
-        {/* --- SCENE 1: THE CALM RIVER ON THE VERGE OF EXPLODING --- */}
-        {sceneIndex === 0 && (
-          <SceneCalmRiverExplodes frame={sceneLocalFrame} fps={fps} />
-        )}
-
-        {/* --- SCENE 2: TORRENTIAL RAIN DRENCHING MOUNTAIN SLOPES --- */}
-        {sceneIndex === 1 && (
-          <SceneMountainDrenching frame={sceneLocalFrame} fps={fps} />
-        )}
-
-        {/* --- SCENE 3: SPLIT COMPARE - DRY SOIL ABSORBS VS SATURATED REPELS --- */}
-        {sceneIndex === 2 && (
-          <ScenePorousVsSaturated frame={sceneLocalFrame} fps={fps} />
-        )}
-
-        {/* --- SCENE 4: EXPONENTIAL DISCHARGE SPIKE HYDROGRAPH GAUGE --- */}
-        {sceneIndex === 3 && (
-          <SceneHydrographGauge frame={sceneLocalFrame} fps={fps} />
-        )}
-
-        {/* --- SCENE 5: RIVERBANKS OVERTOPPING CROSS-SECTION --- */}
-        {sceneIndex === 4 && (
-          <SceneRiverbankOvertop frame={sceneLocalFrame} fps={fps} />
-        )}
-
-        {/* --- SCENE 6: TOPOGRAPHIC VALLEY FLASH FLOOD CONTOURS --- */}
-        {sceneIndex === 5 && (
-          <SceneTopographicInundation frame={sceneLocalFrame} fps={fps} />
-        )}
-
-        {/* --- SCENE 7: 6 INCHES SWEEPS PEOPLE AWAY (HUMAN PHYSICS GAUGE) --- */}
-        {sceneIndex === 6 && (
-          <SceneSixInchesHazard frame={sceneLocalFrame} fps={fps} />
-        )}
-
-        {/* --- SCENE 8: QUIET WATERS VS DESTRUCTIVE FLOODS SPLIT DUALITY --- */}
-        {sceneIndex === 7 && (
-          <SceneQuietVsTorrent frame={sceneLocalFrame} fps={fps} />
-        )}
-
-        {/* --- SCENE 9: BITTRIX TECHNOLOGIES ROYAL PURPLE REEL OUTRO --- */}
-        {sceneIndex === 8 && (
-          <SceneBittrixTechnologiesOutro frame={sceneLocalFrame} fps={fps} />
-        )}
-      </AbsoluteFill>
-
-      {/* ============================================================== */}
-      {/* 3. HEADLINE BADGE & CINEMATIC HEADER                           */}
-      {/* ============================================================== */}
-      {sceneIndex < 8 && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 90,
-            left: 0,
-            right: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            zIndex: 100
-          }}
-        >
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 12,
-              padding: '10px 24px',
-              borderRadius: 30,
-              backgroundColor: 'rgba(15, 23, 42, 0.75)',
-              border: `1.5px solid ${currentScene.themeColor}`,
-              boxShadow: `0 0 25px ${currentScene.themeColor}33`,
-              backdropFilter: 'blur(12px)'
-            }}
-          >
+        {/* Ambient Drifting Silicon Embers */}
+        {ambientParticles.map((pt) => {
+          const yPos = (pt.initialY - frame * pt.speed * 1.8 + 2400) % 2400 - 240;
+          const wobble = Math.sin((frame * 0.05) + pt.id) * 22;
+          return (
             <div
+              key={pt.id}
               style={{
-                width: 10,
-                height: 10,
+                position: 'absolute',
+                left: pt.x + wobble,
+                top: yPos,
+                width: pt.size,
+                height: pt.size,
                 borderRadius: '50%',
-                backgroundColor: currentScene.themeColor,
-                boxShadow: `0 0 10px ${currentScene.themeColor}`
+                backgroundColor: currentSceneIndex === 6 ? '#fdf3d0' : activeScene.themeColor,
+                opacity: pt.opacity,
+                filter: `blur(${pt.size > 8 ? 2 : 0}px)`,
+                boxShadow: `0 0 12px ${currentSceneIndex === 6 ? '#fdf3d0' : activeScene.themeColor}`,
+                pointerEvents: 'none',
               }}
             />
-            <span
-              style={{
-                fontSize: 22,
-                fontWeight: 800,
-                letterSpacing: 2,
-                textTransform: 'uppercase',
-                color: '#f8fafc'
-              }}
-            >
-              {currentScene.on_screen_text}
-            </span>
-          </div>
-        </div>
-      )}
+          );
+        })}
 
-      {/* ============================================================== */}
-      {/* 4. KINETIC SYNCHRONIZED KARAOKE CAPTIONS (Safe Zone 1250-1550) */}
-      {/* ============================================================== */}
+        {/* Dynamic Silicon Circuit Trace Lines in Background */}
+        <svg
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            opacity: 0.18,
+            pointerEvents: 'none',
+          }}
+        >
+          <path
+            d="M 120 180 L 120 480 L 320 680 L 760 680 L 920 840 L 920 1480"
+            stroke={activeScene.themeColor}
+            strokeWidth="3"
+            fill="none"
+            strokeDasharray="24 16"
+            strokeDashoffset={-frame * 1.5}
+          />
+          <path
+            d="M 960 220 L 800 380 L 400 380 L 200 580 L 200 1340 L 440 1580"
+            stroke={currentSceneIndex === 6 ? '#5b1a78' : '#38bdf8'}
+            strokeWidth="2.5"
+            fill="none"
+            strokeDasharray="18 12"
+            strokeDashoffset={frame * 1.2}
+          />
+        </svg>
+
+        {/* =====================================================
+            TOPIC-SPECIFIC ANIMATED SCENE ARTBOARDS (Continuous)
+        ===================================================== */}
+        {currentSceneIndex === 0 && <SceneOneFracturedTitan frame={localFrame} fps={fps} />}
+        {currentSceneIndex === 1 && <SceneTwoJensenResigns frame={localFrame} fps={fps} />}
+        {currentSceneIndex === 2 && <SceneThreeAuditInvestigation frame={localFrame} fps={fps} />}
+        {currentSceneIndex === 3 && <SceneFourColetteTakesHelm frame={localFrame} fps={fps} />}
+        {currentSceneIndex === 4 && <SceneFiveExecutiveSearchNetwork frame={localFrame} fps={fps} />}
+        {currentSceneIndex === 5 && <SceneSixMarketValueBalancing frame={localFrame} fps={fps} />}
+        {currentSceneIndex === 6 && <SceneSevenBittrixOutro frame={localFrame} fps={fps} />}
+      </AbsoluteFill>
+
+      {/* =========================================================
+          HUD METADATA OVERLAY (Non-distracting Tech Framing)
+      ========================================================= */}
       <div
         style={{
           position: 'absolute',
-          top: 1350,
+          top: 84,
+          left: 64,
+          right: 64,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontSize: 20,
+          letterSpacing: '0.22em',
+          textTransform: 'uppercase',
+          color: 'rgba(248, 250, 252, 0.6)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
+          paddingBottom: 20,
+          zIndex: 40,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span
+            style={{
+              display: 'inline-block',
+              width: 10,
+              height: 10,
+              borderRadius: '50%',
+              backgroundColor: currentSceneIndex === 6 ? '#d97706' : activeScene.themeColor,
+              boxShadow: `0 0 10px ${activeScene.themeColor}`,
+            }}
+          />
+          <span style={{ fontWeight: 800, color: '#f8fafc' }}>NVIDIA CORP // INTEL REPORT</span>
+        </div>
+        <div style={{ fontVariantNumeric: 'tabular-nums', opacity: 0.8 }}>
+          SCENE 0{currentSceneIndex + 1} / 07 • {(frame / 60).toFixed(2)}s
+        </div>
+      </div>
+
+      {/* =========================================================
+          KINETIC KARAOKE CAPTIONS (Safe zone y: 1300 - 1520)
+      ========================================================= */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 240,
           left: 60,
           right: 60,
           display: 'flex',
-          flexWrap: 'wrap',
-          justifyContent: 'center',
+          flexDirection: 'column',
           alignItems: 'center',
-          gap: '12px 16px',
-          zIndex: 120,
-          pointerEvents: 'none'
+          justifyContent: 'center',
+          textAlign: 'center',
+          zIndex: 50,
+          pointerEvents: 'none',
         }}
       >
-        {currentScene.words.map((item, wIdx) => {
-          const isActive =
-            sceneLocalFrame >= item.startFrame && sceneLocalFrame <= item.endFrame;
-          const isSpoken = sceneLocalFrame > item.endFrame;
+        {/* On-screen Subject Header Badge */}
+        <div
+          style={{
+            display: 'inline-block',
+            padding: '8px 24px',
+            marginBottom: 20,
+            borderRadius: 999,
+            backgroundColor: 'rgba(15, 23, 42, 0.85)',
+            border: `1.5px solid ${activeScene.themeColor}55`,
+            backdropFilter: 'blur(12px)',
+            color: activeScene.themeColor,
+            fontSize: 22,
+            fontWeight: 800,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            boxShadow: `0 4px 20px ${activeScene.themeColor}22`,
+          }}
+        >
+          {activeScene.on_screen_text}
+        </div>
 
-          // Word entrance bounce
-          const wordPop = spring({
-            frame: Math.max(0, sceneLocalFrame - item.startFrame),
-            fps,
-            config: { damping: 12, stiffness: 220 }
-          });
+        {/* Word-by-Word Synchronized Karaoke Flow */}
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '12px 16px',
+            maxWidth: 960,
+          }}
+        >
+          {activeScene.words.map((w, idx) => {
+            const isActive = localFrame >= w.startFrame && localFrame <= w.endFrame;
+            const hasPassed = localFrame > w.endFrame;
 
-          const activeScale = isActive ? 1.18 : 1.0;
-          const wordColor = isActive
-            ? '#fef08a' // Bright luminous yellow highlight
-            : isSpoken
-            ? '#ffffff'
-            : 'rgba(255, 255, 255, 0.45)';
+            const wordScale = isActive
+              ? spring({
+                  frame: localFrame - w.startFrame,
+                  fps,
+                  config: { damping: 10, stiffness: 220 },
+                })
+              : 1;
 
-          return (
-            <span
-              key={wIdx}
-              style={{
-                fontSize: sceneIndex === 8 ? 44 : 52,
-                fontWeight: 900,
-                color: wordColor,
-                textTransform: 'uppercase',
-                letterSpacing: 1.5,
-                transform: `scale(${isActive ? 1 + wordPop * 0.18 : 1.0})`,
-                transition: 'transform 0.08s ease, color 0.08s ease',
-                textShadow: isActive
-                  ? '0 0 25px rgba(254, 240, 138, 0.8), 0 4px 12px rgba(0,0,0,0.9)'
-                  : '0 4px 10px rgba(0,0,0,0.8)',
-                display: 'inline-block'
-              }}
-            >
-              {item.word}
-            </span>
-          );
-        })}
+            return (
+              <span
+                key={`${idx}-${w.word}`}
+                style={{
+                  display: 'inline-block',
+                  fontSize: isActive ? 50 : 42,
+                  fontWeight: 900,
+                  letterSpacing: '-0.01em',
+                  transform: `scale(${isActive ? 1 + wordScale * 0.16 : 1})`,
+                  color: isActive
+                    ? '#fef08a' // Highlight Yellow (Faceless Shorts Standard)
+                    : hasPassed
+                    ? '#ffffff'
+                    : 'rgba(255, 255, 255, 0.38)',
+                  textShadow: isActive
+                    ? '0 0 24px rgba(254, 240, 138, 0.8), 0 4px 12px rgba(0, 0, 0, 0.9)'
+                    : '0 2px 8px rgba(0, 0, 0, 0.8)',
+                  transition: 'all 0.08s ease-out',
+                }}
+              >
+                {w.word}
+              </span>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Modern Vignette & Letterbox Edge Gradients */}
+      {/* Progress Line Across Entire Short */}
       <div
         style={{
           position: 'absolute',
-          inset: 0,
-          boxShadow: 'inset 0 0 160px rgba(0, 0, 0, 0.85)',
-          pointerEvents: 'none'
+          bottom: 0,
+          left: 0,
+          height: 6,
+          width: `${(frame / 959) * 100}%`,
+          backgroundColor: currentSceneIndex === 6 ? '#fdf3d0' : activeScene.themeColor,
+          boxShadow: `0 0 16px ${currentSceneIndex === 6 ? '#fdf3d0' : activeScene.themeColor}`,
+          zIndex: 60,
         }}
       />
     </AbsoluteFill>
@@ -510,791 +477,913 @@ export default function GeneratedCliVideo(props: any) {
 }
 
 // =========================================================================
-// SCENE 1: CALM VALLEY RIVER UNDER SUDDEN EXPLODING DARK STORM
+// SCENE 1: FRACTURED SILICON MONOLITH (Question Hook - Literal GPU Die Crack)
 // =========================================================================
-function SceneCalmRiverExplodes({ frame, fps }: { frame: number; fps: number }) {
-  const stormSurge = spring({ frame: Math.max(0, frame - 10), fps, config: { damping: 14, stiffness: 100 } });
-  const lightningFlash = frame > 28 && frame < 34 ? 1 : frame > 42 && frame < 46 ? 0.7 : 0;
+function SceneOneFracturedTitan({ frame, fps }: { frame: number; fps: number }) {
+  const enterSpring = spring({ frame, fps, config: { damping: 13, stiffness: 90 } });
+  const crackProgress = interpolate(frame, [25, 75], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  const shatterOffset = interpolate(frame, [45, 90], [0, 24], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
 
   return (
-    <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      {/* Thunderstorm Lightning Strobe Accent */}
-      {lightningFlash > 0 && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            backgroundColor: `rgba(244, 63, 94, ${lightningFlash * 0.35})`,
-            mixBlendMode: 'screen'
-          }}
-        />
-      )}
-
-      {/* Valley Cross-section Illustration */}
-      <svg width="1000" height="900" viewBox="0 0 1000 900" style={{ overflow: 'visible' }}>
-        <defs>
-          <linearGradient id="valleySlope" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#1e293b" />
-            <stop offset="100%" stopColor="#0f172a" />
-          </linearGradient>
-          <linearGradient id="waterFlow" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#0284c7" />
-            <stop offset="50%" stopColor="#38bdf8" />
-            <stop offset="100%" stopColor="#0284c7" />
-          </linearGradient>
-          <linearGradient id="cloudGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#334155" />
-            <stop offset="100%" stopColor="#090d16" />
-          </linearGradient>
-        </defs>
-
-        {/* Mountain Valley Contours */}
-        <path d="M 0 350 Q 250 500 400 680 L 0 680 Z" fill="url(#valleySlope)" stroke="#38bdf8" strokeWidth="2" opacity="0.6" />
-        <path d="M 1000 350 Q 750 500 600 680 L 1000 680 Z" fill="url(#valleySlope)" stroke="#38bdf8" strokeWidth="2" opacity="0.6" />
-
-        {/* Ominous Storm Cloud Front */}
-        <g transform={`translate(0, ${-80 + stormSurge * 60})`}>
-          <ellipse cx="500" cy="220" rx="420" ry="140" fill="url(#cloudGrad)" />
-          <ellipse cx="320" cy="180" rx="220" ry="120" fill="url(#cloudGrad)" opacity="0.8" />
-          <ellipse cx="680" cy="180" rx="240" ry="130" fill="url(#cloudGrad)" opacity="0.8" />
-          {/* Warning Lightning Bolt */}
-          <path
-            d="M 520 220 L 480 340 L 530 350 L 460 480"
-            fill="none"
-            stroke="#f43f5e"
-            strokeWidth={lightningFlash > 0 ? "8" : "2"}
-            strokeLinecap="round"
-            filter="drop-shadow(0 0 16px #f43f5e)"
-            opacity={frame > 25 ? 0.9 : 0.2}
-          />
-        </g>
-
-        {/* Calm River Channel Morphing into Violent Swell */}
-        <path
-          d={`M 380 680 C 440 ${660 - Math.sin(frame * 0.1) * 20 * stormSurge}, 560 ${660 + Math.sin(frame * 0.1) * 20 * stormSurge}, 620 680 L 650 850 L 350 850 Z`}
-          fill="url(#waterFlow)"
-          filter="drop-shadow(0 0 30px rgba(56, 189, 248, 0.4))"
-        />
-
-        {/* Water Surface Wave Lines */}
-        <path
-          d={`M 390 690 Q 500 ${670 + Math.sin(frame * 0.2) * 15}, 610 690`}
-          stroke="#f8fafc"
-          strokeWidth="4"
-          fill="none"
-          opacity="0.75"
-        />
-        <path
-          d={`M 410 730 Q 500 ${715 + Math.cos(frame * 0.18) * 12}, 590 730`}
-          stroke="#38bdf8"
-          strokeWidth="3"
-          fill="none"
-          opacity="0.6"
-        />
-      </svg>
-    </AbsoluteFill>
-  );
-}
-
-// =========================================================================
-// SCENE 2: TORRENTIAL RAIN DRENCHING MOUNTAIN SLOPES (ISOMETRIC SLICE)
-// =========================================================================
-function SceneMountainDrenching({ frame, fps }: { frame: number; fps: number }) {
-  const mountEnter = spring({ frame, fps, config: { damping: 14, stiffness: 90 } });
-
-  return (
-    <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div
-        style={{
-          transform: `scale(${mountEnter}) translateY(${interpolate(mountEnter, [0, 1], [100, 0])}px)`,
-          width: 900,
-          height: 800,
-          position: 'relative'
-        }}
-      >
-        <svg width="900" height="800" viewBox="0 0 900 800">
-          <defs>
-            <linearGradient id="rockSlice" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#1e293b" />
-              <stop offset="50%" stopColor="#0f172a" />
-              <stop offset="100%" stopColor="#020617" />
-            </linearGradient>
-            <linearGradient id="waterFlowArrow" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.2" />
-              <stop offset="100%" stopColor="#38bdf8" stopOpacity="1" />
-            </linearGradient>
-          </defs>
-
-          {/* Isometric Geological Terrain Slice */}
-          <polygon points="450,150 820,380 450,680 80,380" fill="url(#rockSlice)" stroke="#334155" strokeWidth="3" />
-          <polygon points="80,380 450,680 450,750 80,450" fill="#090d16" stroke="#1e293b" strokeWidth="2" />
-          <polygon points="450,680 820,380 820,450 450,750" fill="#030712" stroke="#1e293b" strokeWidth="2" />
-
-          {/* Mountain Ridge Elevation Crests */}
-          <path d="M 450 150 L 450 680" stroke="#38bdf8" strokeWidth="3" strokeDasharray="6,6" opacity="0.4" />
-
-          {/* Drenching Downpour Laser Streams Channeled to Basin */}
-          {Array.from({ length: 9 }).map((_, i) => {
-            const offset = (i - 4) * 60;
-            const flowProgress = (frame * 5 + i * 18) % 120;
-            return (
-              <g key={i}>
-                <line
-                  x1={450 + offset}
-                  y1={80}
-                  x2={450 + offset * 0.4}
-                  y2={500}
-                  stroke="url(#waterFlowArrow)"
-                  strokeWidth="3"
-                  strokeDasharray="15,10"
-                />
-                <circle
-                  cx={450 + offset * 0.4}
-                  cy={500 + flowProgress * 1.2}
-                  r="4"
-                  fill="#38bdf8"
-                  opacity="0.8"
-                />
-              </g>
-            );
-          })}
-
-          {/* Valley Basin Water Pool Expanding */}
-          <ellipse
-            cx="450"
-            cy="650"
-            rx={80 + frame * 1.2}
-            ry={30 + frame * 0.5}
-            fill="#38bdf8"
-            opacity="0.7"
-            filter="drop-shadow(0 0 25px #38bdf8)"
-          />
-        </svg>
-
-        {/* Infiltration Runoff HUD Tag */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 40,
-            left: 280,
-            padding: '8px 20px',
-            borderRadius: 16,
-            background: 'rgba(15, 23, 42, 0.9)',
-            border: '1px solid #38bdf8',
-            fontSize: 20,
-            fontWeight: 700,
-            color: '#38bdf8',
-            letterSpacing: 1.5
-          }}
-        >
-          BASIN INFLOW RATE: +840%
-        </div>
-      </div>
-    </AbsoluteFill>
-  );
-}
-
-// =========================================================================
-// SCENE 3: POROUS DRY SOIL ABSORBING VS SATURATED IMPERVIOUS SOIL REPELLING
-// =========================================================================
-function ScenePorousVsSaturated({ frame, fps }: { frame: number; fps: number }) {
-  const cardSpring = spring({ frame, fps, config: { damping: 14, stiffness: 100 } });
-
-  return (
-    <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div
-        style={{
-          width: 960,
-          height: 820,
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 24,
-          transform: `scale(${cardSpring})`
-        }}
-      >
-        {/* LEFT COLUMN: DRY POROUS SOIL (ABSORBS) */}
-        <div
-          style={{
-            backgroundColor: 'rgba(15, 23, 42, 0.85)',
-            border: '2px solid #38bdf8',
-            borderRadius: 24,
-            padding: 24,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            boxShadow: '0 0 35px rgba(56, 189, 248, 0.15)',
-            overflow: 'hidden',
-            position: 'relative'
-          }}
-        >
-          <div style={{ fontSize: 24, fontWeight: 900, color: '#38bdf8', marginBottom: 12 }}>
-            DRY SOIL: ABSORPTION
-          </div>
-          <svg width="400" height="520" viewBox="0 0 400 520">
-            {/* Porous Underground Matrix */}
-            <rect x="20" y="160" width="360" height="340" rx="16" fill="#1e293b" stroke="#334155" strokeWidth="2" />
-            {/* Sponge pores */}
-            {Array.from({ length: 24 }).map((_, i) => (
-              <circle
-                key={i}
-                cx={50 + (i % 6) * 55}
-                cy={200 + Math.floor(i / 6) * 75}
-                r="14"
-                fill="#0f172a"
-                stroke="#38bdf8"
-                strokeWidth="1.5"
-                opacity="0.6"
-              />
-            ))}
-            {/* Water Drops Sinking Down Inward */}
-            {Array.from({ length: 6 }).map((_, i) => {
-              const dropY = 60 + ((frame * 4 + i * 40) % 220);
-              return (
-                <circle
-                  key={i}
-                  cx={70 + i * 50}
-                  cy={dropY}
-                  r="6"
-                  fill="#38bdf8"
-                  opacity={dropY > 200 ? 0.4 : 0.9}
-                />
-              );
-            })}
-          </svg>
-          <div style={{ position: 'absolute', bottom: 20, fontSize: 18, color: '#94a3b8', fontWeight: 700 }}>
-            INFILTRATION: HIGH (92%)
-          </div>
-        </div>
-
-        {/* RIGHT COLUMN: SATURATED GROUND (REPELS / RUNOFF) */}
-        <div
-          style={{
-            backgroundColor: 'rgba(15, 23, 42, 0.85)',
-            border: '2px solid #f43f5e',
-            borderRadius: 24,
-            padding: 24,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            boxShadow: '0 0 35px rgba(244, 63, 94, 0.2)',
-            overflow: 'hidden',
-            position: 'relative'
-          }}
-        >
-          <div style={{ fontSize: 24, fontWeight: 900, color: '#f43f5e', marginBottom: 12 }}>
-            SATURATED: 100% RUNOFF
-          </div>
-          <svg width="400" height="520" viewBox="0 0 400 520">
-            {/* Water-logged ground slab */}
-            <rect x="20" y="160" width="360" height="340" rx="16" fill="#1e1b4b" stroke="#f43f5e" strokeWidth="2" />
-            {/* Slick impervious surface barrier */}
-            <line x1="20" y1="160" x2="380" y2="160" stroke="#f43f5e" strokeWidth="8" strokeLinecap="round" />
-            {/* Deflecting / Sweeping Runoff Torrent arrows */}
-            {Array.from({ length: 5 }).map((_, i) => {
-              const slideX = 80 + ((frame * 6 + i * 50) % 240);
-              return (
-                <g key={i}>
-                  <line x1={slideX} y1="140" x2={slideX + 35} y2="140" stroke="#f43f5e" strokeWidth="5" strokeLinecap="round" />
-                  <polygon points={`${slideX + 45},140 ${slideX + 32},133 ${slideX + 32},147`} fill="#f43f5e" />
-                </g>
-              );
-            })}
-            <text x="200" y="320" textAnchor="middle" fill="#f43f5e" fontSize="22" fontWeight="800">
-              GROUND REJECTS WATER
-            </text>
-          </svg>
-          <div style={{ position: 'absolute', bottom: 20, fontSize: 18, color: '#f43f5e', fontWeight: 700 }}>
-            RUNOFF SPEED: CRITICAL
-          </div>
-        </div>
-      </div>
-    </AbsoluteFill>
-  );
-}
-
-// =========================================================================
-// SCENE 4: EXPONENTIAL HYDROGRAPH GAUGE SPIKE IN MINUTES
-// =========================================================================
-function SceneHydrographGauge({ frame, fps }: { frame: number; fps: number }) {
-  const curveDraw = spring({ frame, fps, config: { damping: 16, stiffness: 120 } });
-  const metricVal = Math.floor(interpolate(curveDraw, [0, 1], [420, 14200]));
-
-  return (
-    <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div
-        style={{
-          width: 920,
-          height: 850,
-          backgroundColor: 'rgba(15, 23, 42, 0.92)',
-          border: '2px solid #38bdf8',
-          borderRadius: 32,
-          padding: 40,
-          boxShadow: '0 0 50px rgba(56, 189, 248, 0.25)',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          position: 'relative'
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <div style={{ fontSize: 22, color: '#94a3b8', fontWeight: 700, letterSpacing: 1.5 }}>
-              HYDROGRAPHIC TELEMETRY
-            </div>
-            <div style={{ fontSize: 44, fontWeight: 900, color: '#f8fafc', marginTop: 4 }}>
-              Discharge Rate (m³/s)
-            </div>
-          </div>
-          <div
-            style={{
-              padding: '12px 28px',
-              borderRadius: 20,
-              backgroundColor: '#f43f5e',
-              color: '#ffffff',
-              fontSize: 28,
-              fontWeight: 900,
-              boxShadow: '0 0 20px rgba(244, 63, 94, 0.6)'
-            }}
-          >
-            {metricVal.toLocaleString()} m³/s
-          </div>
-        </div>
-
-        {/* Steep Exponential Curve SVG Plot */}
-        <svg width="840" height="480" viewBox="0 0 840 480" style={{ overflow: 'visible' }}>
-          {/* Axis Gridlines */}
-          <line x1="60" y1="420" x2="800" y2="420" stroke="#334155" strokeWidth="2" />
-          <line x1="60" y1="40" x2="60" y2="420" stroke="#334155" strokeWidth="2" />
-          {Array.from({ length: 5 }).map((_, i) => (
-            <line key={i} x1="60" y1={80 + i * 80} x2="800" y2={80 + i * 80} stroke="#1e293b" strokeWidth="1.5" strokeDasharray="4,4" />
-          ))}
-
-          {/* Exponential Sharp Curve */}
-          <path
-            d="M 60 410 Q 420 400 520 280 T 780 60"
-            fill="none"
-            stroke="#38bdf8"
-            strokeWidth="8"
-            strokeLinecap="round"
-            strokeDasharray="1200"
-            strokeDashoffset={interpolate(curveDraw, [0, 1], [1200, 0])}
-            filter="drop-shadow(0 0 16px #38bdf8)"
-          />
-
-          {/* Pulsing Danger Zone Marker at Peak */}
-          {curveDraw > 0.7 && (
-            <g transform="translate(780, 60)">
-              <circle r="18" fill="#f43f5e" opacity="0.4" />
-              <circle r="10" fill="#f43f5e" />
-              <text x="-80" y="-20" fill="#f43f5e" fontSize="24" fontWeight="900">
-                CRITICAL SPIKE
-              </text>
-            </g>
-          )}
-        </svg>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: 18, fontWeight: 700 }}>
-          <span>T = 0 MIN (CALM)</span>
-          <span>T = 15 MIN (SATURATION)</span>
-          <span style={{ color: '#f43f5e' }}>T = 30 MIN (EXPLOSION)</span>
-        </div>
-      </div>
-    </AbsoluteFill>
-  );
-}
-
-// =========================================================================
-// SCENE 5: RIVERBANKS OVERTOPPING CROSS-SECTION
-// =========================================================================
-function SceneRiverbankOvertop({ frame, fps }: { frame: number; fps: number }) {
-  const waterSwell = spring({ frame, fps, config: { damping: 14, stiffness: 90 } });
-  const waterHeight = interpolate(waterSwell, [0, 1], [620, 360]);
-
-  return (
-    <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <svg width="960" height="900" viewBox="0 0 960 900">
-        <defs>
-          <linearGradient id="leveeSoil" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#334155" />
-            <stop offset="100%" stopColor="#0f172a" />
-          </linearGradient>
-          <linearGradient id="swellWater" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stopColor="#38bdf8" />
-            <stop offset="100%" stopColor="#0369a1" />
-          </linearGradient>
-        </defs>
-
-        {/* Natural Riverbank Levees on Left & Right */}
-        <path d="M 0 500 Q 150 480 250 480 L 320 750 L 0 750 Z" fill="url(#leveeSoil)" stroke="#475569" strokeWidth="3" />
-        <path d="M 960 500 Q 810 480 710 480 L 640 750 L 960 750 Z" fill="url(#leveeSoil)" stroke="#475569" strokeWidth="3" />
-
-        {/* Dynamic Swelling Water Body Overtop */}
-        <path
-          d={`M 180 750 L 260 ${waterHeight} Q 480 ${waterHeight - Math.sin(frame * 0.15) * 20} 700 ${waterHeight} L 780 750 Z`}
-          fill="url(#swellWater)"
-          filter="drop-shadow(0 0 35px rgba(56, 189, 248, 0.4))"
-        />
-
-        {/* Overflowing Spill Crests Beyond Natural Levee */}
-        {waterHeight < 480 && (
-          <g>
-            <path
-              d={`M 260 ${waterHeight} C 200 480, 100 520, 20 640`}
-              fill="none"
-              stroke="#38bdf8"
-              strokeWidth="8"
-              strokeLinecap="round"
-            />
-            <path
-              d={`M 700 ${waterHeight} C 760 480, 860 520, 940 640`}
-              fill="none"
-              stroke="#38bdf8"
-              strokeWidth="8"
-              strokeLinecap="round"
-            />
-          </g>
-        )}
-
-        {/* Bank Level Warning Line */}
-        <line x1="150" y1="480" x2="810" y2="480" stroke="#f43f5e" strokeWidth="3" strokeDasharray="8,8" />
-        <text x="480" y="460" textAnchor="middle" fill="#f43f5e" fontSize="22" fontWeight="900" letterSpacing="2">
-          CRITICAL LEVEE CREST (OVERTOPPING HAZARD)
-        </text>
-      </svg>
-    </AbsoluteFill>
-  );
-}
-
-// =========================================================================
-// SCENE 6: TOPOGRAPHIC CONTOURS INUNDATING VALLEY FLOORS
-// =========================================================================
-function SceneTopographicInundation({ frame, fps }: { frame: number; fps: number }) {
-  const topoProgress = spring({ frame, fps, config: { damping: 15, stiffness: 100 } });
-
-  return (
-    <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ width: 940, height: 860, position: 'relative' }}>
-        <svg width="940" height="860" viewBox="0 0 940 860">
-          {/* Topographic Elevation Rings */}
-          {Array.from({ length: 6 }).map((_, i) => {
-            const rx = 400 - i * 55;
-            const ry = 320 - i * 45;
-            return (
-              <ellipse
-                key={i}
-                cx="470"
-                cy="430"
-                rx={rx}
-                ry={ry}
-                fill="none"
-                stroke="#334155"
-                strokeWidth="2"
-                strokeDasharray="6,6"
-              />
-            );
-          })}
-
-          {/* Expanding Flood Contour Layer */}
-          <path
-            d={`M 220 430 Q 340 ${320 - Math.sin(frame * 0.1) * 20}, 470 300 Q 640 ${340 + Math.cos(frame * 0.1) * 25}, 720 430 Q 600 580, 470 590 Q 300 560, 220 430 Z`}
-            fill="rgba(56, 189, 248, 0.45)"
-            stroke="#38bdf8"
-            strokeWidth="4"
-            transform={`scale(${topoProgress})`}
-            style={{ transformOrigin: '470px 430px' }}
-            filter="drop-shadow(0 0 40px #0284c7)"
-          />
-
-          {/* Submerged Roadway Grid */}
-          <line x1="140" y1="200" x2="800" y2="660" stroke="#64748b" strokeWidth="6" strokeDasharray="12,12" />
-          <line x1="800" y1="200" x2="140" y2="660" stroke="#64748b" strokeWidth="6" strokeDasharray="12,12" />
-
-          {/* Submersion Alert Indicators */}
-          <circle cx="470" cy="430" r="16" fill="#f43f5e" />
-          <circle cx="470" cy="430" r="32" fill="none" stroke="#f43f5e" strokeWidth="3" opacity="0.6" />
-        </svg>
-
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 30,
-            left: 260,
-            padding: '12px 28px',
-            backgroundColor: 'rgba(15, 23, 42, 0.9)',
-            border: '2px solid #f43f5e',
-            borderRadius: 20,
-            fontSize: 22,
-            fontWeight: 800,
-            color: '#f43f5e'
-          }}
-        >
-          VALLEY INUNDATION ZONE: ACTIVE
-        </div>
-      </div>
-    </AbsoluteFill>
-  );
-}
-
-// =========================================================================
-// SCENE 7: 6 INCHES OF WATER SWEEPS PEOPLE AWAY (HUMAN STABILITY CARD)
-// =========================================================================
-function SceneSixInchesHazard({ frame, fps }: { frame: number; fps: number }) {
-  const waterRise = spring({ frame, fps, config: { damping: 14, stiffness: 100 } });
-  const waterLevel = interpolate(waterRise, [0, 1], [680, 520]);
-
-  return (
-    <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div
-        style={{
-          width: 900,
-          height: 850,
-          backgroundColor: 'rgba(15, 23, 42, 0.95)',
-          border: '2px solid #f43f5e',
-          borderRadius: 32,
-          padding: 40,
-          boxShadow: '0 0 50px rgba(244, 63, 94, 0.25)',
-          position: 'relative',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center'
-        }}
-      >
-        <div style={{ fontSize: 44, fontWeight: 900, color: '#f43f5e', letterSpacing: 1.5 }}>
-          6 INCHES (15 CM) OF RAPID WATER
-        </div>
-        <div style={{ fontSize: 24, color: '#94a3b8', marginTop: 8 }}>
-          Sufficient kinetic force to knock over an adult human
-        </div>
-
-        <svg width="800" height="600" viewBox="0 0 800 600" style={{ marginTop: 20 }}>
-          {/* Ground Baseline */}
-          <line x1="80" y1="560" x2="720" y2="560" stroke="#475569" strokeWidth="4" />
-
-          {/* Stylized Human Silhouette Running / Losing Footing */}
-          <g transform={`translate(380, 260) rotate(${waterRise * 18})`}>
-            {/* Head */}
-            <circle cx="20" cy="40" r="28" fill="#f8fafc" />
-            {/* Torso */}
-            <line x1="20" y1="68" x2="20" y2="180" stroke="#f8fafc" strokeWidth="12" strokeLinecap="round" />
-            {/* Arms bracing */}
-            <line x1="20" y1="100" x2="-40" y2="140" stroke="#f8fafc" strokeWidth="10" strokeLinecap="round" />
-            <line x1="20" y1="100" x2="80" y2="130" stroke="#f8fafc" strokeWidth="10" strokeLinecap="round" />
-            {/* Legs destabilized */}
-            <line x1="20" y1="180" x2="-30" y2="280" stroke="#f8fafc" strokeWidth="10" strokeLinecap="round" />
-            <line x1="20" y1="180" x2="60" y2="260" stroke="#f8fafc" strokeWidth="10" strokeLinecap="round" />
-          </g>
-
-          {/* Rushing Flood Torrent Sweeping across Legs */}
-          <rect x="80" y={waterLevel} width="640" height={560 - waterLevel} fill="rgba(56, 189, 248, 0.45)" />
-          <line x1="80" y1={waterLevel} x2="720" y2={waterLevel} stroke="#38bdf8" strokeWidth="6" />
-
-          {/* Force Vectors & Warning Callout */}
-          {Array.from({ length: 4 }).map((_, i) => (
-            <line
-              key={i}
-              x1={120 + i * 140}
-              y1={waterLevel + 25}
-              x2={220 + i * 140}
-              y2={waterLevel + 25}
-              stroke="#f43f5e"
-              strokeWidth="5"
-              strokeLinecap="round"
-            />
-          ))}
-
-          {/* 6 Inch Precision Ruler Tick */}
-          <line x1="680" y1="560" x2="680" y2="520" stroke="#fef08a" strokeWidth="4" />
-          <text x="695" y="540" fill="#fef08a" fontSize="22" fontWeight="800">
-            6 IN
-          </text>
-        </svg>
-      </div>
-    </AbsoluteFill>
-  );
-}
-
-// =========================================================================
-// SCENE 8: QUIET WATERS VS DESTRUCTIVE FLOODS (VERTICAL SPLIT DUALITY)
-// =========================================================================
-function SceneQuietVsTorrent({ frame, fps }: { frame: number; fps: number }) {
-  const splitSpring = spring({ frame, fps, config: { damping: 14, stiffness: 100 } });
-
-  return (
-    <AbsoluteFill style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div
-        style={{
-          width: 960,
-          height: 820,
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 24,
-          transform: `scale(${splitSpring})`
-        }}
-      >
-        {/* Peaceful Meander */}
-        <div
-          style={{
-            backgroundColor: 'rgba(15, 23, 42, 0.9)',
-            border: '2px solid #38bdf8',
-            borderRadius: 28,
-            padding: 24,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            overflow: 'hidden'
-          }}
-        >
-          <div style={{ fontSize: 26, fontWeight: 900, color: '#38bdf8', marginBottom: 12 }}>
-            QUIET RIVER
-          </div>
-          <svg width="400" height="580" viewBox="0 0 400 580">
-            <path
-              d={`M 200 40 Q ${160 + Math.sin(frame * 0.05) * 20} 200, 200 350 Q ${240 + Math.cos(frame * 0.05) * 20} 450, 200 560`}
-              fill="none"
-              stroke="#38bdf8"
-              strokeWidth="32"
-              strokeLinecap="round"
-              opacity="0.8"
-            />
-          </svg>
-          <div style={{ fontSize: 18, color: '#94a3b8', fontWeight: 700 }}>VELOCITY: 0.5 M/S</div>
-        </div>
-
-        {/* Destructive Torrent */}
-        <div
-          style={{
-            backgroundColor: 'rgba(15, 23, 42, 0.9)',
-            border: '2px solid #f43f5e',
-            borderRadius: 28,
-            padding: 24,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            overflow: 'hidden',
-            boxShadow: '0 0 40px rgba(244, 63, 94, 0.3)'
-          }}
-        >
-          <div style={{ fontSize: 26, fontWeight: 900, color: '#f43f5e', marginBottom: 12 }}>
-            FLASH FLOOD
-          </div>
-          <svg width="400" height="580" viewBox="0 0 400 580">
-            <rect x="20" y="40" width="360" height="500" rx="16" fill="rgba(244, 63, 94, 0.25)" />
-            {Array.from({ length: 8 }).map((_, i) => {
-              const yPos = ((frame * 12 + i * 65) % 500) + 40;
-              return (
-                <path
-                  key={i}
-                  d={`M 40 ${yPos} Q 200 ${yPos + 30}, 360 ${yPos}`}
-                  stroke="#f43f5e"
-                  strokeWidth="8"
-                  fill="none"
-                />
-              );
-            })}
-          </svg>
-          <div style={{ fontSize: 18, color: '#f43f5e', fontWeight: 800 }}>VELOCITY: 8.5+ M/S</div>
-        </div>
-      </div>
-    </AbsoluteFill>
-  );
-}
-
-// =========================================================================
-// SCENE 9: BITTRIX TECHNOLOGIES ROYAL PURPLE REEL OUTRO (EXACT ASSETS)
-// =========================================================================
-function SceneBittrixTechnologiesOutro({ frame, fps }: { frame: number; fps: number }) {
-  const introPop = spring({ frame, fps, config: { damping: 13, stiffness: 110 } });
-  const gearRotation = frame * 2.8;
-
-  const brandText = "BITTRIX";
-
-  return (
-    <AbsoluteFill
+    <div
       style={{
+        position: 'absolute',
+        inset: 0,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'radial-gradient(circle at 50% 50%, #5b1a78 0%, #2e0840 50%, #0d0114 100%)'
+      }}
+    >
+      {/* 3D Perspective Silicon GPU Die Monolith */}
+      <div
+        style={{
+          position: 'relative',
+          width: 580,
+          height: 640,
+          transform: `perspective(1200px) rotateX(${22 - enterSpring * 6}deg) rotateY(${shatterOffset * 0.2}deg) scale(${enterSpring})`,
+          transformStyle: 'preserve-3d',
+        }}
+      >
+        {/* Glow Halo */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: -40,
+            borderRadius: 36,
+            background: 'radial-gradient(circle, rgba(244, 63, 94, 0.4) 0%, transparent 70%)',
+            filter: 'blur(30px)',
+          }}
+        />
+
+        {/* Left Fracturing Half */}
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            width: 290,
+            height: '100%',
+            backgroundColor: '#0f172a',
+            border: '3px solid #334155',
+            borderRight: 'none',
+            borderRadius: '24px 0 0 24px',
+            transform: `translate3d(${-shatterOffset}px, ${shatterOffset * 0.4}px, 0)`,
+            boxShadow: '-16px 24px 50px rgba(0, 0, 0, 0.8)',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Microchip Wire Traces & Gold Core Pins */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 20,
+              border: '2px solid rgba(56, 189, 248, 0.3)',
+              borderRadius: 12,
+              backgroundImage: 'repeating-linear-gradient(45deg, rgba(244, 63, 94, 0.15) 0px, rgba(244, 63, 94, 0.15) 8px, transparent 8px, transparent 16px)',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              top: '40%',
+              left: 40,
+              fontSize: 64,
+              fontWeight: 900,
+              color: '#f43f5e',
+              letterSpacing: '-0.05em',
+            }}
+          >
+            NV
+          </div>
+        </div>
+
+        {/* Right Fracturing Half */}
+        <div
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: 0,
+            width: 290,
+            height: '100%',
+            backgroundColor: '#0b1120',
+            border: '3px solid #334155',
+            borderLeft: 'none',
+            borderRadius: '0 24px 24px 0',
+            transform: `translate3d(${shatterOffset}px, ${-shatterOffset * 0.5}px, 0)`,
+            boxShadow: '16px 24px 50px rgba(0, 0, 0, 0.8)',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              inset: 20,
+              border: '2px solid rgba(244, 63, 94, 0.3)',
+              borderRadius: 12,
+              backgroundImage: 'repeating-linear-gradient(-45deg, rgba(56, 189, 248, 0.15) 0px, rgba(56, 189, 248, 0.15) 8px, transparent 8px, transparent 16px)',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              top: '40%',
+              left: 10,
+              fontSize: 64,
+              fontWeight: 900,
+              color: '#38bdf8',
+              letterSpacing: '-0.05em',
+            }}
+          >
+            IDIA
+          </div>
+        </div>
+
+        {/* Center Fractured Lightning/Fault Line SVG */}
+        <svg
+          style={{
+            position: 'absolute',
+            top: -20,
+            left: 270,
+            width: 40,
+            height: 680,
+            zIndex: 10,
+          }}
+        >
+          <path
+            d="M 20 0 L 10 120 L 32 240 L 5 360 L 35 480 L 15 600 L 22 680"
+            stroke="#f43f5e"
+            strokeWidth="5"
+            fill="none"
+            strokeDasharray="700"
+            strokeDashoffset={700 * (1 - crackProgress)}
+            style={{ filter: 'drop-shadow(0 0 10px #f43f5e)' }}
+          />
+        </svg>
+
+        {/* Warning Indicator Overlay */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: -60,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '12px 28px',
+            backgroundColor: 'rgba(244, 63, 94, 0.18)',
+            border: '2px solid #f43f5e',
+            borderRadius: 8,
+            color: '#fecdd3',
+            fontSize: 20,
+            fontWeight: 800,
+            letterSpacing: '0.15em',
+            boxShadow: '0 0 30px rgba(244, 63, 94, 0.3)',
+          }}
+        >
+          <span style={{ animation: 'blink 0.8s infinite' }}>CRITICAL ARCHITECTURE COLLAPSE</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// SCENE 2: JENSEN HUANG RESIGNATION (Hero Silhouette with Leather Jacket Cue)
+// =========================================================================
+function SceneTwoJensenResigns({ frame, fps }: { frame: number; fps: number }) {
+  const enterSpring = spring({ frame, fps, config: { damping: 14, stiffness: 100 } });
+  const badgeDrop = spring({ frame: Math.max(0, frame - 30), fps, config: { damping: 12, stiffness: 130 } });
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {/* High Contrast Character Cutaway Silhouette Frame */}
+      <div
+        style={{
+          position: 'relative',
+          width: 520,
+          height: 660,
+          borderRadius: 28,
+          backgroundColor: '#0c1322',
+          border: '2px solid rgba(56, 189, 248, 0.4)',
+          boxShadow: '0 30px 80px rgba(0, 0, 0, 0.9), 0 0 40px rgba(56, 189, 248, 0.15)',
+          overflow: 'hidden',
+          transform: `scale(${enterSpring})`,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+        }}
+      >
+        {/* Neon Silhouette Lighting Backdrop */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 40,
+            width: 320,
+            height: 320,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(56, 189, 248, 0.4) 0%, transparent 70%)',
+            filter: 'blur(40px)',
+          }}
+        />
+
+        {/* Character Silhouette: Signature Glasses & Leather Jacket Lapels */}
+        <svg
+          viewBox="0 0 400 480"
+          style={{
+            width: 400,
+            height: 480,
+            zIndex: 5,
+            filter: 'drop-shadow(0 12px 24px rgba(0, 0, 0, 0.9))',
+          }}
+        >
+          {/* Head & Hair */}
+          <path d="M 150 160 C 150 90, 250 90, 250 160 C 250 200, 240 230, 200 230 C 160 230, 150 200, 150 160 Z" fill="#1e293b" />
+          {/* Iconic Dark Rimmed Glasses */}
+          <rect x="156" y="145" width="38" height="24" rx="4" fill="none" stroke="#38bdf8" strokeWidth="4" />
+          <rect x="206" y="145" width="38" height="24" rx="4" fill="none" stroke="#38bdf8" strokeWidth="4" />
+          <line x1="194" y1="157" x2="206" y2="157" stroke="#38bdf8" strokeWidth="4" />
+          
+          {/* Signature Leather Jacket Shoulders & Zipper V-Collar */}
+          <path
+            d="M 90 480 L 130 260 L 175 250 L 200 320 L 225 250 L 270 260 L 310 480 Z"
+            fill="#090d16"
+            stroke="#334155"
+            strokeWidth="3"
+          />
+          {/* Cyan Lapel Rim Glow */}
+          <path d="M 175 250 L 200 360 L 225 250" fill="none" stroke="#38bdf8" strokeWidth="4" />
+          <line x1="200" y1="360" x2="200" y2="480" stroke="#f43f5e" strokeWidth="3" strokeDasharray="6 6" />
+        </svg>
+
+        {/* Dropping CEO Resignation Tag Card */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 70,
+            transform: `translateY(${(1 - badgeDrop) * -120}px) rotate(-6deg)`,
+            padding: '14px 32px',
+            backgroundColor: '#dc2626',
+            color: '#ffffff',
+            borderRadius: 12,
+            fontWeight: 900,
+            fontSize: 26,
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            boxShadow: '0 16px 36px rgba(220, 38, 38, 0.6)',
+            border: '2px solid #fecaca',
+            zIndex: 10,
+          }}
+        >
+          [ STATUS: RESIGNED ]
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// SCENE 3: AUDIT & INVESTIGATION DOSSIER (Classified Document + Vector Stamp)
+// =========================================================================
+function SceneThreeAuditInvestigation({ frame, fps }: { frame: number; fps: number }) {
+  const enterSpring = spring({ frame, fps, config: { damping: 15, stiffness: 110 } });
+  const stampSpring = spring({ frame: Math.max(0, frame - 35), fps, config: { damping: 10, stiffness: 180 } });
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {/* Dark Confidential Audit Dossier */}
+      <div
+        style={{
+          position: 'relative',
+          width: 580,
+          height: 680,
+          backgroundColor: '#111827',
+          border: '2px solid #374151',
+          borderRadius: 20,
+          boxShadow: '0 30px 90px rgba(0, 0, 0, 0.9)',
+          padding: 44,
+          transform: `perspective(1000px) rotateX(12deg) scale(${enterSpring})`,
+          overflow: 'hidden',
+        }}
+      >
+        {/* Top File Tab */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 44,
+            padding: '6px 24px',
+            backgroundColor: '#1f2937',
+            borderBottom: '2px solid #4b5563',
+            fontSize: 16,
+            fontWeight: 800,
+            color: '#9ca3af',
+            letterSpacing: '0.15em',
+          }}
+        >
+          SEC // BOARD COMPLIANCE DOC #8841-B
+        </div>
+
+        {/* Dossier Lines & Redacted Code Blocks */}
+        <div style={{ marginTop: 40, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{ height: 16, width: '70%', backgroundColor: '#1f2937', borderRadius: 4 }} />
+          <div style={{ height: 16, width: '90%', backgroundColor: '#1f2937', borderRadius: 4 }} />
+          <div style={{ height: 16, width: '45%', backgroundColor: '#f43f5e', opacity: 0.8, borderRadius: 4 }} />
+
+          {/* Audit Verification Vector Items */}
+          <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {[
+              { label: "Executive Governance Quorum", pass: false },
+              { label: "Autonomous Supply Allocation", pass: false },
+              { label: "Internal Audit Review Protocol", pass: true }
+            ].map((item, i) => (
+              <div
+                key={i}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 18px',
+                  backgroundColor: 'rgba(31, 41, 55, 0.6)',
+                  borderRadius: 8,
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                }}
+              >
+                <span style={{ fontSize: 18, color: '#e5e7eb', fontWeight: 600 }}>{item.label}</span>
+                <span
+                  style={{
+                    fontSize: 18,
+                    fontWeight: 900,
+                    color: item.pass ? '#22c55e' : '#f43f5e',
+                  }}
+                >
+                  {item.pass ? "VERIFIED" : "FLAGGED"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Glowing Red Investigation Stamp */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 80,
+            right: 40,
+            padding: '16px 36px',
+            border: '6px solid #ef4444',
+            borderRadius: 16,
+            color: '#ef4444',
+            fontSize: 34,
+            fontWeight: 900,
+            letterSpacing: '0.2em',
+            transform: `scale(${stampSpring}) rotate(-16deg)`,
+            opacity: stampSpring,
+            boxShadow: '0 0 35px rgba(239, 68, 68, 0.6)',
+            backgroundColor: 'rgba(239, 68, 68, 0.12)',
+            textShadow: '0 0 12px rgba(239, 68, 68, 0.8)',
+          }}
+        >
+          INVESTIGATION
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// SCENE 4: COLETTE KRESS STEPS UP (Dual-Pillar Split Compare)
+// =========================================================================
+function SceneFourColetteTakesHelm({ frame, fps }: { frame: number; fps: number }) {
+  const pillarLeft = spring({ frame, fps, config: { damping: 14, stiffness: 100 } });
+  const pillarRight = spring({ frame: Math.max(0, frame - 15), fps, config: { damping: 14, stiffness: 100 } });
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 32,
+        padding: '0 60px',
+      }}
+    >
+      {/* Left Pillar: Financial Discipline / CFO Command */}
+      <div
+        style={{
+          flex: 1,
+          height: 640,
+          backgroundColor: '#0c1322',
+          border: '2px solid #38bdf8',
+          borderRadius: 24,
+          padding: 32,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          transform: `translateY(${(1 - pillarLeft) * 80}px)`,
+          opacity: pillarLeft,
+          boxShadow: '0 20px 60px rgba(56, 189, 248, 0.2)',
+        }}
+      >
+        <div>
+          <div style={{ color: '#38bdf8', fontSize: 18, fontWeight: 800, letterSpacing: '0.15em' }}>
+            FINANCIAL PILLAR
+          </div>
+          <div style={{ fontSize: 36, fontWeight: 900, color: '#f8fafc', marginTop: 12 }}>
+            COLETTE KRESS
+          </div>
+          <div style={{ fontSize: 20, color: '#94a3b8', marginTop: 4 }}>Chief Financial Officer</div>
+        </div>
+
+        {/* Dynamic Financial Balance Bar Chart */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ fontSize: 16, color: '#cbd5e1' }}>Capital Reserves: $42B+</div>
+          <div style={{ width: '100%', height: 14, backgroundColor: '#1e293b', borderRadius: 7, overflow: 'hidden' }}>
+            <div style={{ width: '92%', height: '100%', backgroundColor: '#38bdf8' }} />
+          </div>
+          <div style={{ fontSize: 16, color: '#cbd5e1' }}>Gross Margin Health: 75%</div>
+          <div style={{ width: '100%', height: 14, backgroundColor: '#1e293b', borderRadius: 7, overflow: 'hidden' }}>
+            <div style={{ width: '75%', height: '100%', backgroundColor: '#34d399' }} />
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: '12px 18px',
+            backgroundColor: 'rgba(56, 189, 248, 0.15)',
+            border: '1px solid #38bdf8',
+            borderRadius: 12,
+            textAlign: 'center',
+            fontWeight: 800,
+            fontSize: 18,
+            color: '#e0f2fe',
+          }}
+        >
+          INTERIM CHIEF EXECUTIVE
+        </div>
+      </div>
+
+      {/* Right Pillar: Operational Continuity */}
+      <div
+        style={{
+          flex: 1,
+          height: 640,
+          backgroundColor: '#0c1322',
+          border: '2px solid #a855f7',
+          borderRadius: 24,
+          padding: 32,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          transform: `translateY(${(1 - pillarRight) * 80}px)`,
+          opacity: pillarRight,
+          boxShadow: '0 20px 60px rgba(168, 85, 247, 0.2)',
+        }}
+      >
+        <div>
+          <div style={{ color: '#a855f7', fontSize: 18, fontWeight: 800, letterSpacing: '0.15em' }}>
+            OPERATIONAL PILLAR
+          </div>
+          <div style={{ fontSize: 36, fontWeight: 900, color: '#f8fafc', marginTop: 12 }}>
+            GLOBAL SUPPLY
+          </div>
+          <div style={{ fontSize: 20, color: '#94a3b8', marginTop: 4 }}>Foundry Allotments</div>
+        </div>
+
+        {/* Server & Chip Architecture Load Vectors */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ fontSize: 16, color: '#cbd5e1' }}>TSMC 3nm Allocation</div>
+          <div style={{ width: '100%', height: 14, backgroundColor: '#1e293b', borderRadius: 7, overflow: 'hidden' }}>
+            <div style={{ width: '98%', height: '100%', backgroundColor: '#a855f7' }} />
+          </div>
+          <div style={{ fontSize: 16, color: '#cbd5e1' }}>Blackwell Ultra Pipeline</div>
+          <div style={{ width: '100%', height: 14, backgroundColor: '#1e293b', borderRadius: 7, overflow: 'hidden' }}>
+            <div style={{ width: '84%', height: '100%', backgroundColor: '#60a5fa' }} />
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: '12px 18px',
+            backgroundColor: 'rgba(168, 85, 247, 0.15)',
+            border: '1px solid #a855f7',
+            borderRadius: 12,
+            textAlign: 'center',
+            fontWeight: 800,
+            fontSize: 18,
+            color: '#f3e8ff',
+          }}
+        >
+          FAB CONTINUITY SECURED
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// SCENE 5: EXECUTIVE TALENT SEARCH NETWORK (Harvey Jones Governance DAG)
+// =========================================================================
+function SceneFiveExecutiveSearchNetwork({ frame, fps }: { frame: number; fps: number }) {
+  const rootSpring = spring({ frame, fps, config: { damping: 14, stiffness: 100 } });
+  const branchSpring = spring({ frame: Math.max(0, frame - 25), fps, config: { damping: 12, stiffness: 120 } });
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {/* Node Network Map Container */}
+      <div style={{ position: 'relative', width: 720, height: 680 }}>
+        {/* Top Central Node: Harvey Jones */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 20,
+            left: '50%',
+            transform: `translateX(-50%) scale(${rootSpring})`,
+            width: 380,
+            padding: '24px 28px',
+            backgroundColor: '#0f172a',
+            border: '2px solid #38bdf8',
+            borderRadius: 20,
+            textAlign: 'center',
+            boxShadow: '0 16px 40px rgba(56, 189, 248, 0.3)',
+            zIndex: 10,
+          }}
+        >
+          <div style={{ fontSize: 16, color: '#38bdf8', fontWeight: 800, letterSpacing: '0.15em' }}>
+            INDEPENDENT LEAD DIRECTOR
+          </div>
+          <div style={{ fontSize: 32, fontWeight: 900, color: '#ffffff', marginTop: 8 }}>
+            HARVEY C. JONES
+          </div>
+          <div style={{ fontSize: 16, color: '#94a3b8', marginTop: 4 }}>Committee Search Chair</div>
+        </div>
+
+        {/* Branching SVG Connector Lines */}
+        <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 1 }}>
+          <path
+            d="M 360 170 L 360 300 L 160 380"
+            stroke="#38bdf8"
+            strokeWidth="4"
+            fill="none"
+            strokeDasharray="400"
+            strokeDashoffset={400 * (1 - branchSpring)}
+          />
+          <path
+            d="M 360 170 L 360 300 L 560 380"
+            stroke="#f43f5e"
+            strokeWidth="4"
+            fill="none"
+            strokeDasharray="400"
+            strokeDashoffset={400 * (1 - branchSpring)}
+          />
+        </svg>
+
+        {/* Left Sub-Node: Internal Bench Candidates */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 60,
+            left: 20,
+            width: 320,
+            padding: '20px',
+            backgroundColor: '#0c1322',
+            border: '2px solid #38bdf8',
+            borderRadius: 16,
+            transform: `scale(${branchSpring})`,
+            boxShadow: '0 12px 30px rgba(0, 0, 0, 0.8)',
+            zIndex: 10,
+          }}
+        >
+          <div style={{ fontSize: 14, color: '#38bdf8', fontWeight: 800 }}>INTERNAL PIPELINE</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: '#ffffff', marginTop: 6 }}>VP & SVP Roster</div>
+          <div style={{ fontSize: 16, color: '#94a3b8', marginTop: 8 }}>Software & GPU Architecture Leads</div>
+        </div>
+
+        {/* Right Sub-Node: External Tech Titan Search */}
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 60,
+            right: 20,
+            width: 320,
+            padding: '20px',
+            backgroundColor: '#0c1322',
+            border: '2px solid #f43f5e',
+            borderRadius: 16,
+            transform: `scale(${branchSpring})`,
+            boxShadow: '0 12px 30px rgba(0, 0, 0, 0.8)',
+            zIndex: 10,
+          }}
+        >
+          <div style={{ fontSize: 14, color: '#f43f5e', fontWeight: 800 }}>EXTERNAL RECRUIT</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: '#ffffff', marginTop: 6 }}>Global Tech Giants</div>
+          <div style={{ fontSize: 16, color: '#94a3b8', marginTop: 8 }}>Tier-1 Hyperscaler Execs</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// SCENE 6: BILLIONS IN VALUE AT STAKE (Radial Meter & Market Ticker HUD)
+// =========================================================================
+function SceneSixMarketValueBalancing({ frame, fps }: { frame: number; fps: number }) {
+  const enterSpring = spring({ frame, fps, config: { damping: 14, stiffness: 100 } });
+  
+  // Oscillating Needle representing market volatility
+  const needleAngle = interpolate(
+    Math.sin(frame * 0.15) * Math.cos(frame * 0.08),
+    [-1, 1],
+    [-42, 42]
+  );
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
       }}
     >
       <div
         style={{
-          transform: `scale(${introPop})`,
+          position: 'relative',
+          width: 580,
+          height: 640,
+          backgroundColor: '#0f172a',
+          border: '2px solid rgba(244, 63, 94, 0.5)',
+          borderRadius: 24,
+          padding: 36,
+          boxShadow: '0 24px 80px rgba(244, 63, 94, 0.25)',
+          transform: `scale(${enterSpring})`,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          position: 'relative'
+          justifyContent: 'space-between',
         }}
       >
-        {/* Animated Hexagonal Starburst & Rotating Gear */}
-        <div style={{ width: 340, height: 340, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {/* Radial 6-point spoke nodes */}
-          <svg width="340" height="340" viewBox="0 0 340 340" style={{ position: 'absolute' }}>
-            <polygon
-              points="170,30 290,95 290,245 170,310 50,245 50,95"
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 16, color: '#f43f5e', fontWeight: 800, letterSpacing: '0.2em' }}>
+            MARKET CAPITALIZATION AT RISK
+          </div>
+          <div style={{ fontSize: 54, fontWeight: 900, color: '#ffffff', marginTop: 8 }}>
+            $3,200,000,000,000
+          </div>
+        </div>
+
+        {/* Dynamic High-Tech Radial Market Dial */}
+        <div style={{ position: 'relative', width: 340, height: 220, overflow: 'hidden' }}>
+          <svg viewBox="0 0 340 220" style={{ width: '100%', height: '100%' }}>
+            {/* Background Arc */}
+            <path
+              d="M 40 190 A 130 130 0 0 1 300 190"
               fill="none"
-              stroke="#fdf3d0"
-              strokeWidth="2.5"
-              opacity="0.35"
+              stroke="#1e293b"
+              strokeWidth="28"
+              strokeLinecap="round"
             />
-            {Array.from({ length: 6 }).map((_, i) => {
-              const ang = (i * 60 * Math.PI) / 180;
-              const cx = 170 + Math.cos(ang) * 140;
-              const cy = 170 + Math.sin(ang) * 140;
-              return <circle key={i} cx={cx} cy={cy} r="6" fill="#fdf3d0" opacity="0.6" />;
-            })}
+            {/* Warning Arc Segment */}
+            <path
+              d="M 170 60 A 130 130 0 0 1 300 190"
+              fill="none"
+              stroke="#f43f5e"
+              strokeWidth="28"
+              strokeLinecap="round"
+              strokeDasharray="220"
+              strokeDashoffset="30"
+            />
+            {/* Safe Arc Segment */}
+            <path
+              d="M 40 190 A 130 130 0 0 1 170 60"
+              fill="none"
+              stroke="#38bdf8"
+              strokeWidth="28"
+              strokeLinecap="round"
+            />
           </svg>
 
-          {/* 12-Tooth Rotating Gear with Classic Serif 'B' */}
+          {/* Pivoting Needle */}
           <div
             style={{
-              width: 190,
-              height: 190,
+              position: 'absolute',
+              bottom: 24,
+              left: '50%',
+              width: 6,
+              height: 120,
+              backgroundColor: '#f8fafc',
+              borderRadius: 3,
+              transformOrigin: '50% 100%',
+              transform: `translateX(-50%) rotate(${needleAngle}deg)`,
+              boxShadow: '0 0 16px rgba(255, 255, 255, 0.9)',
+              transition: 'transform 0.05s linear',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 14,
+              left: '50%',
+              width: 24,
+              height: 24,
               borderRadius: '50%',
-              border: '6px dashed #fdf3d0',
+              backgroundColor: '#f43f5e',
+              transform: 'translateX(-50%)',
+              boxShadow: '0 0 12px #f43f5e',
+            }}
+          />
+        </div>
+
+        {/* Real-Time Market Volatility Feed */}
+        <div
+          style={{
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'space-between',
+            padding: '16px 24px',
+            backgroundColor: 'rgba(244, 63, 94, 0.12)',
+            border: '1px solid #f43f5e',
+            borderRadius: 14,
+            fontSize: 20,
+            fontWeight: 800,
+          }}
+        >
+          <span style={{ color: '#fecdd3' }}>VOLATILITY INDEX: HIGH</span>
+          <span style={{ color: '#f43f5e' }}>DELTA: ±8.4%</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =========================================================================
+// SCENE 7: BITTRIX TECHNOLOGIES OUTRO (Exact Royal Purple UI Spec)
+// Grounded in: /home/eswaran/Downloads/bittrix-reel(1).html
+// Colors: Royal Purple #5b1a78, Warm Cream #fdf3d0
+// =========================================================================
+function SceneSevenBittrixOutro({ frame, fps }: { frame: number; fps: number }) {
+  const enterSpring = spring({ frame, fps, config: { damping: 14, stiffness: 100 } });
+  const gearRotation = (frame * 1.8) % 360;
+  const sweepProgress = interpolate(frame, [25, 95], [-100, 200], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  // Staggered letter reveal for BITTRIX
+  const brandLetters = "BITTRIX".split("");
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {/* Royal Purple Outro Card */}
+      <div
+        style={{
+          position: 'relative',
+          width: 640,
+          height: 680,
+          backgroundColor: '#3b0d52',
+          backgroundImage: 'radial-gradient(circle at 50% 40%, #5b1a78 0%, #250635 100%)',
+          border: '3px solid #fdf3d0',
+          borderRadius: 36,
+          boxShadow: '0 30px 100px rgba(91, 26, 120, 0.6), 0 0 50px rgba(253, 243, 208, 0.2)',
+          padding: 44,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transform: `scale(${enterSpring})`,
+          overflow: 'hidden',
+        }}
+      >
+        {/* Diagonal Light Sweep Effect */}
+        <div
+          style={{
+            position: 'absolute',
+            top: -200,
+            bottom: -200,
+            left: `${sweepProgress}%`,
+            width: 140,
+            background: 'linear-gradient(90deg, transparent, rgba(253, 243, 208, 0.25), transparent)',
+            transform: 'rotate(25deg)',
+            pointerEvents: 'none',
+          }}
+        />
+
+        {/* 6-Point Radial Hexagon with 12-Tooth Mechanical Gear */}
+        <div style={{ position: 'relative', width: 200, height: 200, marginBottom: 28 }}>
+          {/* Animated 6-Point Radial Hexagon SVG */}
+          <svg viewBox="0 0 200 200" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
+            <polygon
+              points="100,10 180,55 180,145 100,190 20,145 20,55"
+              fill="none"
+              stroke="#fdf3d0"
+              strokeWidth="4"
+              opacity="0.8"
+            />
+            {/* Spoke Circles at Vertices */}
+            {[[100, 10], [180, 55], [180, 145], [100, 190], [20, 145], [20, 55]].map(([cx, cy], i) => (
+              <circle key={i} cx={cx} cy={cy} r="6" fill="#fdf3d0" />
+            ))}
+          </svg>
+
+          {/* Rotating 12-Tooth Precision Gear with Serif 'B' */}
+          <div
+            style={{
+              position: 'absolute',
+              inset: 25,
+              borderRadius: '50%',
+              border: '4px dashed #fdf3d0',
               transform: `rotate(${gearRotation}deg)`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 0 40px rgba(253, 243, 208, 0.4)'
             }}
           />
-
           <div
             style={{
               position: 'absolute',
-              fontSize: 90,
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontFamily: '"Cinzel", Georgia, serif',
+              fontSize: 68,
               fontWeight: 900,
-              fontFamily: '"Georgia", serif',
               color: '#fdf3d0',
-              textShadow: '0 4px 20px rgba(0,0,0,0.8)'
+              textShadow: '0 0 20px rgba(253, 243, 208, 0.8)',
             }}
           >
             B
           </div>
         </div>
 
-        {/* Staggered Elastic "BITTRIX" Typography */}
-        <div style={{ display: 'flex', gap: 10, marginTop: 40 }}>
-          {brandText.split('').map((char, cIdx) => {
+        {/* Staggered Elastic Bold "BITTRIX" Wordmark */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+          {brandLetters.map((char, index) => {
             const letterSpring = spring({
-              frame: Math.max(0, frame - cIdx * 3),
+              frame: Math.max(0, frame - 10 - index * 3),
               fps,
-              config: { damping: 12, stiffness: 150 }
+              config: { damping: 10, stiffness: 140 },
             });
-
             return (
               <span
-                key={cIdx}
+                key={index}
                 style={{
-                  fontSize: 78,
+                  fontSize: 58,
                   fontWeight: 900,
                   fontStyle: 'italic',
                   color: '#fdf3d0',
-                  letterSpacing: 4,
-                  transform: `scale(${letterSpring}) translateY(${interpolate(letterSpring, [0, 1], [30, 0])}px)`,
-                  textShadow: '0 6px 25px rgba(0,0,0,0.9)'
+                  letterSpacing: '0.04em',
+                  transform: `scale(${letterSpring}) translateY(${(1 - letterSpring) * 20}px)`,
+                  textShadow: '0 4px 16px rgba(0, 0, 0, 0.6)',
                 }}
               >
                 {char}
@@ -1303,33 +1392,53 @@ function SceneBittrixTechnologiesOutro({ frame, fps }: { frame: number; fps: num
           })}
         </div>
 
-        {/* Tracking Subtitle */}
+        {/* Tracking "TECHNOLOGIES" Subtitle */}
         <div
           style={{
-            fontSize: 26,
-            fontWeight: 800,
-            letterSpacing: 12,
+            fontSize: 22,
+            fontWeight: 700,
+            letterSpacing: '0.36em',
             color: '#fdf3d0',
             opacity: 0.9,
-            marginTop: 16,
-            textTransform: 'uppercase'
+            marginTop: 4,
           }}
         >
           TECHNOLOGIES
         </div>
 
-        {/* Expanding Accent Underline Bar */}
+        {/* Expanding Royal Underline Bar */}
         <div
           style={{
-            width: interpolate(introPop, [0, 1], [0, 360]),
+            marginTop: 18,
+            width: interpolate(frame, [30, 80], [0, 280], {
+              extrapolateLeft: 'clamp',
+              extrapolateRight: 'clamp',
+            }),
             height: 4,
             backgroundColor: '#fdf3d0',
-            marginTop: 20,
             borderRadius: 2,
-            boxShadow: '0 0 15px #fdf3d0'
+            boxShadow: '0 0 12px #fdf3d0',
           }}
         />
+
+        {/* Call-to-Action Spoken Target Card */}
+        <div
+          style={{
+            marginTop: 28,
+            padding: '12px 32px',
+            backgroundColor: 'rgba(253, 243, 208, 0.15)',
+            border: '1.5px solid #fdf3d0',
+            borderRadius: 999,
+            fontSize: 18,
+            fontWeight: 800,
+            letterSpacing: '0.12em',
+            color: '#fdf3d0',
+            textTransform: 'uppercase',
+          }}
+        >
+          Follow For More Concepts
+        </div>
       </div>
-    </AbsoluteFill>
+    </div>
   );
 }

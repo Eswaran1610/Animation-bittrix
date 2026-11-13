@@ -84,6 +84,15 @@ export const preflightRenderProps = async (propsPath: string): Promise<void> => 
     }
     if (!scene.narrationAudio) fail(`Props preflight failed: scene ${index + 1} has no approved narration audio.`, 'audio-sync');
     if (!Array.isArray(scene.audioCues) || scene.audioCues.length === 0) fail(`Props preflight failed: scene ${index + 1} has no object sound cues.`, 'audio-sync');
+
+    // Quality Gate: for every scene, |voiceStart - visualStart| <= 3 frames (100 ms); fail the render otherwise
+    const visualStart = Number(scene.visualStart ?? scene.start ?? scene.startFrame ?? 0);
+    const voiceStart = Number(scene.voiceStart ?? scene.start ?? scene.startFrame ?? 0);
+    const driftFrames = Math.abs(voiceStart - visualStart);
+    if (driftFrames > 3) {
+      fail(`Sync gate failed for scene ${index + 1}: |voiceStart (${voiceStart}) - visualStart (${visualStart})| = ${driftFrames} frames (> 3 frames / 100ms allowed).`, 'audio-sync');
+    }
+
     if (index > 0 && scene.template && props.scenes[index - 1].template === scene.template) {
       fail(`Props preflight failed: adjacent scenes ${index} and ${index + 1} reuse the same template; the active CLI must create content-specific visual variety.`, 'props-invalid');
     }

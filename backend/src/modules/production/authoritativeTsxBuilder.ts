@@ -8,12 +8,18 @@
 
 export interface AuthoritativeSceneData {
   scene_number: number;
+  start?: number;
+  startFrame?: number;
+  voiceStart?: number;
+  visualStart?: number;
+  frames?: number;
   role?: string;
   template?: string;
   visual_type?: '3d-showcase' | 'image-hero' | 'concept-diagram' | 'process-flow' | 'split-compare' | 'timeline' | 'callout' | 'stat-counter' | 'outro';
   durationInFrames: number;
   durationSec?: number;
   narration?: string;
+  narrationAudio?: string;
   on_screen_text?: string;
   subtitle?: string;
   visual_direction?: string;
@@ -27,7 +33,7 @@ export interface AuthoritativeSceneData {
   labels?: string[];
   stat_value?: string;
   source_url?: string;
-  audioCues?: Array<{ hitFrame?: number; frame?: number; src?: string; volume?: number; role?: string }>;
+  audioCues?: Array<{ hitFrame?: number; frame?: number; src?: string; volume?: number; role?: string; durationFrames?: number }>;
   words?: Array<{
     word: string;
     startFrame: number;
@@ -149,6 +155,11 @@ export interface ScenePayload {
   id?: string;
   title?: string;
   scene_number: number;
+  start?: number;
+  startFrame?: number;
+  voiceStart?: number;
+  visualStart?: number;
+  frames?: number;
   role?: string;
   template?: string;
   visual_type?: '3d-showcase' | 'image-hero' | 'concept-diagram' | 'process-flow' | 'split-compare' | 'timeline' | 'callout' | 'stat-counter' | 'outro';
@@ -156,6 +167,7 @@ export interface ScenePayload {
   duration_sec?: number;
   durationSec?: number;
   narration?: string;
+  narrationAudio?: string;
   on_screen_text?: string;
   subtitle?: string;
   visual_direction?: string;
@@ -175,7 +187,7 @@ export interface ScenePayload {
 
 const BAKED_SCENES: ScenePayload[] = ${serializedScenes};
 
-// Synchronized Kinetic Karaoke Captions
+// Synchronized Kinetic Karaoke Captions — safe zone strictly above bottom 20% (>= 384px in 1080x1920)
 const KineticCaptions: React.FC<{
   words: WordTiming[];
   currentFrame: number;
@@ -187,7 +199,7 @@ const KineticCaptions: React.FC<{
     <div
       style={{
         position: 'absolute',
-        bottom: 110,
+        bottom: 400,
         left: 60,
         right: 60,
         display: 'flex',
@@ -258,7 +270,7 @@ const ThreeDShowcaseView: React.FC<{
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '160px 60px 220px',
+        padding: '120px 60px 440px',
         perspective: 1200,
         opacity,
       }}
@@ -378,7 +390,7 @@ const ImageHeroView: React.FC<{
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '140px 60px 220px',
+        padding: '120px 60px 440px',
         opacity,
       }}
     >
@@ -512,7 +524,7 @@ const ConceptDiagramView: React.FC<{
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '120px 60px 220px',
+        padding: '120px 60px 440px',
         transform: \`translateY(\${bgDrift}px)\`,
       }}
     >
@@ -628,7 +640,7 @@ const ProcessFlowView: React.FC<{
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '160px 60px 220px',
+        padding: '120px 60px 440px',
       }}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 26, width: 880 }}>
@@ -709,7 +721,7 @@ const SplitCompareView: React.FC<{
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '160px 60px 220px',
+        padding: '120px 60px 440px',
       }}
     >
       <div
@@ -798,7 +810,7 @@ const CalloutView: React.FC<{
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '160px 60px 220px',
+        padding: '120px 60px 440px',
         transform: \`scale(\${cameraZoom})\`,
       }}
     >
@@ -919,7 +931,7 @@ const StatCounterView: React.FC<{
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '160px 60px 220px',
+        padding: '120px 60px 440px',
       }}
     >
       <div
@@ -1302,9 +1314,9 @@ export default function GeneratedCliVideo(props: any) {
   const bgShiftX = 50 + Math.sin(globalFrame * 0.015) * 18;
   const bgShiftY = 35 + Math.cos(globalFrame * 0.02) * 14;
 
-  const isLastOutroScene = scenes.length > 0 && scenes[scenes.length - 1].visual_type === 'outro';
+  const isLastOutroScene = scenes.length > 0 && (scenes[scenes.length - 1].visual_type === 'outro' || scenes[scenes.length - 1].role === 'cta' || scenes[scenes.length - 1].template === 'cta-outro');
   const contentFramesTotal = isLastOutroScene
-    ? scenes.slice(0, -1).reduce((acc, s) => acc + (s.durationInFrames || Math.round(fps * 3.5)), 0)
+    ? scenes.slice(0, -1).reduce((acc, s) => acc + (s.durationInFrames || (s as any).frames || Math.round(fps * 3.5)), 0)
     : 999999;
 
   return (
@@ -1329,9 +1341,11 @@ export default function GeneratedCliVideo(props: any) {
       )}
 
       {scenes.map((scene, index) => {
-        const fromFrame = accumulatedFrame;
-        const durationFrames = scene.durationInFrames || Math.round(fps * 3.5);
-        accumulatedFrame += durationFrames;
+        const fromFrame = (scene as any).start !== undefined
+          ? (scene as any).start
+          : ((scene as any).startFrame !== undefined ? (scene as any).startFrame : accumulatedFrame);
+        const durationFrames = scene.durationInFrames || (scene as any).frames || Math.round(fps * 3.5);
+        accumulatedFrame = fromFrame + durationFrames;
 
         return (
           <Sequence
@@ -1341,13 +1355,21 @@ export default function GeneratedCliVideo(props: any) {
           >
             <SceneContent scene={scene} fps={fps} index={index} />
 
+            {/* Embedded Per-Scene Voice Audio when not using master audio (Both Sequence and Audio read from this same timeline array) */}
+            {scene.narrationAudio && !props?.video?.audioUrl && (
+              <Audio
+                src={scene.narrationAudio.startsWith('http') || scene.narrationAudio.startsWith('/') ? scene.narrationAudio : staticFile(scene.narrationAudio)}
+                volume={1.0}
+              />
+            )}
+
             {/* Embedded Audio SFX Cues Synchronized at Exact Frame Timestamps */}
             {scene.audioCues?.map((cue, cIdx) => (
               cue.src ? (
                 <Sequence
                   key={\`sfx-\${scene.scene_number || index}-\${cIdx}\`}
                   from={cue.hitFrame ?? cue.frame ?? 0}
-                  durationInFrames={Math.round(fps * 1.5)}
+                  durationInFrames={cue.durationFrames ?? Math.round(fps * 1.5)}
                 >
                   <Audio
                     src={cue.src.startsWith('http') || cue.src.startsWith('/') ? cue.src : staticFile(cue.src)}

@@ -133,61 +133,51 @@ export class RendersService {
       throw new Error(`Per-scene narration audio generation failed: ${err.message}`);
     }
     const narrationDurationSec = Array.from(sceneNarration.values()).reduce((total, audio) => total + audio.durationSec, 0);
-    // TTS duration can differ slightly from the planning estimate. First borrow
-    // available scene frames while keeping the approved total runtime. If exact
-    // 1.00x speech still overflows, make one bounded 1.15x recovery pass, then
-    // remeasure every clip before deciding whether the plan can render.
-    const plannedSceneFrames = scenePlan.map((scene: any) => Math.max(1, Math.round(Number(scene.duration_sec) * fps)));
-    const targetSceneFrameTotal = plannedSceneFrames.reduce((sum: number, frames: number) => sum + frames, 0);
-    const requiredSceneFrames = () => scenePlan.map((scene: any) => {
-      const spoken = sceneNarration.get(Number(scene.scene_number))?.durationSec || 0;
-      return Math.max(Math.round(2.5 * fps), Math.ceil((spoken + 8 / fps) * fps));
+
+    // Build ONE timeline array from measured voice durations:
+    //   scene[i].start = scene[i-1].start + scene[i-1].frames
+    //   scene[i].frames = ceil(voiceSec * fps) + leadFrames + tailFrames
+    // Both the visual Sequence and the voice Audio read from this same array,
+    // so they cannot drift. Never use a fixed per-scene duration.
+    // CTA scene must be at least as long as its voice plus 1s; final video length = sum of scene frames.
+    const leadFrames = 0;
+    const tailFrames = Math.max(8, Math.round(0.4 * fps));
+
+    let accumulatedStart = 0;
+    const sceneTimeline = scenePlan.map((s: any, idx: number) => {
+      const isCta = (idx === scenePlan.length - 1) || s.role === 'cta' || String(s.visual_type || '').toLowerCase() === 'outro' || /bittrix/i.test(s.narration || '');
+      const narration = sceneNarration.get(Number(s.scene_number));
+      const voiceSec = Number(narration?.durationSec || 0);
+      const ctaPadding = isCta ? Math.ceil(1.0 * fps) : 0;
+      let frames = Math.ceil(voiceSec * fps) + ctaPadding + leadFrames + tailFrames;
+      if (isCta) {
+        frames = Math.max(frames, Math.ceil((voiceSec + 1.0) * fps));
+      }
+      frames = Math.max(Math.round(1.5 * fps), frames);
+
+      const start = accumulatedStart;
+      accumulatedStart += frames;
+      const voiceStart = start + leadFrames;
+      const visualStart = start;
+
+      // GATE: for every scene, |voiceStart - visualStart| <= 3 frames (100 ms); fail the render otherwise.
+      if (Math.abs(voiceStart - visualStart) > 3) {
+        throw new Error(`Sync gate failed: Scene ${idx + 1} voice-visual sync |voiceStart (${voiceStart}) - visualStart (${visualStart})| = ${Math.abs(voiceStart - visualStart)} frames > 3 frames (100ms).`);
+      }
+
+      return {
+        start,
+        frames,
+        durationInFrames: frames,
+        durationSec: frames / fps,
+        voiceSec,
+        voiceStart,
+        visualStart,
+        leadFrames,
+        tailFrames,
+        isCta
+      };
     });
-    let minSceneFrames = requiredSceneFrames();
-    let requiredFrames = minSceneFrames.reduce((sum: number, frames: number) => sum + frames, 0);
-    if (requiredFrames > targetSceneFrameTotal) {
-      const recoverySpeed = Math.min(1.15, ttsService.getMaxSceneSpeedMultiplier());
-      if (recoverySpeed > 1) {
-        if (progressCallback) await progressCallback(25, 'Voiceover exceeds the scene allocation; retrying once at up to 1.15x');
-        for (const scene of scenePlan) {
-          const result = await ttsService.generateSceneNarrationWithAlignment(
-            projectId,
-            Number(scene.scene_number),
-            scene.narration,
-            renderVersion,
-            recoverySpeed,
-          );
-          sceneNarration.set(Number(scene.scene_number), result);
-        }
-        minSceneFrames = requiredSceneFrames();
-        requiredFrames = minSceneFrames.reduce((sum: number, frames: number) => sum + frames, 0);
-      }
-      if (requiredFrames > targetSceneFrameTotal) {
-        throw new Error(`Voiceover still needs ${(requiredFrames / fps).toFixed(2)}s at the bounded recovery rate, but the approved plan provides ${(targetSceneFrameTotal / fps).toFixed(2)}s. Shorten the narration or approve a longer runtime.`);
-      }
-    }
-    const allocatedSceneFrames = [...minSceneFrames];
-    let framesToAllocate = targetSceneFrameTotal - requiredFrames;
-    // Restore each approved scene duration where its narration leaves room.
-    for (let index = 0; index < allocatedSceneFrames.length && framesToAllocate > 0; index += 1) {
-      const plannedSlack = Math.max(0, plannedSceneFrames[index] - allocatedSceneFrames[index]);
-      const restored = Math.min(plannedSlack, framesToAllocate);
-      allocatedSceneFrames[index] += restored;
-      framesToAllocate -= restored;
-    }
-    // If an overlong spoken beat consumed the available slack, place leftover
-    // time in other scenes with shorter narration while preserving exact total.
-    const maxRenderedSceneFrames = Math.round(6.5 * fps);
-    for (let index = 0; index < allocatedSceneFrames.length && framesToAllocate > 0; index += 1) {
-      const extra = Math.min(maxRenderedSceneFrames - allocatedSceneFrames[index], framesToAllocate);
-      if (extra > 0) {
-        allocatedSceneFrames[index] += extra;
-        framesToAllocate -= extra;
-      }
-    }
-    if (framesToAllocate > 0) {
-      throw new Error('The approved narration cannot fit inside the requested runtime without exceeding the supported scene timing. Shorten the narration and approve a new script.');
-    }
 
     // 2. Fetch Open Educational Web Diagrams for Scenes
     // Ensure procedural SFX library is generated ONCE for the entire render
@@ -200,8 +190,8 @@ export class RendersService {
       const visualType = String(s.visual_type || '').toLowerCase();
       if (visualType !== 'blueprint') throw new Error(`Scene ${idx + 1} must use a CLI visual blueprint; regenerate the script before rendering.`);
       if (!s.visual_blueprint) throw new Error(`Scene ${idx + 1} has no CLI visual blueprint; render refused.`);
-      if (!Number.isFinite(Number(s.duration_sec)) || Number(s.duration_sec) < 2.5 || Number(s.duration_sec) > 5) {
-        throw new Error(`Scene ${idx + 1} must be between 2.5 and 5 seconds.`);
+      if (!Number.isFinite(Number(s.duration_sec)) || Number(s.duration_sec) < 1.0 || Number(s.duration_sec) > 15) {
+        throw new Error(`Scene ${idx + 1} must have a valid duration.`);
       }
       if (!s.theme_color || !/^#[0-9a-f]{6}$/i.test(s.theme_color)) throw new Error(`Scene ${idx + 1} has no valid theme_color.`);
       if (!s.on_screen_text || !s.subtitle || !s.visual_direction || !s.motion_cue || !s.continuity_to_next || !s.narration) {
@@ -210,13 +200,11 @@ export class RendersService {
       const blueprint = s.visual_blueprint || undefined;
       const themeColor = s.theme_color;
       const narration = sceneNarration.get(Number(s.scene_number));
-      // The TTS-aware frame allocation preserves every approved word while
-      // redistributing visual time across the fixed total runtime.
-      const durationInFrames = allocatedSceneFrames[idx];
-      const durationSec = durationInFrames / fps;
-      const transitionOutFrames = idx < scenePlan.length - 1
-        ? Math.max(8, Math.min(15, Math.round(Number(s.transition_out_frames ?? blueprint.transition_out_frames ?? 12))))
-        : 0;
+      const timelineItem = sceneTimeline[idx];
+      const durationInFrames = timelineItem.frames;
+      const durationSec = timelineItem.durationSec;
+      const startFrame = timelineItem.start;
+      const transitionOutFrames = 0;
 
       // Download the exact assets selected by CLI research. The CLI chooses
       // the source; the backend owns storage, licensing metadata, and staging.
@@ -469,6 +457,11 @@ export class RendersService {
         key_takeaways: s.key_takeaways,
         concept_nodes: s.concept_nodes,
         metric_data: s.metric_data,
+        start: startFrame,
+        startFrame,
+        voiceStart: timelineItem.voiceStart,
+        visualStart: timelineItem.visualStart,
+        frames: durationInFrames,
         visual_direction: s.visual_direction,
         duration_sec: durationSec,
         durationInFrames,
@@ -499,20 +492,8 @@ export class RendersService {
       };
     }));
 
-    // Use the same per-scene and transition frame rounding that the renderer
-    // receives. Rounding the sum of decimal seconds separately can differ by a
-    // frame, and the old correction removed that frame from the final narration.
-    const plannedTimelineFrames = Math.max(1,
-      targetSceneFrameTotal - formattedScenes.slice(0, -1)
-        .reduce((sum: number, scene: any) => sum + (scene.transitionOutFrames || 0), 0));
-    const currentTimelineFrames = formattedScenes.reduce((acc: number, s: any, index: number) =>
-      acc + s.durationInFrames - (index < formattedScenes.length - 1 ? s.transitionOutFrames || 0 : 0), 0);
-    const lastScene = formattedScenes.at(-1);
-    if (lastScene && currentTimelineFrames !== plannedTimelineFrames) {
-      throw new Error(`Internal preview timeline mismatch: expected ${plannedTimelineFrames} frames but allocated ${currentTimelineFrames}.`);
-    }
-    const totalFrames = formattedScenes.reduce((acc: number, s: any, index: number) =>
-      acc + s.durationInFrames - (index < formattedScenes.length - 1 ? s.transitionOutFrames || 0 : 0), 0);
+    // Video duration is strictly the sum of all scene frame durations (zero gaps, zero overlaps)
+    const totalFrames = formattedScenes.reduce((acc: number, s: any) => acc + s.durationInFrames, 0);
     
     if (progressCallback) await progressCallback(40, 'Generating ambient soundscape & background audio bed...');
     console.log(`[RendersService] Narration generated (${(narrationDurationSec).toFixed(1)}s total). Generating audio bed & master track...`);
@@ -532,7 +513,6 @@ export class RendersService {
 
     if (progressCallback) await progressCallback(46, 'Synchronizing word-level captions to exact audio frames...');
     console.log('[RendersService] Synchronizing word-level captions...');
-    let captionOffset = 0;
     const sceneCaptions = formattedScenes.map((scene: any) => {
       if (Array.isArray(scene.words) && scene.words.length > 0) {
         return scene.words.map((w: any) => ({
@@ -549,9 +529,11 @@ export class RendersService {
     });
     const captions = formattedScenes.flatMap((scene: any, index: number) => {
       const captionsForScene = sceneCaptions[index];
-      const sceneCaptionsWithOffset = captionsForScene
-        .map((caption: any) => ({ ...caption, startFrame: caption.startFrame + captionOffset, endFrame: caption.endFrame + captionOffset }));
-      captionOffset += scene.durationInFrames - (index < formattedScenes.length - 1 ? scene.transitionOutFrames || 0 : 0);
+      const sceneCaptionsWithOffset = captionsForScene.map((caption: any) => ({
+        ...caption,
+        startFrame: caption.startFrame + scene.startFrame,
+        endFrame: caption.endFrame + scene.startFrame,
+      }));
       return sceneCaptionsWithOffset;
     });
     console.log(`[RendersService] Prepared ${captions.length} captions and Remotion scene data.`);
@@ -586,17 +568,15 @@ export class RendersService {
     const projectAssetDir = path.join(projectPaths.backendMedia, 'projects', projectId, 'previews', `v${renderVersion}`);
     await fs.mkdir(projectAssetDir, { recursive: true });
     await fs.writeFile(path.join(projectAssetDir, 'asset-manifest.json'), JSON.stringify({ projectId, scriptVersion: script.version, previewVersion: renderVersion, assets: projectAssets }, null, 2), 'utf-8');
-    let sceneOffset = 0;
     const cueManifest = formattedScenes.flatMap((scene: any, sceneIndex: number) => {
       const cues = (scene.audioCues || []).map((cue: any, cueIndex: number) => ({
-        hitFrame: sceneOffset + (cue.hitFrame ?? cue.frame),
-        startFrame: sceneOffset + cue.frame,
+        hitFrame: scene.startFrame + (cue.hitFrame ?? cue.frame),
+        startFrame: scene.startFrame + cue.frame,
         transientMs: cue.transientMs,
         src: cue.src,
         role: cue.role || (cueIndex === 0 ? 'appear' : 'motion'),
         sourceId: cue.sourceId || `${scene.id}.object-${cueIndex + 1}`,
       }));
-      sceneOffset += scene.durationInFrames - (sceneIndex < formattedScenes.length - 1 ? scene.transitionOutFrames || 0 : 0);
       return cues;
     });
     await fs.writeFile(`${renderDataPath}.cues.json`, JSON.stringify(cueManifest, null, 2), 'utf-8');
@@ -701,17 +681,19 @@ export const MainComposition: React.FC<SceneDataPayload> = (sceneData) => {
     <>
       <GeneratedVideo {...sceneData} />
       {masterAudioUrl && <Audio src={assetSource(masterAudioUrl)} volume={1.0} />}
-      {!masterAudioUrl && backgroundAudioUrl && <Audio src={assetSource(backgroundAudioUrl)} volume={0.15} />}
+      {!masterAudioUrl && backgroundAudioUrl && <Audio src={assetSource(backgroundAudioUrl)} volume={0.25} loop />}
       {!masterAudioUrl &&
         scenes.map((scene, sceneIndex) => {
-          const fromFrame = accumulatedFrame;
-          const transOut = (scene as any).transitionOutFrames ?? (sceneIndex < scenes.length - 1 ? 10 : 0);
-          accumulatedFrame += (scene.durationInFrames || 90) - (sceneIndex < scenes.length - 1 ? transOut : 0);
+          const fromFrame = (scene as any).start !== undefined
+            ? (scene as any).start
+            : ((scene as any).startFrame !== undefined ? (scene as any).startFrame : accumulatedFrame);
+          const durationFrames = scene.durationInFrames || (scene as any).frames || 90;
+          accumulatedFrame = fromFrame + durationFrames;
 
           return (
             <React.Fragment key={\`audio-scene-\${scene.id || sceneIndex}\`}>
               {scene.narrationAudio && (
-                <Sequence from={fromFrame} durationInFrames={scene.durationInFrames}>
+                <Sequence from={fromFrame} durationInFrames={durationFrames}>
                   <Audio src={assetSource(scene.narrationAudio)} volume={1.0} />
                 </Sequence>
               )}
@@ -745,7 +727,7 @@ import { SceneDataPayload } from '../../data/sceneTypes';
 import { normalizeSceneData } from '../../data/normalizeSceneData';
 
 const calcTimelineDuration = (scenes: any[] = []) =>
-  scenes.reduce((total, scene, index) => total + (scene.durationInFrames || 90) - (index < scenes.length - 1 ? (scene.transitionOutFrames || 12) : 0), 0) || 900;
+  scenes.reduce((total, scene) => total + (scene.durationInFrames || (scene as any).frames || 90), 0) || 900;
 
 export const ProjectRoot: React.FC = () => {
   const rawInput = getInputProps();
@@ -813,17 +795,18 @@ registerRoot(ProjectRoot);
   }
 
   private buildCueManifestFromProps(props: any) {
-    let sceneOffset = 0;
+    let runningOffset = 0;
     return (props.scenes || []).flatMap((scene: any, sceneIndex: number) => {
+      const sceneStart = Number(scene.start ?? scene.startFrame ?? runningOffset);
       const cues = (scene.audioCues || []).filter((cue: any) => Number.isFinite(Number(cue.hitFrame ?? cue.frame))).map((cue: any, cueIndex: number) => ({
-        hitFrame: sceneOffset + Number(cue.hitFrame ?? cue.frame),
-        startFrame: sceneOffset + Number(cue.frame ?? cue.hitFrame),
+        hitFrame: sceneStart + Number(cue.hitFrame ?? cue.frame),
+        startFrame: sceneStart + Number(cue.frame ?? cue.hitFrame),
         transientMs: Number(cue.transientMs || 0),
         src: cue.src,
         role: cue.role || 'motion',
         sourceId: cue.sourceId || `${scene.id || sceneIndex}.cue-${cueIndex + 1}`,
       }));
-      sceneOffset += Number(scene.durationInFrames || 0) - (sceneIndex < props.scenes.length - 1 ? Number(scene.transitionOutFrames || 0) : 0);
+      runningOffset = sceneStart + Number(scene.durationInFrames || scene.frames || 0);
       return cues;
     });
   }

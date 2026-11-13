@@ -24,17 +24,21 @@ const STUDIO_PLACEHOLDER_PROPS: SceneDataPayload = {
       scene_number: 1,
       role: "hook",
       title: "Studio Placeholder",
+      subtitle: "",
       on_screen_text: "STUDIO PLACEHOLDER",
+      visual_direction: "",
+      motion_cue: "",
+      continuity_to_next: "",
       duration_sec: 5,
       durationInFrames: 150,
       themeColor: "#7c4dff",
       narration: "Studio placeholder.",
-    },
+    } as any,
   ],
 };
 
 const calcTimelineDuration = (scenes: any[] = []) =>
-  scenes.reduce((total, scene, index) => total + (scene.durationInFrames || 90) - (index < scenes.length - 1 ? (scene.transitionOutFrames || 12) : 0), 0) || 900;
+  scenes.reduce((total, scene) => total + (scene.durationInFrames || (scene as any).frames || 90), 0) || 900;
 
 export const Root: React.FC = () => {
   const isStudio = getRemotionEnvironment().isStudio;

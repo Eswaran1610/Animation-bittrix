@@ -1,1444 +1,2477 @@
 import React, { useMemo } from 'react';
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import {
+  AbsoluteFill,
+  Audio,
+  Sequence,
+  Video,
+  interpolate,
+  spring,
+  staticFile,
+  useCurrentFrame,
+  useVideoConfig,
+} from 'remotion';
 
-// ==========================================
-// SCENE METADATA & WORD TIMESTAMPS
-// ==========================================
-interface WordTimestamp {
+export interface WordTiming {
   word: string;
   startFrame: number;
   endFrame: number;
 }
 
-interface SceneData {
+export interface ScenePayload {
+  id?: string;
+  title?: string;
   scene_number: number;
-  role: string;
+  start?: number;
+  startFrame?: number;
+  voiceStart?: number;
+  visualStart?: number;
+  frames?: number;
+  role?: string;
+  template?: string;
+  visual_type?: '3d-showcase' | 'image-hero' | 'concept-diagram' | 'process-flow' | 'split-compare' | 'timeline' | 'callout' | 'stat-counter' | 'outro';
   durationInFrames: number;
-  narration: string;
-  on_screen_text: string;
-  visual_direction: string;
-  template: string;
-  themeColor: string;
-  words: WordTimestamp[];
+  duration_sec?: number;
+  durationSec?: number;
+  narration?: string;
+  narrationAudio?: string;
+  on_screen_text?: string;
+  subtitle?: string;
+  visual_direction?: string;
+  themeColor?: string;
+  emphasis_word?: string;
+  icon?: string;
+  image_url?: string;
+  asset_url?: string;
+  nodes?: Array<{ id?: string; label: string; sub?: string; icon?: string }>;
+  edges?: Array<{ from: string | number; to: string | number; label?: string; dashed?: boolean }>;
+  labels?: string[];
+  stat_value?: string;
+  source_url?: string;
+  audioCues?: Array<{ hitFrame?: number; frame?: number; src?: string; volume?: number; role?: string; durationFrames?: number }>;
+  words?: WordTiming[];
 }
 
-const SCENES: SceneData[] = [
+const BAKED_SCENES: ScenePayload[] = [
   {
-    scene_number: 1,
-    role: "hook",
-    durationInFrames: 137,
-    narration: "What happens when Nvidia's titan falls?",
-    on_screen_text: "What Shook Nvidia's Leadership?",
-    visual_direction: "Dramatic low-angle camera push towards a fractured silicon monolith bathed in crimson danger light with drifting ambient ember particles.",
-    template: "question-hook",
-    themeColor: "#f43f5e",
-    words: [
-      { word: "What", startFrame: 3, endFrame: 9 },
-      { word: "happens", startFrame: 10, endFrame: 23 },
-      { word: "when", startFrame: 23, endFrame: 28 },
-      { word: "Nvidia's", startFrame: 29, endFrame: 43 },
-      { word: "titan", startFrame: 43, endFrame: 53 },
-      { word: "falls?", startFrame: 53, endFrame: 72 },
+    "id": "scene-1",
+    "scene_number": 1,
+    "role": "hook",
+    "template": "question-hook",
+    "visual_type": "concept-diagram",
+    "themeColor": "#38bdf8",
+    "start": 0,
+    "startFrame": 0,
+    "voiceStart": 0,
+    "visualStart": 0,
+    "frames": 193,
+    "durationInFrames": 193,
+    "duration_sec": 6.433333333333334,
+    "narration": "PostgreSQL implements Lehman-Yao B-link trees to enable concurrent index lookups without read locks.",
+    "narrationAudio": "audio/ba2927d5-2788-453d-a91e-cc006a579ddf_sc1_voice.mp3",
+    "title": "PostgreSQL implements Lehman-Yao B-link",
+    "on_screen_text": "PostgreSQL implements Lehman-Yao B-link trees to enable concurrent index lookups without read locks.",
+    "emphasis_word": "enable",
+    "audioCues": [
+      {
+        "frame": 1,
+        "hitFrame": 1,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/whoosh_01.wav",
+        "role": "whoosh",
+        "volume": 0.45,
+        "durationFrames": 25
+      },
+      {
+        "frame": 90,
+        "hitFrame": 90,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/pop_01.wav",
+        "role": "pop",
+        "volume": 0.55,
+        "durationFrames": 25
+      }
+    ],
+    "nodes": [
+      {
+        "label": "PostgreSQL implements Lehman-Yao B-link trees to enable",
+        "sub": "Core Engine",
+        "icon": "⚡"
+      },
+      {
+        "label": "concurrent index lookups without read locks",
+        "sub": "High Throughput",
+        "icon": "🚀"
+      }
+    ],
+    "labels": [
+      "PostgreSQL",
+      "implements",
+      "Lehman-Yao"
+    ],
+    "words": [
+      {
+        "word": "PostgreSQL",
+        "startFrame": 3,
+        "endFrame": 31
+      },
+      {
+        "word": "implements",
+        "startFrame": 31,
+        "endFrame": 45
+      },
+      {
+        "word": "Lehman-Yao",
+        "startFrame": 46,
+        "endFrame": 62
+      },
+      {
+        "word": "B-link",
+        "startFrame": 62,
+        "endFrame": 76
+      },
+      {
+        "word": "trees",
+        "startFrame": 76,
+        "endFrame": 87
+      },
+      {
+        "word": "to",
+        "startFrame": 88,
+        "endFrame": 92
+      },
+      {
+        "word": "enable",
+        "startFrame": 92,
+        "endFrame": 104
+      },
+      {
+        "word": "concurrent",
+        "startFrame": 104,
+        "endFrame": 118
+      },
+      {
+        "word": "index",
+        "startFrame": 119,
+        "endFrame": 132
+      },
+      {
+        "word": "lookups",
+        "startFrame": 132,
+        "endFrame": 146
+      },
+      {
+        "word": "without",
+        "startFrame": 146,
+        "endFrame": 157
+      },
+      {
+        "word": "read",
+        "startFrame": 158,
+        "endFrame": 164
+      },
+      {
+        "word": "locks",
+        "startFrame": 164,
+        "endFrame": 180
+      }
     ]
   },
   {
-    scene_number: 2,
-    role: "body",
-    durationInFrames: 137,
-    narration: "Well, Jensen Huang suddenly resigned.",
-    on_screen_text: "Jensen Huang Steps Down",
-    visual_direction: "High-contrast portrait frame illuminated by dramatic cyan key light with a crimson drop shadow.",
-    template: "hero-object",
-    themeColor: "#38bdf8",
-    words: [
-      { word: "Well,", startFrame: 3, endFrame: 16 },
-      { word: "Jensen", startFrame: 19, endFrame: 31 },
-      { word: "Huang", startFrame: 32, endFrame: 41 },
-      { word: "suddenly", startFrame: 42, endFrame: 54 },
-      { word: "resigned.", startFrame: 54, endFrame: 73 },
+    "id": "scene-2",
+    "scene_number": 2,
+    "role": "body",
+    "template": "steps-numbered",
+    "visual_type": "process-flow",
+    "themeColor": "#38bdf8",
+    "start": 193,
+    "startFrame": 193,
+    "voiceStart": 193,
+    "visualStart": 193,
+    "frames": 155,
+    "durationInFrames": 155,
+    "duration_sec": 5.166666666666667,
+    "narration": "Every interior and leaf page contains a high key and right-link sibling pointer.",
+    "narrationAudio": "audio/ba2927d5-2788-453d-a91e-cc006a579ddf_sc2_voice.mp3",
+    "title": "Every interior and leaf",
+    "on_screen_text": "Every interior and leaf page contains a high key and right-link sibling pointer.",
+    "emphasis_word": "a",
+    "audioCues": [
+      {
+        "frame": 1,
+        "hitFrame": 1,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/whoosh_01.wav",
+        "role": "whoosh",
+        "volume": 0.45,
+        "durationFrames": 25
+      },
+      {
+        "frame": 69,
+        "hitFrame": 69,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/impact_01.wav",
+        "role": "impact",
+        "volume": 0.55,
+        "durationFrames": 25
+      }
+    ],
+    "nodes": [
+      {
+        "label": "Every interior and leaf page contains a",
+        "sub": "Core Engine",
+        "icon": "🛡️"
+      },
+      {
+        "label": "high key and right-link sibling pointer",
+        "sub": "High Throughput",
+        "icon": "🎯"
+      }
+    ],
+    "labels": [
+      "Every",
+      "interior",
+      "and"
+    ],
+    "words": [
+      {
+        "word": "Every",
+        "startFrame": 3,
+        "endFrame": 14
+      },
+      {
+        "word": "interior",
+        "startFrame": 14,
+        "endFrame": 34
+      },
+      {
+        "word": "and",
+        "startFrame": 35,
+        "endFrame": 38
+      },
+      {
+        "word": "leaf",
+        "startFrame": 39,
+        "endFrame": 46
+      },
+      {
+        "word": "page",
+        "startFrame": 46,
+        "endFrame": 57
+      },
+      {
+        "word": "contains",
+        "startFrame": 57,
+        "endFrame": 70
+      },
+      {
+        "word": "a",
+        "startFrame": 71,
+        "endFrame": 72
+      },
+      {
+        "word": "high",
+        "startFrame": 73,
+        "endFrame": 82
+      },
+      {
+        "word": "key",
+        "startFrame": 83,
+        "endFrame": 94
+      },
+      {
+        "word": "and",
+        "startFrame": 94,
+        "endFrame": 99
+      },
+      {
+        "word": "right-link",
+        "startFrame": 100,
+        "endFrame": 113
+      },
+      {
+        "word": "sibling",
+        "startFrame": 113,
+        "endFrame": 127
+      },
+      {
+        "word": "pointer",
+        "startFrame": 127,
+        "endFrame": 142
+      }
     ]
   },
   {
-    scene_number: 3,
-    role: "body",
-    durationInFrames: 137,
-    narration: "Unexpectedly, board scrutiny triggered investigations.",
-    on_screen_text: "Inquiry Sparks Sudden Crisis",
-    visual_direction: "Dark confidential audit dossier visual with glowing stamp and digital check vectors.",
-    template: "fact-card",
-    themeColor: "#f43f5e",
-    words: [
-      { word: "Unexpectedly,", startFrame: 3, endFrame: 32 },
-      { word: "board", startFrame: 36, endFrame: 45 },
-      { word: "scrutiny", startFrame: 45, endFrame: 56 },
-      { word: "triggered", startFrame: 57, endFrame: 67 },
-      { word: "investigations.", startFrame: 68, endFrame: 100 },
+    "id": "scene-3",
+    "scene_number": 3,
+    "role": "body",
+    "template": "steps-numbered",
+    "visual_type": "concept-diagram",
+    "themeColor": "#38bdf8",
+    "start": 348,
+    "startFrame": 348,
+    "voiceStart": 348,
+    "visualStart": 348,
+    "frames": 179,
+    "durationInFrames": 179,
+    "duration_sec": 5.966666666666667,
+    "narration": "Readers traverse downlink pointers downward through shared buffer pool memory buffers without pin locks.",
+    "narrationAudio": "audio/ba2927d5-2788-453d-a91e-cc006a579ddf_sc3_voice.mp3",
+    "title": "Readers traverse downlink pointers",
+    "on_screen_text": "Readers traverse downlink pointers downward through shared buffer pool memory buffers without pin locks.",
+    "emphasis_word": "buffer",
+    "audioCues": [
+      {
+        "frame": 1,
+        "hitFrame": 1,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/whoosh_01.wav",
+        "role": "whoosh",
+        "volume": 0.45,
+        "durationFrames": 25
+      },
+      {
+        "frame": 86,
+        "hitFrame": 86,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/pop_01.wav",
+        "role": "pop",
+        "volume": 0.55,
+        "durationFrames": 25
+      }
+    ],
+    "nodes": [
+      {
+        "label": "Readers traverse downlink pointers downward through shared",
+        "sub": "Core Engine",
+        "icon": "⚙️"
+      },
+      {
+        "label": "buffer pool memory buffers without pin locks",
+        "sub": "High Throughput",
+        "icon": "💡"
+      }
+    ],
+    "labels": [
+      "Readers",
+      "traverse",
+      "downlink"
+    ],
+    "words": [
+      {
+        "word": "Readers",
+        "startFrame": 3,
+        "endFrame": 16
+      },
+      {
+        "word": "traverse",
+        "startFrame": 16,
+        "endFrame": 29
+      },
+      {
+        "word": "downlink",
+        "startFrame": 29,
+        "endFrame": 44
+      },
+      {
+        "word": "pointers",
+        "startFrame": 44,
+        "endFrame": 57
+      },
+      {
+        "word": "downward",
+        "startFrame": 57,
+        "endFrame": 71
+      },
+      {
+        "word": "through",
+        "startFrame": 71,
+        "endFrame": 76
+      },
+      {
+        "word": "shared",
+        "startFrame": 77,
+        "endFrame": 88
+      },
+      {
+        "word": "buffer",
+        "startFrame": 88,
+        "endFrame": 98
+      },
+      {
+        "word": "pool",
+        "startFrame": 99,
+        "endFrame": 108
+      },
+      {
+        "word": "memory",
+        "startFrame": 108,
+        "endFrame": 117
+      },
+      {
+        "word": "buffers",
+        "startFrame": 118,
+        "endFrame": 131
+      },
+      {
+        "word": "without",
+        "startFrame": 132,
+        "endFrame": 142
+      },
+      {
+        "word": "pin",
+        "startFrame": 142,
+        "endFrame": 150
+      },
+      {
+        "word": "locks",
+        "startFrame": 150,
+        "endFrame": 167
+      }
     ]
   },
   {
-    scene_number: 4,
-    role: "body",
-    durationInFrames: 137,
-    narration: "Now, CFO Colette Kress takes charge.",
-    on_screen_text: "Interim Chief Takes Helm",
-    visual_direction: "Split dual-pillar composition highlighting financial stability on left and executive authority on right.",
-    template: "split-compare",
-    themeColor: "#38bdf8",
-    words: [
-      { word: "Now,", startFrame: 3, endFrame: 18 },
-      { word: "CFO", startFrame: 23, endFrame: 37 },
-      { word: "Colette", startFrame: 37, endFrame: 48 },
-      { word: "Kress", startFrame: 48, endFrame: 57 },
-      { word: "takes", startFrame: 57, endFrame: 65 },
-      { word: "charge.", startFrame: 65, endFrame: 83 },
+    "id": "scene-4",
+    "scene_number": 4,
+    "role": "body",
+    "template": "steps-numbered",
+    "visual_type": "process-flow",
+    "themeColor": "#38bdf8",
+    "start": 527,
+    "startFrame": 527,
+    "voiceStart": 527,
+    "visualStart": 527,
+    "frames": 165,
+    "durationInFrames": 165,
+    "duration_sec": 5.5,
+    "narration": "When an inserting worker detects page overflow, it allocates a new right-sibling buffer.",
+    "narrationAudio": "audio/ba2927d5-2788-453d-a91e-cc006a579ddf_sc4_voice.mp3",
+    "title": "When an inserting worker",
+    "on_screen_text": "When an inserting worker detects page overflow, it allocates a new right-sibling buffer.",
+    "emphasis_word": "overflow",
+    "audioCues": [
+      {
+        "frame": 1,
+        "hitFrame": 1,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/whoosh_01.wav",
+        "role": "whoosh",
+        "volume": 0.45,
+        "durationFrames": 25
+      },
+      {
+        "frame": 60,
+        "hitFrame": 60,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/impact_01.wav",
+        "role": "impact",
+        "volume": 0.55,
+        "durationFrames": 25
+      }
+    ],
+    "nodes": [
+      {
+        "label": "When an inserting worker detects page overflow",
+        "sub": "Core Engine",
+        "icon": "🚀"
+      },
+      {
+        "label": "it allocates a new right-sibling buffer",
+        "sub": "High Throughput",
+        "icon": "🔍"
+      }
+    ],
+    "labels": [
+      "When",
+      "an",
+      "inserting"
+    ],
+    "words": [
+      {
+        "word": "When",
+        "startFrame": 3,
+        "endFrame": 9
+      },
+      {
+        "word": "an",
+        "startFrame": 9,
+        "endFrame": 12
+      },
+      {
+        "word": "inserting",
+        "startFrame": 12,
+        "endFrame": 27
+      },
+      {
+        "word": "worker",
+        "startFrame": 27,
+        "endFrame": 37
+      },
+      {
+        "word": "detects",
+        "startFrame": 37,
+        "endFrame": 51
+      },
+      {
+        "word": "page",
+        "startFrame": 51,
+        "endFrame": 61
+      },
+      {
+        "word": "overflow",
+        "startFrame": 62,
+        "endFrame": 80
+      },
+      {
+        "word": "it",
+        "startFrame": 90,
+        "endFrame": 94
+      },
+      {
+        "word": "allocates",
+        "startFrame": 94,
+        "endFrame": 110
+      },
+      {
+        "word": "a",
+        "startFrame": 110,
+        "endFrame": 111
+      },
+      {
+        "word": "new",
+        "startFrame": 112,
+        "endFrame": 119
+      },
+      {
+        "word": "right-sibling",
+        "startFrame": 120,
+        "endFrame": 138
+      },
+      {
+        "word": "buffer",
+        "startFrame": 138,
+        "endFrame": 153
+      }
     ]
   },
   {
-    scene_number: 5,
-    role: "body",
-    durationInFrames: 137,
-    narration: "Harvey Jones leads the executive search.",
-    on_screen_text: "Independent Chair Leads Search",
-    visual_direction: "Branching governance node network linking the Independent Chair to dual talent search pipelines.",
-    template: "timeline",
-    themeColor: "#38bdf8",
-    words: [
-      { word: "Harvey", startFrame: 3, endFrame: 14 },
-      { word: "Jones", startFrame: 14, endFrame: 27 },
-      { word: "leads", startFrame: 27, endFrame: 34 },
-      { word: "the", startFrame: 35, endFrame: 37 },
-      { word: "executive", startFrame: 37, endFrame: 54 },
-      { word: "search.", startFrame: 55, endFrame: 71 },
+    "id": "scene-5",
+    "scene_number": 5,
+    "role": "body",
+    "template": "steps-numbered",
+    "visual_type": "concept-diagram",
+    "themeColor": "#38bdf8",
+    "start": 692,
+    "startFrame": 692,
+    "voiceStart": 692,
+    "visualStart": 692,
+    "frames": 171,
+    "durationInFrames": 171,
+    "duration_sec": 5.7,
+    "narration": "The inserting backend moves upper-half tuples into the right child while holding exclusive locks.",
+    "narrationAudio": "audio/ba2927d5-2788-453d-a91e-cc006a579ddf_sc5_voice.mp3",
+    "title": "The inserting backend moves",
+    "on_screen_text": "The inserting backend moves upper-half tuples into the right child while holding exclusive locks.",
+    "emphasis_word": "the",
+    "audioCues": [
+      {
+        "frame": 1,
+        "hitFrame": 1,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/whoosh_01.wav",
+        "role": "whoosh",
+        "volume": 0.45,
+        "durationFrames": 25
+      },
+      {
+        "frame": 79,
+        "hitFrame": 79,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/pop_01.wav",
+        "role": "pop",
+        "volume": 0.55,
+        "durationFrames": 25
+      }
+    ],
+    "nodes": [
+      {
+        "label": "The inserting backend moves upper-half tuples into",
+        "sub": "Core Engine",
+        "icon": "🎯"
+      },
+      {
+        "label": "the right child while holding exclusive locks",
+        "sub": "High Throughput",
+        "icon": "🌐"
+      }
+    ],
+    "labels": [
+      "The",
+      "inserting",
+      "backend"
+    ],
+    "words": [
+      {
+        "word": "The",
+        "startFrame": 3,
+        "endFrame": 6
+      },
+      {
+        "word": "inserting",
+        "startFrame": 7,
+        "endFrame": 23
+      },
+      {
+        "word": "backend",
+        "startFrame": 23,
+        "endFrame": 38
+      },
+      {
+        "word": "moves",
+        "startFrame": 38,
+        "endFrame": 48
+      },
+      {
+        "word": "upper-half",
+        "startFrame": 48,
+        "endFrame": 63
+      },
+      {
+        "word": "tuples",
+        "startFrame": 63,
+        "endFrame": 75
+      },
+      {
+        "word": "into",
+        "startFrame": 76,
+        "endFrame": 81
+      },
+      {
+        "word": "the",
+        "startFrame": 81,
+        "endFrame": 85
+      },
+      {
+        "word": "right",
+        "startFrame": 85,
+        "endFrame": 93
+      },
+      {
+        "word": "child",
+        "startFrame": 94,
+        "endFrame": 107
+      },
+      {
+        "word": "while",
+        "startFrame": 107,
+        "endFrame": 112
+      },
+      {
+        "word": "holding",
+        "startFrame": 113,
+        "endFrame": 123
+      },
+      {
+        "word": "exclusive",
+        "startFrame": 123,
+        "endFrame": 141
+      },
+      {
+        "word": "locks",
+        "startFrame": 141,
+        "endFrame": 158
+      }
     ]
   },
   {
-    scene_number: 6,
-    role: "body",
-    durationInFrames: 137,
-    narration: "Billions in value hang in balance.",
-    on_screen_text: "Markets Demand Total Stability",
-    visual_direction: "Dynamic high-tech market ticker HUD with animated radial meter and pulsing alert needle.",
-    template: "stat-callout",
-    themeColor: "#f43f5e",
-    words: [
-      { word: "Billions", startFrame: 3, endFrame: 17 },
-      { word: "in", startFrame: 18, endFrame: 21 },
-      { word: "value", startFrame: 21, endFrame: 32 },
-      { word: "hang", startFrame: 32, endFrame: 39 },
-      { word: "in", startFrame: 39, endFrame: 42 },
-      { word: "balance.", startFrame: 42, endFrame: 61 },
+    "id": "scene-6",
+    "scene_number": 6,
+    "role": "body",
+    "template": "steps-numbered",
+    "visual_type": "process-flow",
+    "themeColor": "#38bdf8",
+    "start": 863,
+    "startFrame": 863,
+    "voiceStart": 863,
+    "visualStart": 863,
+    "frames": 172,
+    "durationInFrames": 172,
+    "duration_sec": 5.733333333333333,
+    "narration": "The original page updates its right-link pointer to point directly to the newly allocated page.",
+    "narrationAudio": "audio/ba2927d5-2788-453d-a91e-cc006a579ddf_sc6_voice.mp3",
+    "title": "The original page updates",
+    "on_screen_text": "The original page updates its right-link pointer to point directly to the newly allocated page.",
+    "emphasis_word": "to",
+    "audioCues": [
+      {
+        "frame": 1,
+        "hitFrame": 1,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/whoosh_01.wav",
+        "role": "whoosh",
+        "volume": 0.45,
+        "durationFrames": 25
+      },
+      {
+        "frame": 78,
+        "hitFrame": 78,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/impact_01.wav",
+        "role": "impact",
+        "volume": 0.55,
+        "durationFrames": 25
+      }
+    ],
+    "nodes": [
+      {
+        "label": "The original page updates its right-link pointer to",
+        "sub": "Core Engine",
+        "icon": "💡"
+      },
+      {
+        "label": "point directly to the newly allocated page",
+        "sub": "High Throughput",
+        "icon": "⚡"
+      }
+    ],
+    "labels": [
+      "The",
+      "original",
+      "page"
+    ],
+    "words": [
+      {
+        "word": "The",
+        "startFrame": 3,
+        "endFrame": 6
+      },
+      {
+        "word": "original",
+        "startFrame": 7,
+        "endFrame": 21
+      },
+      {
+        "word": "page",
+        "startFrame": 22,
+        "endFrame": 32
+      },
+      {
+        "word": "updates",
+        "startFrame": 33,
+        "endFrame": 46
+      },
+      {
+        "word": "its",
+        "startFrame": 47,
+        "endFrame": 51
+      },
+      {
+        "word": "right-link",
+        "startFrame": 51,
+        "endFrame": 66
+      },
+      {
+        "word": "pointer",
+        "startFrame": 67,
+        "endFrame": 79
+      },
+      {
+        "word": "to",
+        "startFrame": 80,
+        "endFrame": 83
+      },
+      {
+        "word": "point",
+        "startFrame": 83,
+        "endFrame": 92
+      },
+      {
+        "word": "directly",
+        "startFrame": 92,
+        "endFrame": 107
+      },
+      {
+        "word": "to",
+        "startFrame": 108,
+        "endFrame": 111
+      },
+      {
+        "word": "the",
+        "startFrame": 111,
+        "endFrame": 114
+      },
+      {
+        "word": "newly",
+        "startFrame": 114,
+        "endFrame": 125
+      },
+      {
+        "word": "allocated",
+        "startFrame": 126,
+        "endFrame": 143
+      },
+      {
+        "word": "page",
+        "startFrame": 144,
+        "endFrame": 159
+      }
     ]
   },
   {
-    scene_number: 7,
-    role: "cta",
-    durationInFrames: 137,
-    narration: "Follow Bittrix Technologies for more interesting concepts.",
-    on_screen_text: "BITTRIX TECHNOLOGIES",
-    visual_direction: "Signature royal purple geometric hexagon, precision gear, and staggered luxury wordmark outro.",
-    template: "cta-outro",
-    themeColor: "#5b1a78",
-    words: [
-      { word: "Follow", startFrame: 3, endFrame: 14 },
-      { word: "Bittrix", startFrame: 15, endFrame: 30 },
-      { word: "Technologies", startFrame: 31, endFrame: 56 },
-      { word: "for", startFrame: 57, endFrame: 66 },
-      { word: "more", startFrame: 67, endFrame: 79 },
-      { word: "interesting", startFrame: 80, endFrame: 104 },
-      { word: "concepts.", startFrame: 105, endFrame: 130 },
+    "id": "scene-7",
+    "scene_number": 7,
+    "role": "body",
+    "template": "steps-numbered",
+    "visual_type": "concept-diagram",
+    "themeColor": "#38bdf8",
+    "start": 1035,
+    "startFrame": 1035,
+    "voiceStart": 1035,
+    "visualStart": 1035,
+    "frames": 160,
+    "durationInFrames": 160,
+    "duration_sec": 5.333333333333333,
+    "narration": "A concurrent reader observing a key exceeding the high key steps right across right-links.",
+    "narrationAudio": "audio/ba2927d5-2788-453d-a91e-cc006a579ddf_sc7_voice.mp3",
+    "title": "A concurrent reader observing",
+    "on_screen_text": "A concurrent reader observing a key exceeding the high key steps right across right-links.",
+    "emphasis_word": "the",
+    "audioCues": [
+      {
+        "frame": 1,
+        "hitFrame": 1,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/whoosh_01.wav",
+        "role": "whoosh",
+        "volume": 0.45,
+        "durationFrames": 25
+      },
+      {
+        "frame": 73,
+        "hitFrame": 73,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/pop_01.wav",
+        "role": "pop",
+        "volume": 0.55,
+        "durationFrames": 25
+      }
+    ],
+    "nodes": [
+      {
+        "label": "A concurrent reader observing a key exceeding",
+        "sub": "Core Engine",
+        "icon": "🔍"
+      },
+      {
+        "label": "the high key steps right across right-links",
+        "sub": "High Throughput",
+        "icon": "🛡️"
+      }
+    ],
+    "labels": [
+      "A",
+      "concurrent",
+      "reader"
+    ],
+    "words": [
+      {
+        "word": "A",
+        "startFrame": 3,
+        "endFrame": 7
+      },
+      {
+        "word": "concurrent",
+        "startFrame": 7,
+        "endFrame": 22
+      },
+      {
+        "word": "reader",
+        "startFrame": 22,
+        "endFrame": 31
+      },
+      {
+        "word": "observing",
+        "startFrame": 32,
+        "endFrame": 45
+      },
+      {
+        "word": "a",
+        "startFrame": 46,
+        "endFrame": 48
+      },
+      {
+        "word": "key",
+        "startFrame": 48,
+        "endFrame": 59
+      },
+      {
+        "word": "exceeding",
+        "startFrame": 59,
+        "endFrame": 74
+      },
+      {
+        "word": "the",
+        "startFrame": 75,
+        "endFrame": 77
+      },
+      {
+        "word": "high",
+        "startFrame": 77,
+        "endFrame": 87
+      },
+      {
+        "word": "key",
+        "startFrame": 87,
+        "endFrame": 94
+      },
+      {
+        "word": "steps",
+        "startFrame": 95,
+        "endFrame": 107
+      },
+      {
+        "word": "right",
+        "startFrame": 108,
+        "endFrame": 114
+      },
+      {
+        "word": "across",
+        "startFrame": 114,
+        "endFrame": 127
+      },
+      {
+        "word": "right-links",
+        "startFrame": 127,
+        "endFrame": 148
+      }
+    ]
+  },
+  {
+    "id": "scene-8",
+    "scene_number": 8,
+    "role": "body",
+    "template": "steps-numbered",
+    "visual_type": "process-flow",
+    "themeColor": "#38bdf8",
+    "start": 1195,
+    "startFrame": 1195,
+    "voiceStart": 1195,
+    "visualStart": 1195,
+    "frames": 182,
+    "durationInFrames": 182,
+    "duration_sec": 6.066666666666666,
+    "narration": "Concurrent reads continue uninterrupted even before parent downlink pointers are updated by inserts.",
+    "narrationAudio": "audio/ba2927d5-2788-453d-a91e-cc006a579ddf_sc8_voice.mp3",
+    "title": "Concurrent reads continue uninterrupted",
+    "on_screen_text": "Concurrent reads continue uninterrupted even before parent downlink pointers are updated by inserts.",
+    "emphasis_word": "parent",
+    "audioCues": [
+      {
+        "frame": 1,
+        "hitFrame": 1,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/whoosh_01.wav",
+        "role": "whoosh",
+        "volume": 0.45,
+        "durationFrames": 25
+      },
+      {
+        "frame": 84,
+        "hitFrame": 84,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/impact_01.wav",
+        "role": "impact",
+        "volume": 0.55,
+        "durationFrames": 25
+      }
+    ],
+    "nodes": [
+      {
+        "label": "Concurrent reads continue uninterrupted even before parent",
+        "sub": "Core Engine",
+        "icon": "🌐"
+      },
+      {
+        "label": "downlink pointers are updated by inserts",
+        "sub": "High Throughput",
+        "icon": "⚙️"
+      }
+    ],
+    "labels": [
+      "Concurrent",
+      "reads",
+      "continue"
+    ],
+    "words": [
+      {
+        "word": "Concurrent",
+        "startFrame": 3,
+        "endFrame": 19
+      },
+      {
+        "word": "reads",
+        "startFrame": 19,
+        "endFrame": 28
+      },
+      {
+        "word": "continue",
+        "startFrame": 29,
+        "endFrame": 44
+      },
+      {
+        "word": "uninterrupted",
+        "startFrame": 45,
+        "endFrame": 66
+      },
+      {
+        "word": "even",
+        "startFrame": 66,
+        "endFrame": 74
+      },
+      {
+        "word": "before",
+        "startFrame": 75,
+        "endFrame": 85
+      },
+      {
+        "word": "parent",
+        "startFrame": 86,
+        "endFrame": 96
+      },
+      {
+        "word": "downlink",
+        "startFrame": 96,
+        "endFrame": 110
+      },
+      {
+        "word": "pointers",
+        "startFrame": 111,
+        "endFrame": 124
+      },
+      {
+        "word": "are",
+        "startFrame": 124,
+        "endFrame": 129
+      },
+      {
+        "word": "updated",
+        "startFrame": 130,
+        "endFrame": 143
+      },
+      {
+        "word": "by",
+        "startFrame": 143,
+        "endFrame": 148
+      },
+      {
+        "word": "inserts",
+        "startFrame": 148,
+        "endFrame": 169
+      }
+    ]
+  },
+  {
+    "id": "scene-9",
+    "scene_number": 9,
+    "role": "body",
+    "template": "steps-numbered",
+    "visual_type": "concept-diagram",
+    "themeColor": "#38bdf8",
+    "start": 1377,
+    "startFrame": 1377,
+    "voiceStart": 1377,
+    "visualStart": 1377,
+    "frames": 151,
+    "durationInFrames": 151,
+    "duration_sec": 5.033333333333333,
+    "narration": "The worker writes a split write-ahead log record before inserting the new parent downlink.",
+    "narrationAudio": "audio/ba2927d5-2788-453d-a91e-cc006a579ddf_sc9_voice.mp3",
+    "title": "The worker writes a",
+    "on_screen_text": "The worker writes a split write-ahead log record before inserting the new parent downlink.",
+    "emphasis_word": "record",
+    "audioCues": [
+      {
+        "frame": 1,
+        "hitFrame": 1,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/whoosh_01.wav",
+        "role": "whoosh",
+        "volume": 0.45,
+        "durationFrames": 25
+      },
+      {
+        "frame": 65,
+        "hitFrame": 65,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/pop_01.wav",
+        "role": "pop",
+        "volume": 0.55,
+        "durationFrames": 25
+      }
+    ],
+    "nodes": [
+      {
+        "label": "The worker writes a split write-ahead log",
+        "sub": "Core Engine",
+        "icon": "⚡"
+      },
+      {
+        "label": "record before inserting the new parent downlink",
+        "sub": "High Throughput",
+        "icon": "🚀"
+      }
+    ],
+    "labels": [
+      "The",
+      "worker",
+      "writes"
+    ],
+    "words": [
+      {
+        "word": "The",
+        "startFrame": 3,
+        "endFrame": 7
+      },
+      {
+        "word": "worker",
+        "startFrame": 8,
+        "endFrame": 19
+      },
+      {
+        "word": "writes",
+        "startFrame": 19,
+        "endFrame": 27
+      },
+      {
+        "word": "a",
+        "startFrame": 27,
+        "endFrame": 29
+      },
+      {
+        "word": "split",
+        "startFrame": 30,
+        "endFrame": 41
+      },
+      {
+        "word": "write-ahead",
+        "startFrame": 42,
+        "endFrame": 57
+      },
+      {
+        "word": "log",
+        "startFrame": 57,
+        "endFrame": 66
+      },
+      {
+        "word": "record",
+        "startFrame": 67,
+        "endFrame": 77
+      },
+      {
+        "word": "before",
+        "startFrame": 78,
+        "endFrame": 88
+      },
+      {
+        "word": "inserting",
+        "startFrame": 88,
+        "endFrame": 102
+      },
+      {
+        "word": "the",
+        "startFrame": 102,
+        "endFrame": 105
+      },
+      {
+        "word": "new",
+        "startFrame": 105,
+        "endFrame": 110
+      },
+      {
+        "word": "parent",
+        "startFrame": 111,
+        "endFrame": 121
+      },
+      {
+        "word": "downlink",
+        "startFrame": 121,
+        "endFrame": 139
+      }
+    ]
+  },
+  {
+    "id": "scene-10",
+    "scene_number": 10,
+    "role": "cta",
+    "template": "cta-outro",
+    "visual_type": "outro",
+    "themeColor": "#5b1a78",
+    "start": 1528,
+    "startFrame": 1528,
+    "voiceStart": 1528,
+    "visualStart": 1528,
+    "frames": 135,
+    "durationInFrames": 135,
+    "duration_sec": 4.5,
+    "narration": "Accelerate your engineering with Bittrix Technologies.",
+    "narrationAudio": "audio/ba2927d5-2788-453d-a91e-cc006a579ddf_sc10_voice.mp3",
+    "title": "Accelerate your engineering with",
+    "on_screen_text": "Accelerate your engineering with Bittrix Technologies.",
+    "emphasis_word": "with",
+    "audioCues": [
+      {
+        "frame": 1,
+        "hitFrame": 1,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/whoosh_01.wav",
+        "role": "whoosh",
+        "volume": 0.45,
+        "durationFrames": 25
+      },
+      {
+        "frame": 46,
+        "hitFrame": 46,
+        "src": "sfx/ba2927d5-2788-453d-a91e-cc006a579ddf/chime_01.wav",
+        "role": "chime",
+        "volume": 0.55,
+        "durationFrames": 25
+      }
+    ],
+    "nodes": [
+      {
+        "label": "Accelerate your engineering",
+        "sub": "Core Engine",
+        "icon": "🛡️"
+      },
+      {
+        "label": "with Bittrix Technologies",
+        "sub": "High Throughput",
+        "icon": "🎯"
+      }
+    ],
+    "labels": [
+      "Accelerate",
+      "your",
+      "engineering"
+    ],
+    "words": [
+      {
+        "word": "Accelerate",
+        "startFrame": 3,
+        "endFrame": 24
+      },
+      {
+        "word": "your",
+        "startFrame": 24,
+        "endFrame": 30
+      },
+      {
+        "word": "engineering",
+        "startFrame": 30,
+        "endFrame": 47
+      },
+      {
+        "word": "with",
+        "startFrame": 48,
+        "endFrame": 53
+      },
+      {
+        "word": "Bittrix",
+        "startFrame": 53,
+        "endFrame": 65
+      },
+      {
+        "word": "Technologies",
+        "startFrame": 65,
+        "endFrame": 93
+      }
     ]
   }
 ];
 
-// Continuous Camera Path per scene [camX, camY, camScale, rotDeg]
-const CAMERA_KEYFRAMES = [
-  { x: 0, y: 30, scale: 1.05, rot: -0.6 },    // Scene 1: Low-angle dramatic look up
-  { x: -25, y: -10, scale: 1.12, rot: 0.8 },  // Scene 2: Push-in slightly left on hero
-  { x: 30, y: 15, scale: 1.08, rot: -0.4 },   // Scene 3: Skew right onto dossier table
-  { x: 0, y: -20, scale: 1.02, rot: 0.5 },    // Scene 4: Wide dual-pillar perspective
-  { x: -35, y: 25, scale: 1.15, rot: -0.9 },  // Scene 5: Tracking right-down along org nodes
-  { x: 20, y: -15, scale: 1.1, rot: 0.6 },    // Scene 6: Tension jitter camera over stock dial
-  { x: 0, y: 0, scale: 1.0, rot: 0.0 }        // Scene 7: Centered royal isometric outro
-];
+// Synchronized Kinetic Karaoke Captions — safe zone strictly above bottom 20% (>= 384px in 1080x1920)
+const KineticCaptions: React.FC<{
+  words: WordTiming[];
+  currentFrame: number;
+  accentColor: string;
+}> = ({ words = [], currentFrame, accentColor }) => {
+  if (!words.length) return null;
 
-export default function GeneratedCliVideo(props: any) {
-  const frame = useCurrentFrame();
-  const { fps, width, height } = useVideoConfig();
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 400,
+        left: 60,
+        right: 60,
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        gap: '10px 14px',
+        padding: '24px 32px',
+        borderRadius: 24,
+        background: 'rgba(9, 13, 22, 0.88)',
+        backdropFilter: 'blur(20px)',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
+        boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+        zIndex: 50,
+      }}
+    >
+      {words.map((item, idx) => {
+        const isActive = currentFrame >= item.startFrame && currentFrame <= item.endFrame;
+        const isPast = currentFrame > item.endFrame;
 
-  // Determine current active scene and relative local frame
-  const { currentSceneIndex, localFrame, sceneStartFrame } = useMemo(() => {
-    let accumulated = 0;
-    for (let i = 0; i < SCENES.length; i++) {
-      const dur = SCENES[i].durationInFrames;
-      if (frame < accumulated + dur || i === SCENES.length - 1) {
-        return {
-          currentSceneIndex: i,
-          localFrame: frame - accumulated,
-          sceneStartFrame: accumulated,
-        };
-      }
-      accumulated += dur;
-    }
-    return { currentSceneIndex: 0, localFrame: 0, sceneStartFrame: 0 };
-  }, [frame]);
+        return (
+          <span
+            key={idx}
+            style={{
+              fontSize: 34,
+              fontWeight: isActive ? 800 : isPast ? 600 : 500,
+              color: isActive ? '#ffffff' : isPast ? '#94a3b8' : 'rgba(255,255,255,0.45)',
+              transform: isActive ? 'scale(1.12)' : 'scale(1)',
+              transition: 'transform 0.08s ease, color 0.08s ease',
+              textShadow: isActive ? `0 0 18px ${accentColor}` : 'none',
+              padding: '2px 8px',
+              borderRadius: 8,
+              background: isActive ? `${accentColor}26` : 'transparent',
+            }}
+          >
+            {item.word}
+          </span>
+        );
+      })}
+    </div>
+  );
+};
 
-  const activeScene = SCENES[currentSceneIndex];
+// 1. 3D-SHOWCASE: High-Fidelity 60 FPS 3D Floating Stage with Isometric Orbital Perspective
+const ThreeDShowcaseView: React.FC<{
+  scene: ScenePayload;
+  frame: number;
+  fps: number;
+}> = ({ scene, frame, fps }) => {
+  const color = scene.themeColor || '#38bdf8';
+  const entrance = spring({ frame, fps, config: { damping: 18, stiffness: 120, mass: 0.9 } });
+  const opacity = interpolate(frame, [0, Math.round(fps * 0.2)], [0, 1], { extrapolateRight: 'clamp' });
+  
+  // 60 FPS ultra-smooth orbital rotation
+  const rotY = (frame * 0.75) % 360;
+  const rotX = 22 + Math.sin(frame * 0.035) * 6;
+  const floatZ = Math.sin(frame * 0.045) * 14;
 
-  // -------------------------------------------------------------
-  // CONTINUOUS GLOBAL CAMERA INTERPOLATION (Zero abrupt cuts)
-  // -------------------------------------------------------------
-  const { camX, camY, camScale, camRot } = useMemo(() => {
-    const curCam = CAMERA_KEYFRAMES[currentSceneIndex];
-    const nextIndex = Math.min(currentSceneIndex + 1, CAMERA_KEYFRAMES.length - 1);
-    const nextCam = CAMERA_KEYFRAMES[nextIndex];
+  const emphasisTrigger = scene.words?.find(w => w.word.toLowerCase() === scene.emphasis_word?.toLowerCase())?.startFrame ?? 20;
+  const emphasisPop = spring({ frame: frame - emphasisTrigger, fps, config: { damping: 14, stiffness: 220 } });
+  const popScale = 1 + Math.max(0, emphasisPop) * 0.12;
 
-    const transitionProgress = interpolate(
-      localFrame,
-      [activeScene.durationInFrames - 24, activeScene.durationInFrames],
-      [0, 1],
-      { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
-    );
-
-    // Natural spring smoothing over transition
-    const smoothT = transitionProgress * transitionProgress * (3 - 2 * transitionProgress);
-
-    // Subtle continuous cinematic breathe drift
-    const driftX = Math.sin((frame / 60) * 1.5) * 8;
-    const driftY = Math.cos((frame / 60) * 1.2) * 6;
-
-    return {
-      camX: interpolate(smoothT, [0, 1], [curCam.x, nextCam.x]) + driftX,
-      camY: interpolate(smoothT, [0, 1], [curCam.y, nextCam.y]) + driftY,
-      camScale: interpolate(smoothT, [0, 1], [curCam.scale, nextCam.scale]),
-      camRot: interpolate(smoothT, [0, 1], [curCam.rot, nextCam.rot]),
-    };
-  }, [currentSceneIndex, localFrame, activeScene.durationInFrames, frame]);
-
-  // Ambient Ember / Silicon particle generation
-  const ambientParticles = useMemo(() => {
-    return Array.from({ length: 32 }).map((_, i) => {
-      const x = (i * 37) % 1080;
-      const initialY = (i * 91) % 1920;
-      const size = 3 + (i % 5) * 2.5;
-      const speed = 0.8 + (i % 4) * 0.45;
-      const opacity = 0.25 + (i % 6) * 0.12;
-      return { id: i, x, initialY, size, speed, opacity };
-    });
-  }, []);
+  const node = scene.nodes?.[0] || { label: scene.emphasis_word || scene.on_screen_text || 'Core Engine' };
 
   return (
     <AbsoluteFill
       style={{
-        backgroundColor: '#070a12',
-        color: '#f8fafc',
-        fontFamily: '"JetBrains Mono", "SF Pro Display", -apple-system, system-ui, sans-serif',
-        overflow: 'hidden',
-      }}
-    >
-      {/* =========================================================
-          GLOBAL LIVING CANVAS LAYER (Never clears to blank/white)
-      ========================================================= */}
-      <AbsoluteFill
-        style={{
-          transform: `translate3d(${camX}px, ${camY}px, 0px) scale(${camScale}) rotate(${camRot}deg)`,
-          transformOrigin: '50% 50%',
-        }}
-      >
-        {/* Dynamic Deep Cyber Atmosphere Grid */}
-        <div
-          style={{
-            position: 'absolute',
-            inset: -400,
-            backgroundImage: `
-              radial-gradient(circle at 50% 45%, ${
-                currentSceneIndex === 6
-                  ? 'rgba(91, 26, 120, 0.45)'
-                  : activeScene.themeColor === '#f43f5e'
-                  ? 'rgba(244, 63, 94, 0.22)'
-                  : 'rgba(56, 189, 248, 0.22)'
-              } 0%, transparent 68%),
-              linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px)
-            `,
-            backgroundSize: '100% 100%, 72px 72px, 72px 72px',
-            transform: `perspective(1000px) rotateX(24deg) translateY(${-(frame * 0.9) % 72}px)`,
-            opacity: 0.85,
-          }}
-        />
-
-        {/* Ambient Drifting Silicon Embers */}
-        {ambientParticles.map((pt) => {
-          const yPos = (pt.initialY - frame * pt.speed * 1.8 + 2400) % 2400 - 240;
-          const wobble = Math.sin((frame * 0.05) + pt.id) * 22;
-          return (
-            <div
-              key={pt.id}
-              style={{
-                position: 'absolute',
-                left: pt.x + wobble,
-                top: yPos,
-                width: pt.size,
-                height: pt.size,
-                borderRadius: '50%',
-                backgroundColor: currentSceneIndex === 6 ? '#fdf3d0' : activeScene.themeColor,
-                opacity: pt.opacity,
-                filter: `blur(${pt.size > 8 ? 2 : 0}px)`,
-                boxShadow: `0 0 12px ${currentSceneIndex === 6 ? '#fdf3d0' : activeScene.themeColor}`,
-                pointerEvents: 'none',
-              }}
-            />
-          );
-        })}
-
-        {/* Dynamic Silicon Circuit Trace Lines in Background */}
-        <svg
-          style={{
-            position: 'absolute',
-            inset: 0,
-            width: '100%',
-            height: '100%',
-            opacity: 0.18,
-            pointerEvents: 'none',
-          }}
-        >
-          <path
-            d="M 120 180 L 120 480 L 320 680 L 760 680 L 920 840 L 920 1480"
-            stroke={activeScene.themeColor}
-            strokeWidth="3"
-            fill="none"
-            strokeDasharray="24 16"
-            strokeDashoffset={-frame * 1.5}
-          />
-          <path
-            d="M 960 220 L 800 380 L 400 380 L 200 580 L 200 1340 L 440 1580"
-            stroke={currentSceneIndex === 6 ? '#5b1a78' : '#38bdf8'}
-            strokeWidth="2.5"
-            fill="none"
-            strokeDasharray="18 12"
-            strokeDashoffset={frame * 1.2}
-          />
-        </svg>
-
-        {/* =====================================================
-            TOPIC-SPECIFIC ANIMATED SCENE ARTBOARDS (Continuous)
-        ===================================================== */}
-        {currentSceneIndex === 0 && <SceneOneFracturedTitan frame={localFrame} fps={fps} />}
-        {currentSceneIndex === 1 && <SceneTwoJensenResigns frame={localFrame} fps={fps} />}
-        {currentSceneIndex === 2 && <SceneThreeAuditInvestigation frame={localFrame} fps={fps} />}
-        {currentSceneIndex === 3 && <SceneFourColetteTakesHelm frame={localFrame} fps={fps} />}
-        {currentSceneIndex === 4 && <SceneFiveExecutiveSearchNetwork frame={localFrame} fps={fps} />}
-        {currentSceneIndex === 5 && <SceneSixMarketValueBalancing frame={localFrame} fps={fps} />}
-        {currentSceneIndex === 6 && <SceneSevenBittrixOutro frame={localFrame} fps={fps} />}
-      </AbsoluteFill>
-
-      {/* =========================================================
-          HUD METADATA OVERLAY (Non-distracting Tech Framing)
-      ========================================================= */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 84,
-          left: 64,
-          right: 64,
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          fontSize: 20,
-          letterSpacing: '0.22em',
-          textTransform: 'uppercase',
-          color: 'rgba(248, 250, 252, 0.6)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
-          paddingBottom: 20,
-          zIndex: 40,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span
-            style={{
-              display: 'inline-block',
-              width: 10,
-              height: 10,
-              borderRadius: '50%',
-              backgroundColor: currentSceneIndex === 6 ? '#d97706' : activeScene.themeColor,
-              boxShadow: `0 0 10px ${activeScene.themeColor}`,
-            }}
-          />
-          <span style={{ fontWeight: 800, color: '#f8fafc' }}>NVIDIA CORP // INTEL REPORT</span>
-        </div>
-        <div style={{ fontVariantNumeric: 'tabular-nums', opacity: 0.8 }}>
-          SCENE 0{currentSceneIndex + 1} / 07 • {(frame / 60).toFixed(2)}s
-        </div>
-      </div>
-
-      {/* =========================================================
-          KINETIC KARAOKE CAPTIONS (Safe zone y: 1300 - 1520)
-      ========================================================= */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 240,
-          left: 60,
-          right: 60,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          textAlign: 'center',
-          zIndex: 50,
-          pointerEvents: 'none',
-        }}
-      >
-        {/* On-screen Subject Header Badge */}
-        <div
-          style={{
-            display: 'inline-block',
-            padding: '8px 24px',
-            marginBottom: 20,
-            borderRadius: 999,
-            backgroundColor: 'rgba(15, 23, 42, 0.85)',
-            border: `1.5px solid ${activeScene.themeColor}55`,
-            backdropFilter: 'blur(12px)',
-            color: activeScene.themeColor,
-            fontSize: 22,
-            fontWeight: 800,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            boxShadow: `0 4px 20px ${activeScene.themeColor}22`,
-          }}
-        >
-          {activeScene.on_screen_text}
-        </div>
-
-        {/* Word-by-Word Synchronized Karaoke Flow */}
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: '12px 16px',
-            maxWidth: 960,
-          }}
-        >
-          {activeScene.words.map((w, idx) => {
-            const isActive = localFrame >= w.startFrame && localFrame <= w.endFrame;
-            const hasPassed = localFrame > w.endFrame;
-
-            const wordScale = isActive
-              ? spring({
-                  frame: localFrame - w.startFrame,
-                  fps,
-                  config: { damping: 10, stiffness: 220 },
-                })
-              : 1;
-
-            return (
-              <span
-                key={`${idx}-${w.word}`}
-                style={{
-                  display: 'inline-block',
-                  fontSize: isActive ? 50 : 42,
-                  fontWeight: 900,
-                  letterSpacing: '-0.01em',
-                  transform: `scale(${isActive ? 1 + wordScale * 0.16 : 1})`,
-                  color: isActive
-                    ? '#fef08a' // Highlight Yellow (Faceless Shorts Standard)
-                    : hasPassed
-                    ? '#ffffff'
-                    : 'rgba(255, 255, 255, 0.38)',
-                  textShadow: isActive
-                    ? '0 0 24px rgba(254, 240, 138, 0.8), 0 4px 12px rgba(0, 0, 0, 0.9)'
-                    : '0 2px 8px rgba(0, 0, 0, 0.8)',
-                  transition: 'all 0.08s ease-out',
-                }}
-              >
-                {w.word}
-              </span>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Progress Line Across Entire Short */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          height: 6,
-          width: `${(frame / 959) * 100}%`,
-          backgroundColor: currentSceneIndex === 6 ? '#fdf3d0' : activeScene.themeColor,
-          boxShadow: `0 0 16px ${currentSceneIndex === 6 ? '#fdf3d0' : activeScene.themeColor}`,
-          zIndex: 60,
-        }}
-      />
-    </AbsoluteFill>
-  );
-}
-
-// =========================================================================
-// SCENE 1: FRACTURED SILICON MONOLITH (Question Hook - Literal GPU Die Crack)
-// =========================================================================
-function SceneOneFracturedTitan({ frame, fps }: { frame: number; fps: number }) {
-  const enterSpring = spring({ frame, fps, config: { damping: 13, stiffness: 90 } });
-  const crackProgress = interpolate(frame, [25, 75], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  const shatterOffset = interpolate(frame, [45, 90], [0, 24], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
+        padding: '120px 60px 440px',
+        perspective: 1200,
+        opacity,
       }}
     >
-      {/* 3D Perspective Silicon GPU Die Monolith */}
-      <div
+      <h2
         style={{
-          position: 'relative',
-          width: 580,
-          height: 640,
-          transform: `perspective(1200px) rotateX(${22 - enterSpring * 6}deg) rotateY(${shatterOffset * 0.2}deg) scale(${enterSpring})`,
-          transformStyle: 'preserve-3d',
+          fontSize: 48,
+          fontWeight: 900,
+          textAlign: 'center',
+          color: '#ffffff',
+          margin: '0 0 32px 0',
+          lineHeight: 1.25,
+          textShadow: '0 4px 20px rgba(0,0,0,0.6)',
+          transform: `translateY(${(1 - entrance) * 30}px)`,
         }}
       >
-        {/* Glow Halo */}
+        {scene.on_screen_text || scene.narration}
+      </h2>
+
+      <div
+        style={{
+          width: 520,
+          height: 520,
+          position: 'relative',
+          transformStyle: 'preserve-3d',
+          transform: `scale(${entrance * popScale}) rotateX(${rotX}deg) rotateY(${rotY}deg) translateZ(${floatZ}px)`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <div
           style={{
             position: 'absolute',
             inset: -40,
-            borderRadius: 36,
-            background: 'radial-gradient(circle, rgba(244, 63, 94, 0.4) 0%, transparent 70%)',
-            filter: 'blur(30px)',
+            borderRadius: 32,
+            border: `2px solid ${color}55`,
+            background: `radial-gradient(circle, ${color}18 0%, transparent 70%)`,
+            transform: 'translateZ(-40px)',
+            boxShadow: `0 0 80px ${color}33`,
           }}
         />
 
-        {/* Left Fracturing Half */}
+        {/* Silicon Wafer Substrate & Traces (Zero circular orbits) */}
         <div
           style={{
             position: 'absolute',
-            left: 0,
-            top: 0,
-            width: 290,
-            height: '100%',
-            backgroundColor: '#0f172a',
-            border: '3px solid #334155',
-            borderRight: 'none',
-            borderRadius: '24px 0 0 24px',
-            transform: `translate3d(${-shatterOffset}px, ${shatterOffset * 0.4}px, 0)`,
-            boxShadow: '-16px 24px 50px rgba(0, 0, 0, 0.8)',
+            inset: -40,
+            borderRadius: 24,
+            border: `2px solid ${color}44`,
+            background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(2, 6, 23, 0.98) 100%)',
+            transform: 'translateZ(-40px)',
+            boxShadow: `0 0 80px ${color}33`,
             overflow: 'hidden',
           }}
         >
-          {/* Microchip Wire Traces & Gold Core Pins */}
-          <div
-            style={{
-              position: 'absolute',
-              inset: 20,
-              border: '2px solid rgba(56, 189, 248, 0.3)',
-              borderRadius: 12,
-              backgroundImage: 'repeating-linear-gradient(45deg, rgba(244, 63, 94, 0.15) 0px, rgba(244, 63, 94, 0.15) 8px, transparent 8px, transparent 16px)',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              top: '40%',
-              left: 40,
-              fontSize: 64,
-              fontWeight: 900,
-              color: '#f43f5e',
-              letterSpacing: '-0.05em',
-            }}
-          >
-            NV
-          </div>
-        </div>
-
-        {/* Right Fracturing Half */}
-        <div
-          style={{
-            position: 'absolute',
-            right: 0,
-            top: 0,
-            width: 290,
-            height: '100%',
-            backgroundColor: '#0b1120',
-            border: '3px solid #334155',
-            borderLeft: 'none',
-            borderRadius: '0 24px 24px 0',
-            transform: `translate3d(${shatterOffset}px, ${-shatterOffset * 0.5}px, 0)`,
-            boxShadow: '16px 24px 50px rgba(0, 0, 0, 0.8)',
-            overflow: 'hidden',
-          }}
-        >
-          <div
-            style={{
-              position: 'absolute',
-              inset: 20,
-              border: '2px solid rgba(244, 63, 94, 0.3)',
-              borderRadius: 12,
-              backgroundImage: 'repeating-linear-gradient(-45deg, rgba(56, 189, 248, 0.15) 0px, rgba(56, 189, 248, 0.15) 8px, transparent 8px, transparent 16px)',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              top: '40%',
-              left: 10,
-              fontSize: 64,
-              fontWeight: 900,
-              color: '#38bdf8',
-              letterSpacing: '-0.05em',
-            }}
-          >
-            IDIA
-          </div>
-        </div>
-
-        {/* Center Fractured Lightning/Fault Line SVG */}
-        <svg
-          style={{
-            position: 'absolute',
-            top: -20,
-            left: 270,
-            width: 40,
-            height: 680,
-            zIndex: 10,
-          }}
-        >
-          <path
-            d="M 20 0 L 10 120 L 32 240 L 5 360 L 35 480 L 15 600 L 22 680"
-            stroke="#f43f5e"
-            strokeWidth="5"
-            fill="none"
-            strokeDasharray="700"
-            strokeDashoffset={700 * (1 - crackProgress)}
-            style={{ filter: 'drop-shadow(0 0 10px #f43f5e)' }}
-          />
-        </svg>
-
-        {/* Warning Indicator Overlay */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: -60,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '12px 28px',
-            backgroundColor: 'rgba(244, 63, 94, 0.18)',
-            border: '2px solid #f43f5e',
-            borderRadius: 8,
-            color: '#fecdd3',
-            fontSize: 20,
-            fontWeight: 800,
-            letterSpacing: '0.15em',
-            boxShadow: '0 0 30px rgba(244, 63, 94, 0.3)',
-          }}
-        >
-          <span style={{ animation: 'blink 0.8s infinite' }}>CRITICAL ARCHITECTURE COLLAPSE</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =========================================================================
-// SCENE 2: JENSEN HUANG RESIGNATION (Hero Silhouette with Leather Jacket Cue)
-// =========================================================================
-function SceneTwoJensenResigns({ frame, fps }: { frame: number; fps: number }) {
-  const enterSpring = spring({ frame, fps, config: { damping: 14, stiffness: 100 } });
-  const badgeDrop = spring({ frame: Math.max(0, frame - 30), fps, config: { damping: 12, stiffness: 130 } });
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      {/* High Contrast Character Cutaway Silhouette Frame */}
-      <div
-        style={{
-          position: 'relative',
-          width: 520,
-          height: 660,
-          borderRadius: 28,
-          backgroundColor: '#0c1322',
-          border: '2px solid rgba(56, 189, 248, 0.4)',
-          boxShadow: '0 30px 80px rgba(0, 0, 0, 0.9), 0 0 40px rgba(56, 189, 248, 0.15)',
-          overflow: 'hidden',
-          transform: `scale(${enterSpring})`,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-        }}
-      >
-        {/* Neon Silhouette Lighting Backdrop */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 40,
-            width: 320,
-            height: 320,
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(56, 189, 248, 0.4) 0%, transparent 70%)',
-            filter: 'blur(40px)',
-          }}
-        />
-
-        {/* Character Silhouette: Signature Glasses & Leather Jacket Lapels */}
-        <svg
-          viewBox="0 0 400 480"
-          style={{
-            width: 400,
-            height: 480,
-            zIndex: 5,
-            filter: 'drop-shadow(0 12px 24px rgba(0, 0, 0, 0.9))',
-          }}
-        >
-          {/* Head & Hair */}
-          <path d="M 150 160 C 150 90, 250 90, 250 160 C 250 200, 240 230, 200 230 C 160 230, 150 200, 150 160 Z" fill="#1e293b" />
-          {/* Iconic Dark Rimmed Glasses */}
-          <rect x="156" y="145" width="38" height="24" rx="4" fill="none" stroke="#38bdf8" strokeWidth="4" />
-          <rect x="206" y="145" width="38" height="24" rx="4" fill="none" stroke="#38bdf8" strokeWidth="4" />
-          <line x1="194" y1="157" x2="206" y2="157" stroke="#38bdf8" strokeWidth="4" />
-          
-          {/* Signature Leather Jacket Shoulders & Zipper V-Collar */}
-          <path
-            d="M 90 480 L 130 260 L 175 250 L 200 320 L 225 250 L 270 260 L 310 480 Z"
-            fill="#090d16"
-            stroke="#334155"
-            strokeWidth="3"
-          />
-          {/* Cyan Lapel Rim Glow */}
-          <path d="M 175 250 L 200 360 L 225 250" fill="none" stroke="#38bdf8" strokeWidth="4" />
-          <line x1="200" y1="360" x2="200" y2="480" stroke="#f43f5e" strokeWidth="3" strokeDasharray="6 6" />
-        </svg>
-
-        {/* Dropping CEO Resignation Tag Card */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 70,
-            transform: `translateY(${(1 - badgeDrop) * -120}px) rotate(-6deg)`,
-            padding: '14px 32px',
-            backgroundColor: '#dc2626',
-            color: '#ffffff',
-            borderRadius: 12,
-            fontWeight: 900,
-            fontSize: 26,
-            letterSpacing: '0.14em',
-            textTransform: 'uppercase',
-            boxShadow: '0 16px 36px rgba(220, 38, 38, 0.6)',
-            border: '2px solid #fecaca',
-            zIndex: 10,
-          }}
-        >
-          [ STATUS: RESIGNED ]
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =========================================================================
-// SCENE 3: AUDIT & INVESTIGATION DOSSIER (Classified Document + Vector Stamp)
-// =========================================================================
-function SceneThreeAuditInvestigation({ frame, fps }: { frame: number; fps: number }) {
-  const enterSpring = spring({ frame, fps, config: { damping: 15, stiffness: 110 } });
-  const stampSpring = spring({ frame: Math.max(0, frame - 35), fps, config: { damping: 10, stiffness: 180 } });
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      {/* Dark Confidential Audit Dossier */}
-      <div
-        style={{
-          position: 'relative',
-          width: 580,
-          height: 680,
-          backgroundColor: '#111827',
-          border: '2px solid #374151',
-          borderRadius: 20,
-          boxShadow: '0 30px 90px rgba(0, 0, 0, 0.9)',
-          padding: 44,
-          transform: `perspective(1000px) rotateX(12deg) scale(${enterSpring})`,
-          overflow: 'hidden',
-        }}
-      >
-        {/* Top File Tab */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 44,
-            padding: '6px 24px',
-            backgroundColor: '#1f2937',
-            borderBottom: '2px solid #4b5563',
-            fontSize: 16,
-            fontWeight: 800,
-            color: '#9ca3af',
-            letterSpacing: '0.15em',
-          }}
-        >
-          SEC // BOARD COMPLIANCE DOC #8841-B
-        </div>
-
-        {/* Dossier Lines & Redacted Code Blocks */}
-        <div style={{ marginTop: 40, display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div style={{ height: 16, width: '70%', backgroundColor: '#1f2937', borderRadius: 4 }} />
-          <div style={{ height: 16, width: '90%', backgroundColor: '#1f2937', borderRadius: 4 }} />
-          <div style={{ height: 16, width: '45%', backgroundColor: '#f43f5e', opacity: 0.8, borderRadius: 4 }} />
-
-          {/* Audit Verification Vector Items */}
-          <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {[
-              { label: "Executive Governance Quorum", pass: false },
-              { label: "Autonomous Supply Allocation", pass: false },
-              { label: "Internal Audit Review Protocol", pass: true }
-            ].map((item, i) => (
-              <div
-                key={i}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '12px 18px',
-                  backgroundColor: 'rgba(31, 41, 55, 0.6)',
-                  borderRadius: 8,
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                }}
-              >
-                <span style={{ fontSize: 18, color: '#e5e7eb', fontWeight: 600 }}>{item.label}</span>
-                <span
-                  style={{
-                    fontSize: 18,
-                    fontWeight: 900,
-                    color: item.pass ? '#22c55e' : '#f43f5e',
-                  }}
-                >
-                  {item.pass ? "VERIFIED" : "FLAGGED"}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Glowing Red Investigation Stamp */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 80,
-            right: 40,
-            padding: '16px 36px',
-            border: '6px solid #ef4444',
-            borderRadius: 16,
-            color: '#ef4444',
-            fontSize: 34,
-            fontWeight: 900,
-            letterSpacing: '0.2em',
-            transform: `scale(${stampSpring}) rotate(-16deg)`,
-            opacity: stampSpring,
-            boxShadow: '0 0 35px rgba(239, 68, 68, 0.6)',
-            backgroundColor: 'rgba(239, 68, 68, 0.12)',
-            textShadow: '0 0 12px rgba(239, 68, 68, 0.8)',
-          }}
-        >
-          INVESTIGATION
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =========================================================================
-// SCENE 4: COLETTE KRESS STEPS UP (Dual-Pillar Split Compare)
-// =========================================================================
-function SceneFourColetteTakesHelm({ frame, fps }: { frame: number; fps: number }) {
-  const pillarLeft = spring({ frame, fps, config: { damping: 14, stiffness: 100 } });
-  const pillarRight = spring({ frame: Math.max(0, frame - 15), fps, config: { damping: 14, stiffness: 100 } });
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 32,
-        padding: '0 60px',
-      }}
-    >
-      {/* Left Pillar: Financial Discipline / CFO Command */}
-      <div
-        style={{
-          flex: 1,
-          height: 640,
-          backgroundColor: '#0c1322',
-          border: '2px solid #38bdf8',
-          borderRadius: 24,
-          padding: 32,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          transform: `translateY(${(1 - pillarLeft) * 80}px)`,
-          opacity: pillarLeft,
-          boxShadow: '0 20px 60px rgba(56, 189, 248, 0.2)',
-        }}
-      >
-        <div>
-          <div style={{ color: '#38bdf8', fontSize: 18, fontWeight: 800, letterSpacing: '0.15em' }}>
-            FINANCIAL PILLAR
-          </div>
-          <div style={{ fontSize: 36, fontWeight: 900, color: '#f8fafc', marginTop: 12 }}>
-            COLETTE KRESS
-          </div>
-          <div style={{ fontSize: 20, color: '#94a3b8', marginTop: 4 }}>Chief Financial Officer</div>
-        </div>
-
-        {/* Dynamic Financial Balance Bar Chart */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ fontSize: 16, color: '#cbd5e1' }}>Capital Reserves: $42B+</div>
-          <div style={{ width: '100%', height: 14, backgroundColor: '#1e293b', borderRadius: 7, overflow: 'hidden' }}>
-            <div style={{ width: '92%', height: '100%', backgroundColor: '#38bdf8' }} />
-          </div>
-          <div style={{ fontSize: 16, color: '#cbd5e1' }}>Gross Margin Health: 75%</div>
-          <div style={{ width: '100%', height: 14, backgroundColor: '#1e293b', borderRadius: 7, overflow: 'hidden' }}>
-            <div style={{ width: '75%', height: '100%', backgroundColor: '#34d399' }} />
-          </div>
-        </div>
-
-        <div
-          style={{
-            padding: '12px 18px',
-            backgroundColor: 'rgba(56, 189, 248, 0.15)',
-            border: '1px solid #38bdf8',
-            borderRadius: 12,
-            textAlign: 'center',
-            fontWeight: 800,
-            fontSize: 18,
-            color: '#e0f2fe',
-          }}
-        >
-          INTERIM CHIEF EXECUTIVE
-        </div>
-      </div>
-
-      {/* Right Pillar: Operational Continuity */}
-      <div
-        style={{
-          flex: 1,
-          height: 640,
-          backgroundColor: '#0c1322',
-          border: '2px solid #a855f7',
-          borderRadius: 24,
-          padding: 32,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          transform: `translateY(${(1 - pillarRight) * 80}px)`,
-          opacity: pillarRight,
-          boxShadow: '0 20px 60px rgba(168, 85, 247, 0.2)',
-        }}
-      >
-        <div>
-          <div style={{ color: '#a855f7', fontSize: 18, fontWeight: 800, letterSpacing: '0.15em' }}>
-            OPERATIONAL PILLAR
-          </div>
-          <div style={{ fontSize: 36, fontWeight: 900, color: '#f8fafc', marginTop: 12 }}>
-            GLOBAL SUPPLY
-          </div>
-          <div style={{ fontSize: 20, color: '#94a3b8', marginTop: 4 }}>Foundry Allotments</div>
-        </div>
-
-        {/* Server & Chip Architecture Load Vectors */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ fontSize: 16, color: '#cbd5e1' }}>TSMC 3nm Allocation</div>
-          <div style={{ width: '100%', height: 14, backgroundColor: '#1e293b', borderRadius: 7, overflow: 'hidden' }}>
-            <div style={{ width: '98%', height: '100%', backgroundColor: '#a855f7' }} />
-          </div>
-          <div style={{ fontSize: 16, color: '#cbd5e1' }}>Blackwell Ultra Pipeline</div>
-          <div style={{ width: '100%', height: 14, backgroundColor: '#1e293b', borderRadius: 7, overflow: 'hidden' }}>
-            <div style={{ width: '84%', height: '100%', backgroundColor: '#60a5fa' }} />
-          </div>
-        </div>
-
-        <div
-          style={{
-            padding: '12px 18px',
-            backgroundColor: 'rgba(168, 85, 247, 0.15)',
-            border: '1px solid #a855f7',
-            borderRadius: 12,
-            textAlign: 'center',
-            fontWeight: 800,
-            fontSize: 18,
-            color: '#f3e8ff',
-          }}
-        >
-          FAB CONTINUITY SECURED
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =========================================================================
-// SCENE 5: EXECUTIVE TALENT SEARCH NETWORK (Harvey Jones Governance DAG)
-// =========================================================================
-function SceneFiveExecutiveSearchNetwork({ frame, fps }: { frame: number; fps: number }) {
-  const rootSpring = spring({ frame, fps, config: { damping: 14, stiffness: 100 } });
-  const branchSpring = spring({ frame: Math.max(0, frame - 25), fps, config: { damping: 12, stiffness: 120 } });
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      {/* Node Network Map Container */}
-      <div style={{ position: 'relative', width: 720, height: 680 }}>
-        {/* Top Central Node: Harvey Jones */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 20,
-            left: '50%',
-            transform: `translateX(-50%) scale(${rootSpring})`,
-            width: 380,
-            padding: '24px 28px',
-            backgroundColor: '#0f172a',
-            border: '2px solid #38bdf8',
-            borderRadius: 20,
-            textAlign: 'center',
-            boxShadow: '0 16px 40px rgba(56, 189, 248, 0.3)',
-            zIndex: 10,
-          }}
-        >
-          <div style={{ fontSize: 16, color: '#38bdf8', fontWeight: 800, letterSpacing: '0.15em' }}>
-            INDEPENDENT LEAD DIRECTOR
-          </div>
-          <div style={{ fontSize: 32, fontWeight: 900, color: '#ffffff', marginTop: 8 }}>
-            HARVEY C. JONES
-          </div>
-          <div style={{ fontSize: 16, color: '#94a3b8', marginTop: 4 }}>Committee Search Chair</div>
-        </div>
-
-        {/* Branching SVG Connector Lines */}
-        <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', zIndex: 1 }}>
-          <path
-            d="M 360 170 L 360 300 L 160 380"
-            stroke="#38bdf8"
-            strokeWidth="4"
-            fill="none"
-            strokeDasharray="400"
-            strokeDashoffset={400 * (1 - branchSpring)}
-          />
-          <path
-            d="M 360 170 L 360 300 L 560 380"
-            stroke="#f43f5e"
-            strokeWidth="4"
-            fill="none"
-            strokeDasharray="400"
-            strokeDashoffset={400 * (1 - branchSpring)}
-          />
-        </svg>
-
-        {/* Left Sub-Node: Internal Bench Candidates */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 60,
-            left: 20,
-            width: 320,
-            padding: '20px',
-            backgroundColor: '#0c1322',
-            border: '2px solid #38bdf8',
-            borderRadius: 16,
-            transform: `scale(${branchSpring})`,
-            boxShadow: '0 12px 30px rgba(0, 0, 0, 0.8)',
-            zIndex: 10,
-          }}
-        >
-          <div style={{ fontSize: 14, color: '#38bdf8', fontWeight: 800 }}>INTERNAL PIPELINE</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: '#ffffff', marginTop: 6 }}>VP & SVP Roster</div>
-          <div style={{ fontSize: 16, color: '#94a3b8', marginTop: 8 }}>Software & GPU Architecture Leads</div>
-        </div>
-
-        {/* Right Sub-Node: External Tech Titan Search */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 60,
-            right: 20,
-            width: 320,
-            padding: '20px',
-            backgroundColor: '#0c1322',
-            border: '2px solid #f43f5e',
-            borderRadius: 16,
-            transform: `scale(${branchSpring})`,
-            boxShadow: '0 12px 30px rgba(0, 0, 0, 0.8)',
-            zIndex: 10,
-          }}
-        >
-          <div style={{ fontSize: 14, color: '#f43f5e', fontWeight: 800 }}>EXTERNAL RECRUIT</div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: '#ffffff', marginTop: 6 }}>Global Tech Giants</div>
-          <div style={{ fontSize: 16, color: '#94a3b8', marginTop: 8 }}>Tier-1 Hyperscaler Execs</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =========================================================================
-// SCENE 6: BILLIONS IN VALUE AT STAKE (Radial Meter & Market Ticker HUD)
-// =========================================================================
-function SceneSixMarketValueBalancing({ frame, fps }: { frame: number; fps: number }) {
-  const enterSpring = spring({ frame, fps, config: { damping: 14, stiffness: 100 } });
-  
-  // Oscillating Needle representing market volatility
-  const needleAngle = interpolate(
-    Math.sin(frame * 0.15) * Math.cos(frame * 0.08),
-    [-1, 1],
-    [-42, 42]
-  );
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        inset: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <div
-        style={{
-          position: 'relative',
-          width: 580,
-          height: 640,
-          backgroundColor: '#0f172a',
-          border: '2px solid rgba(244, 63, 94, 0.5)',
-          borderRadius: 24,
-          padding: 36,
-          boxShadow: '0 24px 80px rgba(244, 63, 94, 0.25)',
-          transform: `scale(${enterSpring})`,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 16, color: '#f43f5e', fontWeight: 800, letterSpacing: '0.2em' }}>
-            MARKET CAPITALIZATION AT RISK
-          </div>
-          <div style={{ fontSize: 54, fontWeight: 900, color: '#ffffff', marginTop: 8 }}>
-            $3,200,000,000,000
-          </div>
-        </div>
-
-        {/* Dynamic High-Tech Radial Market Dial */}
-        <div style={{ position: 'relative', width: 340, height: 220, overflow: 'hidden' }}>
-          <svg viewBox="0 0 340 220" style={{ width: '100%', height: '100%' }}>
-            {/* Background Arc */}
-            <path
-              d="M 40 190 A 130 130 0 0 1 300 190"
-              fill="none"
-              stroke="#1e293b"
-              strokeWidth="28"
-              strokeLinecap="round"
-            />
-            {/* Warning Arc Segment */}
-            <path
-              d="M 170 60 A 130 130 0 0 1 300 190"
-              fill="none"
-              stroke="#f43f5e"
-              strokeWidth="28"
-              strokeLinecap="round"
-              strokeDasharray="220"
-              strokeDashoffset="30"
-            />
-            {/* Safe Arc Segment */}
-            <path
-              d="M 40 190 A 130 130 0 0 1 170 60"
-              fill="none"
-              stroke="#38bdf8"
-              strokeWidth="28"
-              strokeLinecap="round"
-            />
+          <svg width="100%" height="100%" style={{ position: 'absolute', inset: 0 }}>
+            <line x1="10%" y1="50%" x2="90%" y2="50%" stroke={color} strokeWidth="3" strokeDasharray="8 6" strokeDashoffset={-frame * 2} />
+            <line x1="50%" y1="10%" x2="50%" y2="90%" stroke={color} strokeWidth="3" strokeDasharray="8 6" strokeDashoffset={frame * 2} />
           </svg>
-
-          {/* Pivoting Needle */}
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 24,
-              left: '50%',
-              width: 6,
-              height: 120,
-              backgroundColor: '#f8fafc',
-              borderRadius: 3,
-              transformOrigin: '50% 100%',
-              transform: `translateX(-50%) rotate(${needleAngle}deg)`,
-              boxShadow: '0 0 16px rgba(255, 255, 255, 0.9)',
-              transition: 'transform 0.05s linear',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              bottom: 14,
-              left: '50%',
-              width: 24,
-              height: 24,
-              borderRadius: '50%',
-              backgroundColor: '#f43f5e',
-              transform: 'translateX(-50%)',
-              boxShadow: '0 0 12px #f43f5e',
-            }}
-          />
         </div>
 
-        {/* Real-Time Market Volatility Feed */}
         <div
           style={{
-            width: '100%',
+            width: 380,
+            height: 380,
+            borderRadius: 36,
+            background: `radial-gradient(circle at 30% 30%, ${color}33 0%, rgba(15, 23, 42, 0.96) 80%)`,
+            border: `3px solid ${color}`,
+            boxShadow: `0 30px 80px rgba(0,0,0,0.8), 0 0 60px ${color}55, inset 0 0 40px ${color}22`,
             display: 'flex',
-            justifyContent: 'space-between',
-            padding: '16px 24px',
-            backgroundColor: 'rgba(244, 63, 94, 0.12)',
-            border: '1px solid #f43f5e',
-            borderRadius: 14,
-            fontSize: 20,
-            fontWeight: 800,
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transform: 'translateZ(60px)',
+            padding: 32,
+            textAlign: 'center',
           }}
         >
-          <span style={{ color: '#fecdd3' }}>VOLATILITY INDEX: HIGH</span>
-          <span style={{ color: '#f43f5e' }}>DELTA: ±8.4%</span>
+          <span style={{ fontSize: 96, marginBottom: 16 }}>{scene.icon || '🌐'}</span>
+          <div style={{ fontSize: 36, fontWeight: 900, color: '#ffffff', letterSpacing: 1 }}>
+            {node.label}
+          </div>
+          {node.sub && (
+            <div style={{ fontSize: 22, color: '#94a3b8', marginTop: 8 }}>
+              {node.sub}
+            </div>
+          )}
         </div>
       </div>
-    </div>
+
+      <KineticCaptions words={scene.words || []} currentFrame={frame} accentColor={color} />
+    </AbsoluteFill>
   );
-}
+};
 
-// =========================================================================
-// SCENE 7: BITTRIX TECHNOLOGIES OUTRO (Exact Royal Purple UI Spec)
-// Grounded in: /home/eswaran/Downloads/bittrix-reel(1).html
-// Colors: Royal Purple #5b1a78, Warm Cream #fdf3d0
-// =========================================================================
-function SceneSevenBittrixOutro({ frame, fps }: { frame: number; fps: number }) {
-  const enterSpring = spring({ frame, fps, config: { damping: 14, stiffness: 100 } });
-  const gearRotation = (frame * 1.8) % 360;
-  const sweepProgress = interpolate(frame, [25, 95], [-100, 200], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+// 2. IMAGE-HERO: Cinematic Ken Burns Motion with Glassmorphic Floating Frame
+const ImageHeroView: React.FC<{
+  scene: ScenePayload;
+  frame: number;
+  fps: number;
+}> = ({ scene, frame, fps }) => {
+  const color = scene.themeColor || '#38bdf8';
+  const entrance = spring({ frame, fps, config: { damping: 18, stiffness: 120, mass: 0.9 } });
+  const zoom = interpolate(frame, [0, scene.durationInFrames || Math.round(fps * 3.5)], [1.0, 1.12], { extrapolateRight: 'clamp' });
+  const panX = Math.sin(frame * 0.02) * 12;
+  const panY = Math.cos(frame * 0.025) * 8;
+  const opacity = interpolate(frame, [0, Math.round(fps * 0.2)], [0, 1], { extrapolateRight: 'clamp' });
 
-  // Staggered letter reveal for BITTRIX
-  const brandLetters = "BITTRIX".split("");
+  const rawSrc = scene.image_url || scene.asset_url;
+  const imgSrc = rawSrc ? (rawSrc.startsWith('http') || rawSrc.startsWith('/') ? rawSrc : staticFile(rawSrc)) : null;
 
   return (
-    <div
+    <AbsoluteFill
       style={{
-        position: 'absolute',
-        inset: 0,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
+        padding: '120px 60px 440px',
+        opacity,
       }}
     >
-      {/* Royal Purple Outro Card */}
-      <div
+      <h2
         style={{
-          position: 'relative',
-          width: 640,
-          height: 680,
-          backgroundColor: '#3b0d52',
-          backgroundImage: 'radial-gradient(circle at 50% 40%, #5b1a78 0%, #250635 100%)',
-          border: '3px solid #fdf3d0',
-          borderRadius: 36,
-          boxShadow: '0 30px 100px rgba(91, 26, 120, 0.6), 0 0 50px rgba(253, 243, 208, 0.2)',
-          padding: 44,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transform: `scale(${enterSpring})`,
-          overflow: 'hidden',
+          fontSize: 48,
+          fontWeight: 900,
+          textAlign: 'center',
+          color: '#ffffff',
+          margin: '0 0 28px 0',
+          lineHeight: 1.25,
+          textShadow: '0 4px 24px rgba(0,0,0,0.7)',
+          transform: `translateY(${(1 - entrance) * 24}px)`,
         }}
       >
-        {/* Diagonal Light Sweep Effect */}
+        {scene.on_screen_text || scene.narration}
+      </h2>
+
+      <div
+        style={{
+          width: 900,
+          height: 520,
+          borderRadius: 32,
+          overflow: 'hidden',
+          position: 'relative',
+          border: `2px solid ${color}aa`,
+          boxShadow: `0 30px 80px rgba(0,0,0,0.75), 0 0 50px ${color}44`,
+          transform: `scale(${entrance})`,
+          background: 'rgba(15, 23, 42, 0.95)',
+        }}
+      >
+        {imgSrc ? (
+          <img
+            src={imgSrc}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              transform: `scale(${zoom}) translate(${panX}px, ${panY}px)`,
+            }}
+            alt=""
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: `radial-gradient(circle at 50% 50%, ${color}33 0%, #0b1120 100%)`,
+              gap: 20,
+            }}
+          >
+            <span style={{ fontSize: 96, transform: `scale(${1 + Math.sin(frame * 0.08) * 0.05})` }}>
+              {scene.icon || '🖼️'}
+            </span>
+            <div style={{ fontSize: 32, fontWeight: 800, color: '#ffffff' }}>
+              {scene.emphasis_word || scene.on_screen_text}
+            </div>
+          </div>
+        )}
+
         <div
           style={{
             position: 'absolute',
-            top: -200,
-            bottom: -200,
-            left: `${sweepProgress}%`,
-            width: 140,
-            background: 'linear-gradient(90deg, transparent, rgba(253, 243, 208, 0.25), transparent)',
-            transform: 'rotate(25deg)',
+            inset: 0,
+            background: 'linear-gradient(to top, rgba(9, 13, 22, 0.85) 0%, transparent 50%)',
             pointerEvents: 'none',
           }}
         />
 
-        {/* 6-Point Radial Hexagon with 12-Tooth Mechanical Gear */}
-        <div style={{ position: 'relative', width: 200, height: 200, marginBottom: 28 }}>
-          {/* Animated 6-Point Radial Hexagon SVG */}
-          <svg viewBox="0 0 200 200" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}>
-            <polygon
-              points="100,10 180,55 180,145 100,190 20,145 20,55"
-              fill="none"
-              stroke="#fdf3d0"
-              strokeWidth="4"
-              opacity="0.8"
-            />
-            {/* Spoke Circles at Vertices */}
-            {[[100, 10], [180, 55], [180, 145], [100, 190], [20, 145], [20, 55]].map(([cx, cy], i) => (
-              <circle key={i} cx={cx} cy={cy} r="6" fill="#fdf3d0" />
-            ))}
-          </svg>
-
-          {/* Rotating 12-Tooth Precision Gear with Serif 'B' */}
+        {scene.subtitle && (
           <div
             style={{
               position: 'absolute',
-              inset: 25,
-              borderRadius: '50%',
-              border: '4px dashed #fdf3d0',
-              transform: `rotate(${gearRotation}deg)`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: '"Cinzel", Georgia, serif',
-              fontSize: 68,
-              fontWeight: 900,
-              color: '#fdf3d0',
-              textShadow: '0 0 20px rgba(253, 243, 208, 0.8)',
+              bottom: 24,
+              left: 32,
+              right: 32,
+              fontSize: 24,
+              fontWeight: 600,
+              color: '#f8fafc',
+              textShadow: '0 2px 10px rgba(0,0,0,0.8)',
             }}
           >
-            B
+            {scene.subtitle}
+          </div>
+        )}
+      </div>
+
+      <KineticCaptions words={scene.words || []} currentFrame={frame} accentColor={color} />
+    </AbsoluteFill>
+  );
+};
+
+// 3. ConceptDiagram: Layered organic motion with springs (damping 12, stiffness 120), parallax & no card box
+const ConceptDiagramView: React.FC<{
+  scene: ScenePayload;
+  frame: number;
+  fps: number;
+}> = ({ scene, frame, fps }) => {
+  const color = scene.themeColor || '#38bdf8';
+  const springCfg = { damping: 12, stiffness: 120 };
+
+  // Rule 11: Parallax camera drift (Background 2%, Foreground 6%)
+  const bgDrift = Math.sin(frame * 0.015) * 12;
+  const fgDrift = Math.cos(frame * 0.02) * 24;
+
+  // Rule 9 & 10: Staggered entry with anticipation pullback & overshoot
+  const enterA = spring({ frame: Math.max(0, frame - 4), fps, config: springCfg });
+  const pullA = interpolate(frame, [0, 4], [0, -14], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  
+  const enterB = spring({ frame: Math.max(0, frame - 12), fps, config: springCfg });
+  const pullB = interpolate(frame, [8, 12], [0, -14], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+
+  // Rule 12: Subtle idle motion (float, breathe, rotate +-2 deg)
+  const idleFloatA = Math.sin(frame * 0.07) * 7;
+  const idleRotA = Math.sin(frame * 0.05) * 2;
+  const idleFloatB = Math.cos(frame * 0.07) * 7;
+  const idleRotB = -Math.sin(frame * 0.05) * 2;
+
+  const nodes = scene.nodes && scene.nodes.length ? scene.nodes : [{ label: scene.on_screen_text || scene.narration || '' }];
+  const nodeA = nodes[0] || { label: 'Source' };
+  const nodeB = nodes[1] || { label: 'Target' };
+
+  return (
+    <AbsoluteFill
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '120px 60px 440px',
+        transform: `translateY(${bgDrift}px)`,
+      }}
+    >
+      {/* Layer 4: Kinetic Typography Hero Headline */}
+      <h2
+        style={{
+          fontSize: 52,
+          fontWeight: 900,
+          color: '#ffffff',
+          margin: '0 0 50px 0',
+          textAlign: 'center',
+          lineHeight: 1.22,
+          maxWidth: 960,
+          textShadow: '0 8px 30px rgba(0,0,0,0.85)',
+          transform: `translateY(${(1 - enterA) * 30}px)`,
+        }}
+      >
+        {scene.on_screen_text || scene.narration}
+      </h2>
+
+      {/* Layer 2 & 3: Floating Midground / Foreground Nodes with Soft Drop Shadows */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 32,
+          width: '100%',
+          maxWidth: 980,
+          transform: `translateY(${fgDrift}px)`,
+        }}
+      >
+        {/* Node 1 */}
+        <div
+          style={{
+            flex: 1,
+            padding: '36px 28px',
+            borderRadius: 24,
+            background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%)',
+            border: `2px solid ${color}`,
+            textAlign: 'center',
+            boxShadow: `0 25px 50px rgba(0,0,0,0.7), 0 0 40px ${color}55`,
+            filter: 'drop-shadow(0 20px 25px rgba(0,0,0,0.5))',
+            transform: `scale(${enterA}) translateY(${pullA + idleFloatA}px) rotate(${idleRotA}deg)`,
+          }}
+        >
+          <div style={{ fontSize: 36, fontWeight: 900, color: '#ffffff' }}>{nodeA.label}</div>
+          {nodeA.sub && <div style={{ fontSize: 22, color: '#94a3b8', marginTop: 10, fontWeight: 500 }}>{nodeA.sub}</div>}
+        </div>
+
+        {/* Animated Connecting Vector Track */}
+        <div style={{ width: 150, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg width="140" height="36" viewBox="0 0 140 36">
+            <line
+              x1="0"
+              y1="18"
+              x2="120"
+              y2="18"
+              stroke={color}
+              strokeWidth="5"
+              strokeDasharray="10 8"
+              strokeDashoffset={-frame * 4}
+            />
+            <polygon
+              points="120,8 138,18 120,28"
+              fill={color}
+              transform={`translate(${Math.sin(frame * 0.15) * 4}, 0)`}
+            />
+          </svg>
+        </div>
+
+        {/* Node 2 */}
+        <div
+          style={{
+            flex: 1,
+            padding: '36px 28px',
+            borderRadius: 24,
+            background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%)',
+            border: '2px solid rgba(255, 255, 255, 0.28)',
+            textAlign: 'center',
+            boxShadow: '0 25px 50px rgba(0,0,0,0.7), 0 0 35px rgba(245, 158, 11, 0.4)',
+            filter: 'drop-shadow(0 20px 25px rgba(0,0,0,0.5))',
+            transform: `scale(${enterB}) translateY(${pullB + idleFloatB}px) rotate(${idleRotB}deg)`,
+          }}
+        >
+          <div style={{ fontSize: 36, fontWeight: 900, color: '#00f5d4' }}>{nodeB.label}</div>
+          {nodeB.sub && <div style={{ fontSize: 22, color: '#94a3b8', marginTop: 10, fontWeight: 500 }}>{nodeB.sub}</div>}
+        </div>
+      </div>
+
+      <KineticCaptions words={scene.words || []} currentFrame={frame} accentColor={color} />
+    </AbsoluteFill>
+  );
+};
+
+// 2. ProcessFlow: Sequential steps from the plan with animated progress pulse
+const ProcessFlowView: React.FC<{
+  scene: ScenePayload;
+  frame: number;
+  fps: number;
+}> = ({ scene, frame, fps }) => {
+  const color = scene.themeColor || '#38bdf8';
+  const steps = scene.labels && scene.labels.length ? scene.labels : (scene.nodes?.map(n => n.label) || [scene.on_screen_text || '']);
+  const activeStep = Math.floor(interpolate(frame, [8, scene.durationInFrames - 15], [0, Math.max(0.1, steps.length - 0.01)], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  }));
+
+  return (
+    <AbsoluteFill
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '120px 60px 440px',
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 26, width: 880 }}>
+        <h2 style={{ fontSize: 46, fontWeight: 800, textAlign: 'center', color: '#ffffff', margin: 0, lineHeight: 1.25 }}>
+          {scene.on_screen_text || scene.narration}
+        </h2>
+
+        {steps.map((label, idx) => {
+          const isCurrent = activeStep === idx;
+          const isPassed = activeStep > idx;
+          const stepSpring = spring({ frame: frame - idx * 8, fps, config: { damping: 14, mass: 0.7 } });
+          const pulse = isCurrent ? Math.sin(frame * 0.15) * 6 : 0;
+
+          return (
+            <div
+              key={idx}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 24,
+                padding: '24px 32px',
+                borderRadius: 20,
+                background: isCurrent ? `${color}22` : isPassed ? 'rgba(30, 41, 59, 0.75)' : 'rgba(15, 23, 42, 0.6)',
+                border: isCurrent ? `2px solid ${color}` : '1px solid rgba(255,255,255,0.12)',
+                transform: `scale(${Math.max(0, stepSpring)}) translateY(${pulse}px)`,
+                boxShadow: isCurrent ? `0 10px 35px ${color}44` : 'none',
+              }}
+            >
+              <div
+                style={{
+                  width: 56,
+                  height: 44,
+                  borderRadius: 12,
+                  background: isCurrent ? color : isPassed ? '#00f5d4' : '#1e293b',
+                  border: isCurrent ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.1)',
+                  fontFamily: 'monospace',
+                  color: isCurrent ? '#020617' : '#ffffff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 900,
+                  fontSize: 24,
+                }}
+              >
+                {idx + 1}
+              </div>
+              <div style={{ fontSize: 32, fontWeight: 700, color: isCurrent ? '#ffffff' : '#94a3b8' }}>
+                {label}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <KineticCaptions words={scene.words || []} currentFrame={frame} accentColor={color} />
+    </AbsoluteFill>
+  );
+};
+
+// 3. SplitCompare: Dynamic side-by-side comparison cards with oscillating laser beam
+const SplitCompareView: React.FC<{
+  scene: ScenePayload;
+  frame: number;
+  fps: number;
+}> = ({ scene, frame, fps }) => {
+  const color = scene.themeColor || '#38bdf8';
+  const entrance = spring({ frame, fps, config: { damping: 14, mass: 0.8 } });
+  const laserPos = Math.sin(frame * 0.08) * 100;
+  const nodes = scene.nodes && scene.nodes.length >= 2 ? scene.nodes : [
+    { label: 'Aspect A' },
+    { label: 'Aspect B' }
+  ];
+
+  return (
+    <AbsoluteFill
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '120px 60px 440px',
+      }}
+    >
+      <div
+        style={{
+          transform: `scale(${entrance})`,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 32,
+          width: 920,
+        }}
+      >
+        <h2 style={{ fontSize: 46, fontWeight: 800, textAlign: 'center', color: '#ffffff', margin: 0, lineHeight: 1.25 }}>
+          {scene.on_screen_text || scene.narration}
+        </h2>
+
+        <div style={{ position: 'relative', display: 'flex', gap: 24, width: '100%' }}>
+          {/* Side A */}
+          <div
+            style={{
+              flex: 1,
+              padding: 36,
+              borderRadius: 24,
+              background: `${color}18`,
+              border: `2px solid ${color}`,
+              boxShadow: `0 10px 30px ${color}33`,
+              transform: `translateY(${Math.sin(frame * 0.06) * 8}px)`,
+            }}
+          >
+            <div style={{ fontSize: 34, fontWeight: 800, color: '#ffffff' }}>{nodes[0]?.label}</div>
+            {nodes[0]?.sub && <div style={{ fontSize: 22, color: '#94a3b8', marginTop: 10 }}>{nodes[0]?.sub}</div>}
+          </div>
+
+          {/* Side B */}
+          <div
+            style={{
+              flex: 1,
+              padding: 36,
+              borderRadius: 24,
+              background: 'rgba(245, 158, 11, 0.12)',
+              border: '2px solid #00f5d4',
+              boxShadow: '0 10px 30px rgba(245, 158, 11, 0.25)',
+              transform: `translateY(${-Math.sin(frame * 0.06) * 8}px)`,
+            }}
+          >
+            <div style={{ fontSize: 34, fontWeight: 800, color: '#ffffff' }}>{nodes[1]?.label}</div>
+            {nodes[1]?.sub && <div style={{ fontSize: 22, color: '#94a3b8', marginTop: 10 }}>{nodes[1]?.sub}</div>}
+          </div>
+
+          {/* Central Laser Divider */}
+          <div
+            style={{
+              position: 'absolute',
+              top: '10%',
+              bottom: '10%',
+              left: '50%',
+              width: 3,
+              background: '#ffffff',
+              boxShadow: `0 0 20px ${color}, 0 0 40px ${color}`,
+              transform: `translateX(-50%) translateY(${laserPos}px)`,
+            }}
+          />
+        </div>
+      </div>
+
+      <KineticCaptions words={scene.words || []} currentFrame={frame} accentColor={color} />
+    </AbsoluteFill>
+  );
+};
+
+// 4. Callout / Hero Focus View: High-impact keyword presentation with rotating orbitals
+const CalloutView: React.FC<{
+  scene: ScenePayload;
+  frame: number;
+  fps: number;
+}> = ({ scene, frame, fps }) => {
+  const color = scene.themeColor || '#38bdf8';
+  const entrance = spring({ frame, fps, config: { damping: 14, mass: 0.8 } });
+  const pulse = Math.sin(frame * 0.08) * 8;
+  const cameraZoom = 1.0 + (frame / (scene.durationInFrames || 90)) * 0.06;
+
+  return (
+    <AbsoluteFill
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '120px 60px 440px',
+        transform: `scale(${cameraZoom})`,
+      }}
+    >
+      <div
+        style={{
+          transform: `scale(${entrance}) translateY(${(1 - entrance) * 60 + pulse}px)`,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 28,
+          maxWidth: 900,
+        }}
+      >
+        <h1
+          style={{
+            fontSize: 64,
+            fontWeight: 900,
+            textAlign: 'center',
+            color: '#ffffff',
+            lineHeight: 1.2,
+            margin: 0,
+            textShadow: '0 4px 24px rgba(0,0,0,0.6)',
+          }}
+        >
+          {scene.on_screen_text || scene.narration}
+        </h1>
+
+        {/* Architectural Tech Module (Zero circular orbs) */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 20,
+            padding: '24px 36px',
+            borderRadius: 16,
+            background: 'rgba(15, 23, 42, 0.85)',
+            border: `1px solid ${color}44`,
+            boxShadow: `0 20px 50px rgba(0,0,0,0.6), inset 0 0 30px ${color}15`,
+            position: 'relative',
+          }}
+        >
+          {/* Corner brackets */}
+          <div style={{ position: 'absolute', top: -1, left: -1, width: 14, height: 14, borderTop: `3px solid ${color}`, borderLeft: `3px solid ${color}` }} />
+          <div style={{ position: 'absolute', top: -1, right: -1, width: 14, height: 14, borderTop: `3px solid ${color}`, borderRight: `3px solid ${color}` }} />
+          <div style={{ position: 'absolute', bottom: -1, left: -1, width: 14, height: 14, borderBottom: `3px solid ${color}`, borderLeft: `3px solid ${color}` }} />
+          <div style={{ position: 'absolute', bottom: -1, right: -1, width: 14, height: 14, borderBottom: `3px solid ${color}`, borderRight: `3px solid ${color}` }} />
+
+          {/* Monospace System Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontFamily: 'monospace', fontSize: 18, color: '#94a3b8', letterSpacing: 2 }}>
+            <span style={{ width: 8, height: 8, borderRadius: 2, background: color, boxShadow: `0 0 10px ${color}` }} />
+            <span>CORE_TELEMETRY // VERIFIED</span>
+          </div>
+
+          {/* Dynamic Oscillating Signal Bars */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: 44 }}>
+            {[18, 32, 24, 40, 28, 36, 20, 30].map((h, i) => {
+              const dynH = Math.max(8, h + Math.sin(frame * 0.18 + i * 0.8) * 14);
+              return (
+                <div
+                  key={i}
+                  style={{
+                    width: 8,
+                    height: dynH,
+                    borderRadius: 3,
+                    background: i % 2 === 0 ? color : '#38bdf8',
+                    boxShadow: `0 0 10px ${color}66`,
+                  }}
+                />
+              );
+            })}
+          </div>
+
+          {scene.emphasis_word && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 24px',
+                borderRadius: 8,
+                background: `${color}25`,
+                border: `1px solid ${color}`,
+                color: '#ffffff',
+                fontFamily: 'monospace',
+                fontSize: 22,
+                fontWeight: 800,
+                letterSpacing: 2,
+                textTransform: 'uppercase',
+              }}
+            >
+              <span style={{ color }}>▶</span> {scene.emphasis_word}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <KineticCaptions words={scene.words || []} currentFrame={frame} accentColor={color} />
+    </AbsoluteFill>
+  );
+};
+
+// 5. StatCounterView: Quantitative display with verified source citation
+const StatCounterView: React.FC<{
+  scene: ScenePayload;
+  frame: number;
+  fps: number;
+}> = ({ scene, frame, fps }) => {
+  const color = scene.themeColor || '#38bdf8';
+  const entrance = spring({ frame, fps, config: { damping: 14, mass: 0.8 } });
+  const dialRotation = frame * 2.2;
+  const pulse = Math.sin(frame * 0.1) * 6;
+
+  return (
+    <AbsoluteFill
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '120px 60px 440px',
+      }}
+    >
+      <div
+        style={{
+          transform: `scale(${entrance}) translateY(${pulse}px)`,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 32,
+          width: 900,
+        }}
+      >
+        <h2 style={{ fontSize: 50, fontWeight: 900, textAlign: 'center', color: '#ffffff', margin: 0, lineHeight: 1.2 }}>
+          {scene.on_screen_text || scene.narration}
+        </h2>
+
+        {/* Linear Segmented Progress Meter (Zero circular gauges) */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 20,
+            padding: '32px 48px',
+            borderRadius: 20,
+            background: 'rgba(15, 23, 42, 0.9)',
+            border: `1px solid ${color}55`,
+            boxShadow: `0 20px 60px rgba(0,0,0,0.7), inset 0 0 30px ${color}15`,
+            width: '100%',
+            maxWidth: 780,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+            <span style={{ fontSize: 80, fontWeight: 900, color: '#ffffff', fontFamily: 'monospace' }}>
+              {scene.stat_value || '+' + Math.min(100, Math.floor(frame * 2)) + '%'}
+            </span>
+            <span style={{ fontSize: 24, fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: 2 }}>
+              ▲ METRIC_INDEX
+            </span>
+          </div>
+
+          {/* 12-Segment Tech Bar */}
+          <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+            {[...Array(12)].map((_, i) => {
+              const activeCount = Math.min(12, Math.floor((frame / 45) * 12));
+              const isActive = i < activeCount;
+              return (
+                <div
+                  key={i}
+                  style={{
+                    flex: 1,
+                    height: 18,
+                    borderRadius: 4,
+                    background: isActive ? color : 'rgba(255,255,255,0.1)',
+                    boxShadow: isActive ? `0 0 12px ${color}` : 'none',
+                    transition: 'background 0.1s ease',
+                  }}
+                />
+              );
+            })}
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontFamily: 'monospace', fontSize: 16, color: '#94a3b8' }}>
+            <span>MIN: 0.00</span>
+            <span>TARGET_OPTIMIZED</span>
+            <span>MAX: 100.00</span>
           </div>
         </div>
 
-        {/* Staggered Elastic Bold "BITTRIX" Wordmark */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-          {brandLetters.map((char, index) => {
-            const letterSpring = spring({
-              frame: Math.max(0, frame - 10 - index * 3),
-              fps,
-              config: { damping: 10, stiffness: 140 },
-            });
-            return (
-              <span
-                key={index}
-                style={{
-                  fontSize: 58,
-                  fontWeight: 900,
-                  fontStyle: 'italic',
-                  color: '#fdf3d0',
-                  letterSpacing: '0.04em',
-                  transform: `scale(${letterSpring}) translateY(${(1 - letterSpring) * 20}px)`,
-                  textShadow: '0 4px 16px rgba(0, 0, 0, 0.6)',
-                }}
-              >
-                {char}
-              </span>
-            );
-          })}
-        </div>
+        {scene.source_url && (
+          <div style={{ fontSize: 18, color: '#94a3b8', fontFamily: 'monospace' }}>
+            Source: {scene.source_url}
+          </div>
+        )}
+      </div>
 
-        {/* Tracking "TECHNOLOGIES" Subtitle */}
+      <KineticCaptions words={scene.words || []} currentFrame={frame} accentColor={color} />
+    </AbsoluteFill>
+  );
+};
+
+// Bittrix Outro Mathematical Physics Grounded in /home/eswaran/Downloads/bittrix-reel(1).html
+const clOutro = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const segOutro = (t: number, a: number, b: number) => clOutro((t - a) / (b - a));
+const eoOutro = (u: number) => 1 - Math.pow(1 - u, 3);
+const ebOutro = (u: number) => {
+  const s = 1.70158;
+  const u1 = u - 1;
+  return u1 * u1 * ((s + 1) * u1 + s) + 1;
+};
+
+const CX_O = 540;
+const CY_O = 720;
+const R_O = 250;
+const P_O = '#5b1a78';
+const D_O = '#1d1a1a';
+const BG_O = '#fdf3d0';
+
+const hvOutro = (r: number): [number, number][] =>
+  [0, 1, 2, 3, 4, 5].map((i) => {
+    const a = ((-90 + 60 * i) * Math.PI) / 180;
+    return [r * Math.cos(a), r * Math.sin(a)];
+  });
+
+const HX_O = hvOutro(R_O);
+const CH_O = hvOutro(R_O + 48).map((p) => [p[0] + CX_O, p[1] + CY_O]);
+const NODES_O = [5, 1, 3].map((i) => [CX_O + HX_O[i][0] * 1.04, CY_O + HX_O[i][1] * 1.04]);
+
+// 6. OutroView: Grounded in /home/eswaran/Downloads/bittrix-reel(1).html
+const OutroView: React.FC<{
+  scene: ScenePayload;
+  frame: number;
+  fps: number;
+}> = ({ scene, frame, fps }) => {
+  const t = Math.min(3, Math.max(0, frame / fps));
+
+  // Hexagon scale and rotation
+  const hs = ebOutro(segOutro(t, 0, 0.7));
+  const hexRot = (1 - eoOutro(segOutro(t, 0, 0.8))) * -60;
+
+  // Rolling chain alpha
+  const ca = segOutro(t, 0.3, 0.6) * (1 - segOutro(t, 2, 2.45));
+  const ph = 0.6 * t + 0.25 * t * t;
+  const N = 42;
+
+  // Gear & B scale
+  const gs = ebOutro(segOutro(t, 0.6, 1.3));
+  const gearRot = t * 2.2 * (180 / Math.PI);
+
+  // Underline expansion
+  const bw = 520 * eoOutro(segOutro(t, 2.1, 2.6));
+
+  // Light shine sweep
+  const sh = segOutro(t, 2.35, 2.95);
+  const shineX = -400 + (1080 + 800) * sh;
+
+  return (
+    <AbsoluteFill
+      style={{
+        position: 'absolute',
+        inset: 0,
+        background: 'radial-gradient(circle at 540px 720px, #fff9e2 0%, #fdf3d0 80%)',
+        overflow: 'hidden',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+      }}
+    >
+      <svg width="1080" height="1920" viewBox="0 0 1080 1920" style={{ position: 'absolute', inset: 0 }}>
+        <defs>
+          <radialGradient id="hexRadialOutro" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#7a2ba3" />
+            <stop offset="100%" stopColor="#5b1a78" />
+          </radialGradient>
+        </defs>
+
+        {/* 1. Main Hexagon */}
+        <g transform={`translate(${CX_O}, ${CY_O}) rotate(${hexRot}) scale(${Math.max(0, hs)})`}>
+          <polygon
+            points={HX_O.map((p) => `${p[0]},${p[1]}`).join(' ')}
+            fill="url(#hexRadialOutro)"
+            filter="drop-shadow(0 0 35px rgba(91, 26, 120, 0.45))"
+          />
+        </g>
+
+        {/* 2. Spokes and Outer Nodes */}
+        {NODES_O.map((n, i) => {
+          const u = eoOutro(segOutro(t, 0.5 + i * 0.12, 1.0 + i * 0.12));
+          const ex = n[0] + (CX_O - n[0]) * 0.5 * u;
+          const ey = n[1] + (CY_O - n[1]) * 0.5 * u;
+          const s = ebOutro(segOutro(t, 0.5 + i * 0.12, 0.9 + i * 0.12)) * (1 + 0.07 * Math.sin(t * 7 + i));
+
+          return (
+            <g key={i}>
+              <line x1={n[0]} y1={n[1]} x2={ex} y2={ey} stroke={P_O} strokeWidth={9} strokeLinecap="round" />
+              <circle
+                cx={n[0]}
+                cy={n[1]}
+                r={Math.max(0, 36 * s)}
+                fill={P_O}
+                stroke="#9a4cc2"
+                strokeWidth={7}
+                filter="drop-shadow(0 0 15px rgba(154, 76, 194, 0.6))"
+              />
+            </g>
+          );
+        })}
+
+        {/* 3. Rolling Chain Track */}
+        {ca > 0 && (
+          <g opacity={ca}>
+            {[...Array(N)].map((_, k) => {
+              const e = ((k / N + ph) % 1) * 6;
+              const idx = Math.floor(e);
+              const f = e - idx;
+              const A = CH_O[idx];
+              const B = CH_O[(idx + 1) % 6];
+              const px = A[0] + (B[0] - A[0]) * f;
+              const py = A[1] + (B[1] - A[1]) * f;
+              const angle = (Math.atan2(B[1] - A[1], B[0] - A[0]) * 180) / Math.PI;
+              const isFilled = k % 2 === 1;
+
+              return (
+                <g key={k} transform={`translate(${px}, ${py}) rotate(${angle})`}>
+                  {isFilled ? (
+                    <rect x={-9} y={-9} width={18} height={18} rx={6} fill={P_O} />
+                  ) : (
+                    <rect x={-21} y={-11} width={42} height={22} rx={11} fill="none" stroke={P_O} strokeWidth={6} />
+                  )}
+                </g>
+              );
+            })}
+          </g>
+        )}
+
+        {/* 4. Gear + Central B */}
+        <g transform={`translate(${CX_O}, ${CY_O}) scale(${Math.max(0, gs)})`}>
+          <g transform={`rotate(${gearRot})`}>
+            {(() => {
+              const n = 12;
+              const w = (Math.PI * 2) / n;
+              const r0 = 100;
+              const r1 = 128;
+              let d = '';
+              for (let k = 0; k < n; k++) {
+                const a = k * w;
+                const pts = [
+                  [a, r0],
+                  [a + w * 0.15, r1],
+                  [a + w * 0.42, r1],
+                  [a + w * 0.57, r0],
+                ];
+                pts.forEach((pt, pIdx) => {
+                  const px = pt[1] * Math.cos(pt[0]);
+                  const py = pt[1] * Math.sin(pt[0]);
+                  d += (k === 0 && pIdx === 0 ? 'M ' : 'L ') + `${px} ${py} `;
+                });
+              }
+              d += 'Z';
+              return <path d={d} fill={BG_O} stroke="#9a4cc2" strokeWidth={2} />;
+            })()}
+          </g>
+
+          <circle cx={0} cy={0} r={76} fill={P_O} filter="drop-shadow(0 0 20px rgba(91, 26, 120, 0.8))" />
+
+          <text
+            x={0}
+            y={8}
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontFamily="Georgia, serif"
+            fontWeight={700}
+            fontSize={130}
+            fill={BG_O}
+          >
+            B
+          </text>
+        </g>
+
+        {/* 5. Expanding Purple Underline Bar */}
+        {bw > 0 && (
+          <rect
+            x={CX_O - bw / 2}
+            y={1316}
+            width={bw}
+            height={7}
+            rx={3.5}
+            fill={P_O}
+            filter="drop-shadow(0 0 10px rgba(91, 26, 120, 0.8))"
+          />
+        )}
+      </svg>
+
+      {/* 6. Wordmark BITTRIX */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 1040,
+          left: 0,
+          right: 0,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'baseline',
+          fontFamily: 'Arial Black, Impact, Arial, sans-serif',
+          fontStyle: 'italic',
+          fontWeight: 900,
+          fontSize: 168,
+          color: P_O,
+          textShadow: '0 8px 30px rgba(91, 26, 120, 0.4)',
+        }}
+      >
+        {'BITTRIX'.split('').map((letter, i) => {
+          const u = eoOutro(segOutro(t, 1.4 + i * 0.07, 1.9 + i * 0.07));
+          return (
+            <span
+              key={i}
+              style={{
+                display: 'inline-block',
+                opacity: u,
+                transform: `translateX(${(1 - u) * -110}px)`,
+              }}
+            >
+              {letter}
+            </span>
+          );
+        })}
+      </div>
+
+      {/* 7. Subtitle TECHNOLOGIES */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 1230,
+          left: 0,
+          right: 0,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          fontFamily: 'Arial, sans-serif',
+          fontWeight: 600,
+          fontSize: 46,
+          color: D_O,
+          opacity: eoOutro(segOutro(t, 1.9, 2.5)),
+          letterSpacing: `${10 + 16 * eoOutro(segOutro(t, 1.9, 2.5))}px`,
+          textTransform: 'uppercase',
+        }}
+      >
+        TECHNOLOGIES
+      </div>
+
+      {/* 8. Spoken CTA Kinetic Karaoke Captions */}
+      <KineticCaptions words={scene.words || []} currentFrame={frame} accentColor={P_O} />
+    </AbsoluteFill>
+  );
+};
+
+// Scene Dispatcher
+const SceneRouter: React.FC<{
+  scene: ScenePayload;
+  frame: number;
+  fps: number;
+  index: number;
+}> = ({ scene, frame, fps, index }) => {
+  const vType = scene.visual_type || 'callout';
+
+  switch (vType) {
+    case 'outro':
+      return <OutroView scene={scene} frame={frame} fps={fps} />;
+    case '3d-showcase':
+      return <ThreeDShowcaseView scene={scene} frame={frame} fps={fps} />;
+    case 'image-hero':
+      return <ImageHeroView scene={scene} frame={frame} fps={fps} />;
+    case 'concept-diagram':
+      return <ConceptDiagramView scene={scene} frame={frame} fps={fps} />;
+    case 'process-flow':
+    case 'timeline':
+      return <ProcessFlowView scene={scene} frame={frame} fps={fps} />;
+    case 'split-compare':
+      return <SplitCompareView scene={scene} frame={frame} fps={fps} />;
+    case 'stat-counter':
+      return <StatCounterView scene={scene} frame={frame} fps={fps} />;
+    case 'callout':
+    default:
+      return <CalloutView scene={scene} frame={frame} fps={fps} />;
+  }
+};
+
+export default function GeneratedCliVideo(props: any) {
+  const { fps } = useVideoConfig();
+  const globalFrame = useCurrentFrame();
+
+  const scenes = useMemo(() => {
+    if (props?.scenes && Array.isArray(props.scenes) && props.scenes.length > 0) {
+      return props.scenes as ScenePayload[];
+    }
+    return BAKED_SCENES;
+  }, [props?.scenes]);
+
+  let accumulatedFrame = 0;
+
+  // Global Continuous Animated Ambient Lighting (60 FPS Smooth Flow)
+  const bgShiftX = 50 + Math.sin(globalFrame * 0.015) * 18;
+  const bgShiftY = 35 + Math.cos(globalFrame * 0.02) * 14;
+
+  const isLastOutroScene = scenes.length > 0 && (scenes[scenes.length - 1].visual_type === 'outro' || scenes[scenes.length - 1].role === 'cta' || scenes[scenes.length - 1].template === 'cta-outro');
+  const contentFramesTotal = isLastOutroScene
+    ? scenes.slice(0, -1).reduce((acc, s) => acc + (s.durationInFrames || (s as any).frames || Math.round(fps * 3.5)), 0)
+    : 999999;
+
+  return (
+    <AbsoluteFill
+      style={{
+        backgroundColor: '#090d16',
+        color: '#ffffff',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Themed ambient glow: strictly active during content scenes only, never touches or occludes Outro */}
+      {globalFrame < contentFramesTotal && (
         <div
           style={{
-            fontSize: 22,
-            fontWeight: 700,
-            letterSpacing: '0.36em',
-            color: '#fdf3d0',
-            opacity: 0.9,
-            marginTop: 4,
-          }}
-        >
-          TECHNOLOGIES
-        </div>
-
-        {/* Expanding Royal Underline Bar */}
-        <div
-          style={{
-            marginTop: 18,
-            width: interpolate(frame, [30, 80], [0, 280], {
-              extrapolateLeft: 'clamp',
-              extrapolateRight: 'clamp',
-            }),
-            height: 4,
-            backgroundColor: '#fdf3d0',
-            borderRadius: 2,
-            boxShadow: '0 0 12px #fdf3d0',
+            position: 'absolute',
+            inset: 0,
+            background: `radial-gradient(circle at ${bgShiftX}% ${bgShiftY}%, #38bdf82e 0%, transparent 65%)`,
+            pointerEvents: 'none',
           }}
         />
+      )}
 
-        {/* Call-to-Action Spoken Target Card */}
-        <div
-          style={{
-            marginTop: 28,
-            padding: '12px 32px',
-            backgroundColor: 'rgba(253, 243, 208, 0.15)',
-            border: '1.5px solid #fdf3d0',
-            borderRadius: 999,
-            fontSize: 18,
-            fontWeight: 800,
-            letterSpacing: '0.12em',
-            color: '#fdf3d0',
-            textTransform: 'uppercase',
-          }}
-        >
-          Follow For More Concepts
-        </div>
-      </div>
-    </div>
+      {scenes.map((scene, index) => {
+        const fromFrame = (scene as any).start !== undefined
+          ? (scene as any).start
+          : ((scene as any).startFrame !== undefined ? (scene as any).startFrame : accumulatedFrame);
+        const durationFrames = scene.durationInFrames || (scene as any).frames || Math.round(fps * 3.5);
+        accumulatedFrame = fromFrame + durationFrames;
+
+        return (
+          <Sequence
+            key={scene.scene_number || index}
+            from={fromFrame}
+            durationInFrames={durationFrames}
+          >
+            <SceneContent scene={scene} fps={fps} index={index} />
+
+            {/* Embedded Per-Scene Voice Audio when not using master audio (Both Sequence and Audio read from this same timeline array) */}
+            {scene.narrationAudio && !props?.video?.audioUrl && (
+              <Audio
+                src={scene.narrationAudio.startsWith('http') || scene.narrationAudio.startsWith('/') ? scene.narrationAudio : staticFile(scene.narrationAudio)}
+                volume={1.0}
+              />
+            )}
+
+            {/* Embedded Audio SFX Cues Synchronized at Exact Frame Timestamps */}
+            {scene.audioCues?.map((cue, cIdx) => (
+              cue.src ? (
+                <Sequence
+                  key={`sfx-${scene.scene_number || index}-${cIdx}`}
+                  from={cue.hitFrame ?? cue.frame ?? 0}
+                  durationInFrames={cue.durationFrames ?? Math.round(fps * 1.5)}
+                >
+                  <Audio
+                    src={cue.src.startsWith('http') || cue.src.startsWith('/') ? cue.src : staticFile(cue.src)}
+                    volume={cue.volume ?? 0.4}
+                  />
+                </Sequence>
+              ) : null
+            ))}
+          </Sequence>
+        );
+      })}
+    </AbsoluteFill>
   );
 }
+
+const SceneContent: React.FC<{
+  scene: ScenePayload;
+  fps: number;
+  index: number;
+}> = ({ scene, fps, index }) => {
+  const frame = useCurrentFrame();
+  return <SceneRouter scene={scene} frame={frame} fps={fps} index={index} />;
+};

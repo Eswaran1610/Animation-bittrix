@@ -8,11 +8,14 @@ import { projectPaths } from '../../config/paths.js';
 const execFileAsync = promisify(execFile);
 
 export interface AudioMixScene {
+  start?: number;
+  startFrame?: number;
   durationInFrames: number;
   transitionOutFrames?: number;
   narrationAudio?: string;
   audioCues?: Array<{
-    frame: number;
+    frame?: number;
+    hitFrame?: number;
     src: string;
     volume?: number;
     role?: string;
@@ -55,16 +58,18 @@ export class AudioMixerService {
     // Collect all inputs with millisecond timeline offsets
     const inputs: Array<{ absPath: string; delayMs: number; volume: number; kind: 'voice' | 'sfx' | 'bed' }> = [];
     let sceneFrameOffset = 0;
-    const defaultTransitionFrames = 12;
-
     for (let i = 0; i < scenes.length; i++) {
       const scene = scenes[i];
+      const sceneStartFrame = (scene as any).start !== undefined
+        ? (scene as any).start
+        : ((scene as any).startFrame !== undefined ? (scene as any).startFrame : sceneFrameOffset);
+      const sceneDuration = scene.durationInFrames || (scene as any).frames || 90;
 
       // 1. Spoken narration for this scene
       if (scene.narrationAudio) {
         const absNarration = path.join(projectPaths.remotionPublic, ...scene.narrationAudio.replace(/^\//, '').split('/'));
         if (existsSync(absNarration)) {
-          const delayMs = Math.max(0, Math.round((sceneFrameOffset / fps) * 1000));
+          const delayMs = Math.max(0, Math.round((sceneStartFrame / fps) * 1000));
           inputs.push({ absPath: absNarration, delayMs, volume: 1.0, kind: 'voice' });
         }
       }
@@ -75,7 +80,7 @@ export class AudioMixerService {
           if (!cue.src) continue;
           const absCue = path.join(projectPaths.remotionPublic, ...cue.src.replace(/^\//, '').split('/'));
           if (existsSync(absCue)) {
-            const cueTimelineFrame = sceneFrameOffset + cue.frame;
+            const cueTimelineFrame = sceneStartFrame + (cue.frame ?? cue.hitFrame ?? 0);
             const delayMs = Math.max(0, Math.round((cueTimelineFrame / fps) * 1000));
             const roleGain: Record<string, number> = {
               pop: 0.42, click: 0.38, tick: 0.36, draw: 0.38, slide: 0.42,
@@ -88,9 +93,7 @@ export class AudioMixerService {
         }
       }
 
-      sceneFrameOffset += scene.durationInFrames - (
-        i < scenes.length - 1 ? scene.transitionOutFrames || defaultTransitionFrames : 0
-      );
+      sceneFrameOffset = sceneStartFrame + sceneDuration;
     }
 
     // 3. Background musical bed

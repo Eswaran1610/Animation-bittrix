@@ -44,9 +44,33 @@
 
 ## EXECUTION RULE: CLI-FIRST PIPELINE
 - **All work is CLI-driven, not backend-dependent.**
-- Audio file generation and voiceover are performed via CLI (`edgeTtsAlign.py` / CLI scripts), and the exact saved file paths (`audioPath`, `alignmentPath`) are returned and passed forward.
-- Procedural object sound effects are generated via `make_sfx.py` so on-screen element movements, pops, and entrances have matching audio hits.
-- Remotion rendering, motion energy checks, and QA sync verifications are run directly via CLI commands.
+- **Master CLI Command**:
+  ```bash
+  node scripts/cli-generate.mjs "<Topic or Content>" [durationSeconds] [fps] [themeId]
+  ```
+- **Order of Execution**:
+  1. **Narration Script**: One short sentence per scene + final Bittrix CTA scene.
+  2. **Voice Generation & Alignment**: Audio synthesized via CLI (`edgeTtsAlign.py`) per sentence, capturing exact millisecond word timestamps.
+  3. **ONE Timeline Array**:
+     $$\text{scene}[i].\text{start} = \text{scene}[i-1].\text{start} + \text{scene}[i-1].\text{frames}$$
+     $$\text{scene}[i].\text{frames} = \lceil\text{voiceSec} \times \text{fps}\rceil + \text{leadFrames} + \text{tailFrames}$$
+     where `leadFrames = 0`, `tailFrames = Math.max(8, Math.round(0.4 * fps))`, and $\text{ctaFrames} \ge \lceil(\text{voiceSec} + 1.0) \times \text{fps}\rceil + \text{leadFrames} + \text{tailFrames}$.
+     Final video length = exact sum of scene frames: $\sum \text{scene}[i].\text{frames}$.
+  4. **Dynamic Visual TSX & Audio Binding**:
+     Both `<Sequence from={scene.start} durationInFrames={scene.durationInFrames}>` and voice audio delay read from `scene.start`.
+  5. **Procedural SFX & Sound Bed**:
+     - Object sound cues generated via `scripts/make_sfx.py` with auditory hits placed at `event_frame - 2`.
+     - Ambient musical bed generated and mixed into 1-track master audio via FFmpeg with sidechain ducking under voice.
+  6. **Layout & Safe Margins**:
+     - Captions: Kinetic karaoke captions placed strictly in the bottom safe zone above bottom 20% (> 384px from bottom, `bottom: 400`).
+     - Content: Centered vertically between top 120px and bottom 440px (`padding: '120px 60px 440px'`).
+  7. **Mandatory Sync Quality Gate**:
+     Every scene MUST satisfy:
+     $$|\text{voiceStart} - \text{visualStart}| \le 3\text{ frames (100 ms)}$$
+     Fail and halt the render immediately if any scene exceeds 3 frames.
+  8. **2-Stage Render Execution**:
+     - Stage 1 Preview (540×960 @ 30fps) with full QA validation.
+     - Stage 2 Final (1080×1920 @ 30fps) with locked inputs and parity checks.
 
 ## CLI AGENT SYSTEM INSTRUCTION: UNIVERSAL ASSET & MOTION WORKFLOW
 Strictly forbidden from hardcoding project IDs, names, or file tokens. For ANY input topic or target website execution request, enforce this dynamic layout lifecycle:

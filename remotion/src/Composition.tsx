@@ -16,19 +16,21 @@ export const MainComposition: React.FC<SceneDataPayload> = (sceneData) => {
       <GeneratedCliVideo {...(sceneData as any)} />
       {/* Master Voiceover Audio */}
       {masterAudioUrl && <Audio src={assetSource(masterAudioUrl)} volume={1.0} />}
-      {!masterAudioUrl && backgroundAudioUrl && <Audio src={assetSource(backgroundAudioUrl)} volume={0.15} />}
+      {!masterAudioUrl && backgroundAudioUrl && <Audio src={assetSource(backgroundAudioUrl)} volume={0.25} loop />}
 
       {/* Per-scene Narration (if no master audio) & Dynamic Object SFX (Always Active) */}
       {scenes.map((scene, sceneIndex) => {
-        const fromFrame = (scene as any).startFrame !== undefined ? (scene as any).startFrame : accumulatedFrame;
-        const transOut = (scene as any).transitionOutFrames ?? (sceneIndex < scenes.length - 1 ? 10 : 0);
-        accumulatedFrame += (scene.durationInFrames || 90) - (sceneIndex < scenes.length - 1 ? transOut : 0);
+        const fromFrame = (scene as any).start !== undefined
+          ? (scene as any).start
+          : ((scene as any).startFrame !== undefined ? (scene as any).startFrame : accumulatedFrame);
+        const durationFrames = scene.durationInFrames || (scene as any).frames || 90;
+        accumulatedFrame = fromFrame + durationFrames;
 
         return (
           <React.Fragment key={`audio-scene-${scene.id || sceneIndex}`}>
             {/* If master audio is absent, play per-scene narrationAudio */}
             {!masterAudioUrl && scene.narrationAudio && (
-              <Sequence from={fromFrame} durationInFrames={scene.durationInFrames}>
+              <Sequence from={fromFrame} durationInFrames={durationFrames}>
                 <Audio src={assetSource(scene.narrationAudio)} volume={1.0} />
               </Sequence>
             )}
@@ -52,3 +54,4 @@ export const MainComposition: React.FC<SceneDataPayload> = (sceneData) => {
     </>
   );
 };
+export default MainComposition;

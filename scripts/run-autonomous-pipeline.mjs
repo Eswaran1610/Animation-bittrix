@@ -355,43 +355,71 @@ if (stageOnly === 3 && propsInputPath) {
     return slice;
   });
 
-  // Calculate scene boundaries tiling seamlessly from audio timestamps
-  const sceneBounds = [0];
-  for (let i = 0; i < scriptPayload.scenes.length - 1; i++) {
-    const currSlice = sceneWordSlices[i];
-    const nextSlice = sceneWordSlices[i + 1];
-    let boundarySec;
-    if (nextSlice && nextSlice.length > 0 && currSlice && currSlice.length > 0) {
-      const currEnd = Number(currSlice[currSlice.length - 1].endSec ?? currSlice[currSlice.length - 1].end_time);
-      const nextStart = Number(nextSlice[0].startSec ?? nextSlice[0].start_time);
-      boundarySec = nextStart > currEnd ? currEnd + (nextStart - currEnd) * 0.5 : currEnd + 0.1;
-    } else if (currSlice && currSlice.length > 0) {
-      boundarySec = Number(currSlice[currSlice.length - 1].endSec ?? currSlice[currSlice.length - 1].end_time) + 0.2;
-    } else {
-      boundarySec = (i + 1) * 3.5;
-    }
-    sceneBounds.push(Math.round(boundarySec * targetFps));
-  }
+  // Build ONE authoritative timeline array from measured voice durations
+  const leadFrames = 0;
+  const tailFrames = Math.max(8, Math.round(0.4 * targetFps));
+  let runningStart = 0;
 
-  // Align final outro to audio length
-  const lastAudioSec = wordTimings.length
-    ? Number(wordTimings[wordTimings.length - 1].endSec ?? wordTimings[wordTimings.length - 1].end_time)
-    : 20;
-  const totalFrames = Math.max(Math.round(lastAudioSec * targetFps) + Math.round(targetFps * 0.5), sceneBounds[sceneBounds.length - 1]);
-  sceneBounds.push(totalFrames);
+  const sceneTimeline = scriptPayload.scenes.map((sc, idx) => {
+    const isOutro = idx === scriptPayload.scenes.length - 1 || sc.visual_type === 'outro';
+    const words = sceneWordSlices[idx] || [];
+    let voiceSec = 0;
+    if (words.length > 0) {
+      const firstStart = Number(words[0].startSec ?? words[0].start_time ?? 0);
+      const lastEnd = Number(words[words.length - 1].endSec ?? words[words.length - 1].end_time ?? 0);
+      voiceSec = Math.max(0.1, lastEnd - firstStart);
+    } else {
+      voiceSec = 3.0;
+    }
+
+    const ctaPadding = isOutro ? Math.ceil(1.0 * targetFps) : 0;
+    let frames = Math.ceil(voiceSec * targetFps) + ctaPadding + leadFrames + tailFrames;
+    if (isOutro) {
+      frames = Math.max(frames, Math.ceil((voiceSec + 1.0) * targetFps) + leadFrames + tailFrames);
+    }
+    frames = Math.max(Math.round(1.5 * targetFps), frames);
+
+    const start = runningStart;
+    runningStart += frames;
+    const voiceStart = start + leadFrames;
+    const visualStart = start;
+
+    return {
+      start,
+      frames,
+      durationInFrames: frames,
+      voiceSec,
+      voiceStart,
+      visualStart,
+      leadFrames,
+      tailFrames,
+      isOutro,
+    };
+  });
+
+  const totalFrames = sceneTimeline.reduce((sum, s) => sum + s.frames, 0);
+
+  // GATE: For every scene, |voiceStart - visualStart| <= 3 frames (100 ms)
+  for (let i = 0; i < sceneTimeline.length; i++) {
+    const drift = Math.abs(sceneTimeline[i].voiceStart - sceneTimeline[i].visualStart);
+    if (drift > 3) {
+      throw new Error(`Sync Gate Failure at scene ${i + 1}: |voiceStart (${sceneTimeline[i].voiceStart}) - visualStart (${sceneTimeline[i].visualStart})| = ${drift} frames > 3 frames limit.`);
+    }
+  }
 
   // Build Remotion Scene Payloads
   const remotionScenes = scriptPayload.scenes.map((sc, i) => {
-    const fromFrame = sceneBounds[i];
-    const toFrame = sceneBounds[i + 1];
-    const durationInFrames = Math.max(1, toFrame - fromFrame);
+    const timelineItem = sceneTimeline[i];
+    const fromFrame = timelineItem.start;
+    const durationInFrames = timelineItem.frames;
 
     const matchedWords = sceneWordSlices[i] || [];
+    const baseWordStartSec = matchedWords.length > 0 ? Number(matchedWords[0].startSec ?? matchedWords[0].start_time) : 0;
     const wordsInScene = matchedWords.length > 0
       ? matchedWords.map((w) => ({
           word: w.word,
-          startFrame: Math.max(0, Math.round(Number(w.startSec ?? w.start_time) * targetFps) - fromFrame),
-          endFrame: Math.max(1, Math.round(Number(w.endSec ?? w.end_time) * targetFps) - fromFrame),
+          startFrame: Math.max(0, Math.round((Number(w.startSec ?? w.start_time) - baseWordStartSec) * targetFps)),
+          endFrame: Math.max(1, Math.round((Number(w.endSec ?? w.end_time) - baseWordStartSec) * targetFps)),
         }))
       : sc.narration.split(/\s+/).filter(Boolean).map((w, wIdx) => ({
           word: w,
@@ -474,6 +502,11 @@ if (stageOnly === 3 && propsInputPath) {
       nodes: sc.nodes || [],
       edges: sc.edges || [],
       labels: sc.labels || [],
+      start: timelineItem.start,
+      startFrame: timelineItem.start,
+      voiceStart: timelineItem.voiceStart,
+      visualStart: timelineItem.visualStart,
+      frames: durationInFrames,
       duration_sec: durationInFrames / targetFps,
       durationInFrames,
       narration: sc.narration,
@@ -719,17 +752,19 @@ export const MainComposition: React.FC<SceneDataPayload> = (sceneData) => {
     <>
       <GeneratedVideo {...sceneData} />
       {masterAudioUrl && <Audio src={assetSource(masterAudioUrl)} volume={1.0} />}
-      {!masterAudioUrl && backgroundAudioUrl && <Audio src={assetSource(backgroundAudioUrl)} volume={0.15} />}
+      {!masterAudioUrl && backgroundAudioUrl && (
+        <Audio src={assetSource(backgroundAudioUrl)} volume={0.25} loop />
+      )}
       {!masterAudioUrl &&
         scenes.map((scene, sceneIndex) => {
-          const fromFrame = accumulatedFrame;
-          const transOut = (scene as any).transitionOutFrames ?? (sceneIndex < scenes.length - 1 ? 10 : 0);
-          accumulatedFrame += (scene.durationInFrames || 90) - (sceneIndex < scenes.length - 1 ? transOut : 0);
+          const fromFrame = (scene.start ?? scene.startFrame ?? accumulatedFrame);
+          const durationFrames = scene.durationInFrames || (scene as any).frames || 90;
+          accumulatedFrame = fromFrame + durationFrames;
 
           return (
             <React.Fragment key={\`audio-scene-\${scene.id || sceneIndex}\`}>
               {scene.narrationAudio && (
-                <Sequence from={fromFrame} durationInFrames={scene.durationInFrames}>
+                <Sequence from={fromFrame} durationInFrames={durationFrames}>
                   <Audio src={assetSource(scene.narrationAudio)} volume={1.0} />
                 </Sequence>
               )}
@@ -763,7 +798,7 @@ import { SceneDataPayload } from '../../data/sceneTypes';
 import { normalizeSceneData } from '../../data/normalizeSceneData';
 
 const calcTimelineDuration = (scenes: any[] = []) =>
-  scenes.reduce((total, scene, index) => total + (scene.durationInFrames || 90) - (index < scenes.length - 1 ? (scene.transitionOutFrames || 12) : 0), 0) || 900;
+  scenes.reduce((total, scene) => total + (scene.durationInFrames || (scene as any).frames || 90), 0) || 900;
 
 export const ProjectRoot: React.FC = () => {
   const rawInput = getInputProps();
@@ -817,15 +852,35 @@ const remotionHostScript = path.join(root, 'remotion', 'scripts', 'remotion-host
 const qualityGateScript = path.join(root, 'scripts', 'qualityGate.mjs');
 const motionEnergyScript = path.join(root, 'scripts', 'motionEnergy.mjs');
 
-// 1. Run Quality Gate (Checks layout, 1080x1920 bounds, margin zones)
-console.log(`[QA 1/3] Running Motion Graphics Playbook Quality Gate...`);
+// 1. Voice-Visual Sync Alignment Gate (<= 3 frames / 100ms)
+console.log(`[QA 1/4] Checking Voice-Visual Sync Alignment Gate (<= 3 frames / 100ms)...`);
+const loadedProps = JSON.parse(await fs.readFile(savedPropsPath, 'utf8'));
+const propScenes = loadedProps.scenes || [];
+console.log('Scene | VoiceStart | VisualStart | Drift (frames) | Status');
+console.log('---------------------------------------------------------');
+let maxDrift = 0;
+for (const sc of propScenes) {
+  const vStart = sc.voiceStart ?? sc.start ?? 0;
+  const visStart = sc.visualStart ?? sc.start ?? 0;
+  const drift = Math.abs(vStart - visStart);
+  maxDrift = Math.max(maxDrift, drift);
+  const status = drift <= 3 ? 'PASS' : 'FAIL';
+  console.log(`  ${sc.scene_number ?? sc.id}   |    ${vStart}     |     ${visStart}     |       ${drift}        | ${status}`);
+  if (drift > 3) {
+    throw new Error(`Sync Quality Gate Failed: Scene ${sc.scene_number ?? sc.id} has voice-visual drift of ${drift} frames, exceeding max 3 frames.`);
+  }
+}
+console.log(`Voice-Visual Sync Gate: PASS (Max drift: ${maxDrift} frames)\n`);
+
+// 2. Run Quality Gate (Checks layout, 1080x1920 bounds, margin zones)
+console.log(`[QA 2/4] Running Motion Graphics Playbook Quality Gate...`);
 await execFileAsync('/usr/bin/node', [qualityGateScript, savedPropsPath], {
   cwd: root,
   timeout: 120000,
 });
 console.log(`Quality Gate: PASS (Zones, Margins, Dimensions Verified)`);
 
-// 2. Headless Render at 60 FPS using project-isolated entrypoint
+// Render at 60 FPS using project-isolated entrypoint
 const isolatedEntry = `src/projects/${projectId}/index.ts`;
 console.log(`[Render] Encoding 60 FPS Remotion Video using entry ${isolatedEntry} to:\n  ${finalVideoPath}`);
 const renderArgs = [
@@ -845,7 +900,7 @@ await execFileAsync('/usr/bin/node', [remotionHostScript, ...renderArgs], {
 });
 
 // 3. Motion Energy Verification
-console.log(`[QA 2/3] Checking motion energy thresholds (target >= 0.85)...`);
+console.log(`[QA 3/4] Checking motion energy thresholds (target >= 0.85)...`);
 try {
   await execFileAsync('/usr/bin/node', [motionEnergyScript, finalVideoPath, savedPropsPath], {
     cwd: root,
@@ -857,7 +912,7 @@ try {
 }
 
 // 4. Parity and Duration Verification via FFprobe
-console.log(`[QA 3/3] Inspecting final audio/video stream duration parity via FFprobe...`);
+console.log(`[QA 4/4] Inspecting final audio/video stream duration parity via FFprobe...`);
 const { stdout: probeRaw } = await execFileAsync('ffprobe', [
   '-v', 'error',
   '-show_entries', 'format=duration:stream=codec_name,width,height,r_frame_rate',

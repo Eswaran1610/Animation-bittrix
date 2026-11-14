@@ -1,4 +1,7 @@
+import path from 'path';
+import { existsSync } from 'fs';
 import { transform } from 'esbuild';
+import { projectPaths } from '../../config/paths.js';
 
 export interface TsxValidationResult {
   valid: boolean;
@@ -60,7 +63,7 @@ export class TsxValidator {
       }
     }
 
-    // 2. Import allowlist check
+    // 2. Import allowlist and real disk resolution check
     const importRegex = /import\s+(?:[\w*\s{},]*\s+from\s+)?['"]([^'"]+)['"]/g;
     let match: RegExpExecArray | null;
     while ((match = importRegex.exec(tsxSource)) !== null) {
@@ -70,6 +73,22 @@ export class TsxValidator {
       );
       if (!isAllowed) {
         errors.push(`Module import "${moduleName}" is not allowed in generated Remotion TSX.`);
+        continue;
+      }
+
+      // If it's a relative path, verify it physically resolves on disk
+      if (moduleName.startsWith('./') || moduleName.startsWith('../')) {
+        const candidates = [
+          path.resolve(projectPaths.remotionRoot, 'src', moduleName),
+          path.resolve(projectPaths.remotionRoot, 'src/projects/sample', moduleName),
+          path.resolve(projectPaths.remotionRoot, 'src', moduleName.replace(/^\.\.\/\.\.\//, './')),
+          path.resolve(projectPaths.remotionRoot, 'src', moduleName.replace(/^\.\//, '../../')),
+        ];
+        const extensions = ['', '.tsx', '.ts', '.jsx', '.js', '/index.ts', '/index.tsx'];
+        const resolved = candidates.some((base) => extensions.some((ext) => existsSync(base + ext)));
+        if (!resolved) {
+          errors.push(`Relative import "${moduleName}" could not be resolved to any existing component or file on disk.`);
+        }
       }
     }
 

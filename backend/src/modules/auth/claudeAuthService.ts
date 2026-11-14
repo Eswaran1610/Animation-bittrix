@@ -23,8 +23,8 @@ class ClaudeAuthService {
     }
 
     try {
-      // claude --version exits 0 when authenticated; --help or version is enough for a quick alive check
-      const { stdout } = await execFileAsync('claude', ['--version'], {
+      const bin = this.getClaudeBin();
+      const { stdout } = await execFileAsync(bin, ['--version'], {
         timeout: 5_000,
         cwd: projectPaths.root,
       });
@@ -56,9 +56,14 @@ class ClaudeAuthService {
     return this.status();
   }
 
+  private getClaudeBin(): string {
+    return process.env.CLAUDE_BIN || '/home/inkyank/.local/bin/claude';
+  }
+
   private async isCliAvailable(): Promise<boolean> {
     try {
-      await execFileAsync('claude', ['--version'], { timeout: 5_000, cwd: projectPaths.root });
+      const bin = this.getClaudeBin();
+      await execFileAsync(bin, ['--version'], { timeout: 5_000, cwd: projectPaths.root });
       return true;
     } catch {
       return false;

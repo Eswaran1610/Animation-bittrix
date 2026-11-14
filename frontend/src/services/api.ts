@@ -113,7 +113,7 @@ export const api = {
     return res.json();
   },
 
-  async revisePreview(projectId: string, feedback: string): Promise<Script> {
+  async revisePreview(projectId: string, feedback: string): Promise<RenderJob> {
     const res = await fetch(`${API_BASE}/projects/${projectId}/previews/revise`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

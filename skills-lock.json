@@ -1,11 +1,17 @@
 {
-  "version": 1,
+  "version": 2,
   "skills": {
+    "browser-use": {
+      "source": "browser-use/browser-use",
+      "sourceType": "github",
+      "skillPath": "skills/browser-use/SKILL.md",
+      "computedHash": "a0ff9f179f814a49b2f28a3985c1192dcfcc9eda6d4e7def4f7b9a7f7e20418f"
+    },
     "gravitas": {
       "source": "udaysharmadev/Gravitas",
       "sourceType": "github",
       "skillPath": "skills/gravitas/SKILL.md",
-      "computedHash": "813c253e0f70144d29e12eb179de999f42a7c9c99ef7604eeba89481970b2e88"
+      "computedHash": "5e25a663f10ba342216cbc68044f5b74aada957d5fb0755cc46978ccfa62a292"
     }
   }
 }

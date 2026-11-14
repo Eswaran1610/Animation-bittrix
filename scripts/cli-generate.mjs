@@ -94,7 +94,7 @@ Return ONLY a JSON array of strings:
 try {
   const { stdout: scriptOut } = await execFileAsync(
     '/usr/bin/agy',
-    ['-p', scriptPrompt, '--model', process.env.AGY_MODEL || 'gemini-3.8-flash-low', '--output-format', 'json', '--disable-slash-commands', '--dangerously-skip-permissions'],
+    ['-p', scriptPrompt, '--model', process.env.AGY_MODEL || 'gemini-3.8-flash-medium', '--output-format', 'json', '--dangerously-skip-permissions'],
     { timeout: 35000, maxBuffer: 5 * 1024 * 1024 }
   );
   let rawJson = scriptOut.trim();
@@ -351,6 +351,8 @@ ${JSON.stringify(scenes, null, 2)}
 CREATIVE REQUIREMENTS:
 1. Export default: export default function GeneratedCliVideo(props: any) { ... }
 2. Import from 'remotion': AbsoluteFill, Sequence, Audio, staticFile, spring, interpolate, useCurrentFrame, useVideoConfig
+   - Claude-Grade Micro-UI Primitives: Import { TerminalWindow, GlassCard, LaserBusLine, GitCommitGraph, TelemetryPill, NetworkNodes, MetricBar, KineticTitle } from './components/MotionElements'
+   - Kinetic Captions: Import { SyncCaptions } from './components/SyncCaptions'
    - Optional 3D Animation: Import { ThreeCanvas } from '@remotion/three' and * as THREE from 'three'
 3. Include master voiceover track:
    <Audio src={staticFile('audio/${audioFileName}')} volume={1.0} startFrom={0} />
@@ -366,7 +368,7 @@ CREATIVE REQUIREMENTS:
    - Local open-source Three.js textures ready in staticFile('assets/three/textures/...'): uv_grid.jpg, disc.png, spark1.png, carbon.png, matcap_white.jpg, cloud_noise.png.
    - 3D models available: staticFile('assets/three/models/primary_ion_drive.glb'), staticFile('assets/three/models/shader_ball.glb').
 7. Single continuous living canvas with continuous virtual camera (interpolate camX, camY, camScale across scenes).
-8. Topic-specific visual mechanics for "${topic}". ZERO 50% border-radius circles or placeholder orbs!
+8. Topic-specific visual mechanics for "${topic}". ZERO 50% border-radius circles or placeholder orbs! Compose real UI elements: TerminalWindow with diffs, GitCommitGraph, GlassCard with TelemetryPill.
    - For story / faceless shorts: Review and adhere to .agents/skills/faceless-shorts/SKILL.md (Zack D. Films style story-based animation, dramatic camera journeys through internal mechanisms, and punchy word captions).
 9. MANDATORY 3 CONTENT IMAGES/VISUALS:
    - Exactly 3 distinct, fresh content-based visual images or technical diagrams must appear across the video (staggered in scenes 2, 3, and 4) tailored directly to "${topic}".
@@ -393,8 +395,8 @@ let lastErrors = [];
 try {
   const { stdout: agyTsxOutput } = await execFileAsync(
     '/usr/bin/agy',
-    ['-p', tsxPrompt, '--model', process.env.AGY_MODEL || 'gemini-3.8-flash-low', '--output-format', 'json', '--disable-slash-commands', '--dangerously-skip-permissions'],
-    { timeout: 90000, maxBuffer: 10 * 1024 * 1024 }
+    ['-p', tsxPrompt, '--model', process.env.AGY_MODEL || 'gemini-3.8-flash-medium', '--output-format', 'json', '--dangerously-skip-permissions'],
+    { timeout: 300000, maxBuffer: 10 * 1024 * 1024 }
   );
   let rawText = agyTsxOutput.trim();
   try {
@@ -460,8 +462,8 @@ Requirements:
   try {
     const { stdout: repOutput } = await execFileAsync(
       '/usr/bin/agy',
-      ['-p', repairPrompt, '--model', process.env.AGY_MODEL || 'gemini-3.8-flash-low', '--output-format', 'json', '--disable-slash-commands', '--dangerously-skip-permissions'],
-      { timeout: 90000, maxBuffer: 10 * 1024 * 1024 }
+      ['-p', repairPrompt, '--model', process.env.AGY_MODEL || 'gemini-3.8-flash-medium', '--output-format', 'json', '--dangerously-skip-permissions'],
+      { timeout: 300000, maxBuffer: 10 * 1024 * 1024 }
     );
     let repText = repOutput.trim();
     try {
@@ -496,15 +498,7 @@ Requirements:
 }
 
 if (!tsxSource) {
-  console.log(`ℹ️ Initializing Authoritative TSX Builder (production standard)...`);
-  const { buildAuthoritativeTsx } = await import('../backend/dist/modules/production/authoritativeTsxBuilder.js');
-  tsxSource = buildAuthoritativeTsx(topic, scenes, {
-    palette: {
-      primary: activeTheme.palette?.primary || '#38bdf8',
-      accent: activeTheme.palette?.secondary || '#00f5d4',
-      bg: '#090d16',
-    },
-  });
+  throw new Error(`[cli-generate] AGY failed to author valid bespoke Remotion TSX. Template fallback is forbidden.`);
 }
 
 const tsxPath = path.join(outDir, 'composition.tsx');

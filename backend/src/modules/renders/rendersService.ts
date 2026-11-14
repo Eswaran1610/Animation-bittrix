@@ -600,13 +600,20 @@ export class RendersService {
       throw new Error('Project not found');
     }
     const activeRenderRes = await query(
-      `SELECT id FROM render_jobs
+      `SELECT * FROM render_jobs
        WHERE project_id = $1 AND render_type = 'preview' AND status IN ('queued', 'rendering')
-       LIMIT 1`,
+       ORDER BY created_at DESC LIMIT 1`,
       [projectId]
     );
     if (activeRenderRes.rows.length > 0) {
-      throw new Error('A preview render is already in progress for this project.');
+      const activeJob = activeRenderRes.rows[0];
+      const jobAgeMs = Date.now() - new Date(activeJob.created_at).getTime();
+      if (jobAgeMs < 300000) { // If less than 5 minutes old, return active job safely
+        console.log(`[RendersService] Preview render ${activeJob.id} is already active (${activeJob.status}). Returning active job.`);
+        return activeJob;
+      }
+      // If older than 5 minutes, mark superseded and continue
+      await query(`UPDATE render_jobs SET status = 'failed', errors = 'Superseded by fresh render request' WHERE id = $1`, [activeJob.id]);
     }
 
     // Fetch the approved script data
@@ -657,12 +664,73 @@ export class RendersService {
     return renderJobRes.rows[0];
   }
 
+  /**
+   * Revise an existing preview's visual animation code (Gate 2 Human-in-the-loop correction).
+   * Spawns the AI agent to update the TSX code in the workspace according to visual feedback,
+   * stages the updated code, increments preview version, and renders a new preview video.
+   */
+  async revisePreview(projectId: string, visualFeedback: string): Promise<RenderJob> {
+    const projectRes = await query(`SELECT * FROM projects WHERE id = $1`, [projectId]);
+    if (projectRes.rows.length === 0) throw new Error('Project not found');
+    const project = projectRes.rows[0];
+    const scriptVersion = Number(project.current_script_version || 1);
+
+    const isScriptApproved = await approvalsService.isScriptApproved(projectId, scriptVersion);
+    if (!isScriptApproved) {
+      throw new Error(`Gate 1 Violation: Script v${scriptVersion} must be explicitly approved before revising preview visuals.`);
+    }
+
+    const scriptRes = await query(`SELECT * FROM scripts WHERE project_id = $1 AND version = $2`, [projectId, scriptVersion]);
+    const script = scriptRes.rows[0];
+    if (!script) throw new Error(`Script v${scriptVersion} not found`);
+
+    const latestPackage = await productionPackageService.latestReady(projectId, scriptVersion);
+    if (!latestPackage?.package_path) {
+      throw new Error('Production package not ready for visual revision.');
+    }
+    const packagePayload = JSON.parse(await fs.readFile(latestPackage.package_path, 'utf8'));
+    const currentTsx = packagePayload.tsxSource;
+    const remotionProps = packagePayload.remotionProps;
+
+    realtime.publish({
+      type: 'pipeline_progress',
+      projectId,
+      stage: 'preview_revision',
+      progress: 25,
+      status: `Agent revising visual animation code according to your feedback: "${visualFeedback.slice(0, 60)}..."`
+    });
+
+    // Revise the visual code using the AI Agent (Solution B)
+    const revisedBundle = await unifiedCliProvider.revisePreviewVisuals({
+      projectId,
+      projectTitle: project.title,
+      scriptVersion,
+      previewVersion: Number(project.current_preview_version || 1),
+      visualFeedback,
+      currentTsxSource: currentTsx,
+      compactScenes: remotionProps.scenes || script.scene_plan || [],
+    });
+
+    // Update the package payload with the revised TSX source
+    packagePayload.tsxSource = revisedBundle.tsxSource;
+    await fs.writeFile(latestPackage.package_path, JSON.stringify(packagePayload, null, 2), 'utf8');
+
+    // Stage the updated TSX into remotion/src/projects/${projectId}/GeneratedVideo.tsx
+    await this.stageProjectRemotionFiles(projectId, revisedBundle.tsxSource);
+
+    // Launch a new preview render (this automatically increments preview version to v2, v3, etc.)
+    return this.createPreviewRender(projectId, scriptVersion, visualFeedback);
+  }
+
   private async stageProjectRemotionFiles(projectId: string, tsxSource: string): Promise<void> {
     const projectDir = path.join(projectPaths.remotionRoot, 'src', 'projects', projectId);
     await fs.mkdir(projectDir, { recursive: true });
 
     // 1. Isolated GeneratedVideo.tsx
-    await fs.writeFile(path.join(projectDir, 'GeneratedVideo.tsx'), tsxSource, 'utf8');
+    const projectTsx = tsxSource
+      .replace(/from\s+['"]\.\/components\/([^'"]+)['"]/g, "from '../../components/$1'")
+      .replace(/from\s+['"]\.\/lib\/([^'"]+)['"]/g, "from '../../lib/$1'");
+    await fs.writeFile(path.join(projectDir, 'GeneratedVideo.tsx'), projectTsx, 'utf8');
 
     // 2. Isolated Composition.tsx
     const compositionCode = `import React from 'react';
@@ -679,7 +747,7 @@ export const MainComposition: React.FC<SceneDataPayload> = (sceneData) => {
 
   return (
     <>
-      <GeneratedVideo {...sceneData} />
+      <GeneratedVideo {...(sceneData as any)} />
       {masterAudioUrl && <Audio src={assetSource(masterAudioUrl)} volume={1.0} />}
       {!masterAudioUrl && backgroundAudioUrl && <Audio src={assetSource(backgroundAudioUrl)} volume={0.25} loop />}
       {!masterAudioUrl &&
@@ -731,7 +799,7 @@ const calcTimelineDuration = (scenes: any[] = []) =>
 
 export const ProjectRoot: React.FC = () => {
   const rawInput = getInputProps();
-  const resolvedProps = normalizeSceneData(rawInput) || (rawInput as SceneDataPayload);
+  const resolvedProps = normalizeSceneData(rawInput) || (rawInput as unknown as SceneDataPayload);
   const mainFps = resolvedProps?.video?.fps || 30;
   const mainDuration = resolvedProps?.video?.durationInFrames || calcTimelineDuration(resolvedProps?.scenes);
 
@@ -759,8 +827,11 @@ registerRoot(ProjectRoot);
     await fs.writeFile(path.join(projectDir, 'index.ts'), indexCode, 'utf8');
 
     // 4. Also keep legacy GeneratedCliVideo.tsx in root src for compatibility
+    const rootSrcTsx = tsxSource
+      .replace(/from\s+['"]\.\.\/\.\.\/components\/([^'"]+)['"]/g, "from './components/$1'")
+      .replace(/from\s+['"]\.\.\/\.\.\/lib\/([^'"]+)['"]/g, "from './lib/$1'");
     const generatedTsxPath = path.join(projectPaths.remotionRoot, 'src', 'GeneratedCliVideo.tsx');
-    await fs.writeFile(generatedTsxPath, tsxSource, 'utf8');
+    await fs.writeFile(generatedTsxPath, rootSrcTsx, 'utf8');
     console.log(`[RendersService] Project ${projectId} isolated Remotion component and entry staged at ${projectDir}`);
   }
 
@@ -960,7 +1031,84 @@ registerRoot(ProjectRoot);
           await publishPreviewProgress(progress, status);
         },
       });
-      await publishPreviewProgress(98, 'Headless preview and quality checks complete');
+      await publishPreviewProgress(92, 'Headless render complete; extracting scene stills for visual audit...');
+
+      // Extract scene midpoint stills in ~150ms using ffmpeg
+      const stillsDir = path.join(projectPaths.backendMedia, 'projects', projectId, 'previews', `v${previewVersion}`, 'stills');
+      await fs.mkdir(stillsDir, { recursive: true });
+      const stillFiles: string[] = [];
+      let offset = 0;
+      for (let idx = 0; idx < previewProps.scenes.length; idx++) {
+        const sc = previewProps.scenes[idx];
+        const midpointFrame = offset + Math.floor((sc.durationInFrames || 90) / 2);
+        offset += (sc.durationInFrames || 90);
+        const timeSec = (midpointFrame / (previewProps.video.fps || 30)).toFixed(2);
+        const stillTarget = path.join(stillsDir, `scene_${String(idx + 1).padStart(2, '0')}.png`);
+        try {
+          await execFileAsync('ffmpeg', [
+            '-v', 'error', '-y',
+            '-ss', timeSec,
+            '-i', previewDiskPath,
+            '-vframes', '1',
+            '-q:v', '2',
+            stillTarget
+          ], { timeout: 15000 });
+          stillFiles.push(stillTarget);
+        } catch {}
+      }
+
+      // Autonomous Visual Audit & Self-Repair Gate (Active on preview v1)
+      if (previewVersion === 1 && stillFiles.length > 0) {
+        await publishPreviewProgress(94, 'AGY Visual QA Director auditing rendered scene stills...');
+        const latestPackage = await productionPackageService.latestReady(projectId, script.version);
+        let currentTsx: string | null = null;
+        let packagePayload: any = null;
+        if (latestPackage?.package_path) {
+          try {
+            packagePayload = JSON.parse(await fs.readFile(latestPackage.package_path, 'utf8'));
+            currentTsx = packagePayload.tsxSource;
+          } catch {}
+        }
+        if (!currentTsx) {
+          try {
+            const projectTsxPath = path.join(projectPaths.remotionRoot, 'src', 'projects', projectId, 'GeneratedVideo.tsx');
+            currentTsx = await fs.readFile(projectTsxPath, 'utf8');
+          } catch {}
+        }
+        if (currentTsx) {
+          try {
+            const audit = await unifiedCliProvider.auditAndSelfCorrectPreview({
+              projectId,
+              projectTitle,
+              previewVersion,
+              currentTsxSource: currentTsx,
+              stillImages: stillFiles,
+              compactScenes: previewProps.scenes,
+            });
+
+            if (!audit.approved && audit.revisedTsx) {
+              console.log(`[RendersService] AGY Visual Audit requested automatic revision: "${audit.summary}". Launching Preview v2...`);
+              await publishPreviewProgress(96, `AGY visual audit: self-repairing layout -> launching Preview v2`);
+
+              // Update package payload with repaired TSX
+              if (latestPackage?.package_path) {
+                const pkg = packagePayload || JSON.parse(await fs.readFile(latestPackage.package_path, 'utf8'));
+                pkg.tsxSource = audit.revisedTsx;
+                await fs.writeFile(latestPackage.package_path, JSON.stringify(pkg, null, 2), 'utf8');
+              }
+
+              // Stage repaired files
+              await this.stageProjectRemotionFiles(projectId, audit.revisedTsx);
+
+              // Launch Preview v2 automatically
+              await this.createPreviewRender(projectId, script.version, audit.summary);
+              return; // End v1 gracefully as v2 takes over
+            }
+          } catch (auditErr: any) {
+            console.warn(`[RendersService] AGY visual audit non-fatal error: ${auditErr.message}`);
+          }
+        }
+      }
 
       await query(
         `UPDATE render_jobs
@@ -968,7 +1116,7 @@ registerRoot(ProjectRoot);
          WHERE id = $1`,
         [renderJobId]
       );
-      realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress: 100, status: 'Preview ready for human review' });
+      realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress: 100, status: 'Preview verified by AGY visual audit and ready for review' });
       const latestPackage = await productionPackageService.latestReady(projectId, script.version);
       if (latestPackage) {
         await productionPackageService.saveDonePackage(

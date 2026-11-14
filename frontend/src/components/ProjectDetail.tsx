@@ -150,11 +150,10 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, activePro
     }
     setIsSubmittingPreviewAction(true);
     try {
-      const revisedScript = await api.revisePreview(project.id, previewFeedback);
+      await api.revisePreview(project.id, previewFeedback);
       setPreviewFeedback('');
       await onRefresh();
-      setSelectedScriptVer(revisedScript.version);
-      setActiveTab('script');
+      setActiveTab('preview');
     } catch (err: any) {
       alert(`Preview correction error: ${err.message}`);
     } finally {

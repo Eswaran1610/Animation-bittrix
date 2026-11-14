@@ -72,15 +72,19 @@ export class ProjectsService {
     void scriptsService.generateInitialScript(project.id, inputContent, inputType, requestedDurationSec, themeId)
       .then(async (script) => {
         clearInterval(progressTimer);
-        console.log(`[ProjectsService] Script generated for ${project.id} (v${script?.version || 1}). Auto-advancing straight to video production...`);
-        try {
-          const scriptVer = script?.version || 1;
-          const scriptId = script?.id;
-          await approvalsService.approveScript(project.id, scriptId, scriptVer, 'auto_agent', 'Auto-approved for direct straight-through video pipeline');
-          await productionPackageService.queue(project.id, scriptVer);
-          await rendersService.prepareCliProductionPackage(project.id, scriptVer);
-        } catch (autoErr: any) {
-          console.error(`[ProjectsService] Auto-render pipeline error for ${project.id}:`, autoErr);
+        const scriptVer = script?.version || 1;
+        console.log(`[ProjectsService] Script generated for ${project.id} (v${scriptVer}). Ready for Gate 1 human review.`);
+
+        // Only auto-advance straight to production if explicitly enabled via AUTO_APPROVE_PIPELINE
+        if (process.env.AUTO_APPROVE_PIPELINE === '1') {
+          try {
+            const scriptId = script?.id;
+            await approvalsService.approveScript(project.id, scriptId, scriptVer, 'auto_agent', 'Auto-approved for direct straight-through video pipeline');
+            await productionPackageService.queue(project.id, scriptVer);
+            await rendersService.prepareCliProductionPackage(project.id, scriptVer);
+          } catch (autoErr: any) {
+            console.error(`[ProjectsService] Auto-render pipeline error for ${project.id}:`, autoErr);
+          }
         }
         const finishedRes = await query(`SELECT * FROM projects WHERE id = $1`, [project.id]);
         if (finishedRes.rows[0]) {

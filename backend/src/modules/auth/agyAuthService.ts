@@ -2,6 +2,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { projectPaths } from '../../config/paths.js';
 import { activeProviderService } from '../providers/activeProviderService.js';
+import { resolveCliBinary } from './cliBinaryResolver.js';
 export type ConnectionState = 'unknown' | 'connected' | 'standby' | 'failed';
 
 const execFileAsync = promisify(execFile);
@@ -9,8 +10,9 @@ const execFileAsync = promisify(execFile);
 class AgyAuthService {
   async status() {
     let version = '';
+    const agyBin = resolveCliBinary('agy');
     try {
-      const { stdout } = await execFileAsync('agy', ['--version'], {
+      const { stdout } = await execFileAsync(agyBin, ['--version'], {
         timeout: 5_000,
         cwd: projectPaths.root,
       });
@@ -28,11 +30,11 @@ class AgyAuthService {
     const isActive = activeProviderService.get() === 'agy';
     return {
       cliAvailable: true,
-      state: (isActive ? 'connected' : 'standby') as ConnectionState,
+      state: 'connected' as ConnectionState,
       isActive,
       message: isActive
-        ? `AGY CLI v${version} is connected as the ACTIVE CLI provider.`
-        : `AGY CLI v${version} is ready on this machine (Standby).`,
+        ? `AGY CLI v${version} is connected and selected as active.`
+        : `AGY CLI v${version} is connected and ready on this machine.`,
       version,
     };
   }

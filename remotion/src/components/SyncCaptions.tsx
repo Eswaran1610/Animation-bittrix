@@ -15,13 +15,16 @@ export const SyncCaptions: React.FC<{
   accentColor?: string;
   bottom?: number;
   fontSize?: number;
-}> = ({ scene, words: directWords, currentFrame, accentColor = "#FFE066", bottom = 220, fontSize = 64 }) => {
+}> = ({ scene, words: directWords, currentFrame, accentColor = "#FFE066", bottom = 400, fontSize = 60 }) => {
   const currentRemotionFrame = useCurrentFrame();
   const frame = currentFrame !== undefined ? currentFrame : currentRemotionFrame;
   const wordList = directWords || scene?.words || [];
+
+  // Responsive font scaling: automatically adjust if sentence is long to prevent multi-line overflow
+  const responsiveFontSize = wordList.length > 12 ? Math.max(42, fontSize - 14) : wordList.length > 8 ? Math.max(48, fontSize - 8) : fontSize;
   
   const active = wordList.findIndex(
-    (w) => frame >= w.startFrame && frame < w.endFrame,
+    (w) => frame >= w.startFrame && frame <= w.endFrame,
   );
   const lastSpoken = wordList.reduce(
     (acc, w, i) => (frame >= w.startFrame ? i : acc),
@@ -37,12 +40,13 @@ export const SyncCaptions: React.FC<{
         bottom,
         textAlign: "center",
         fontFamily: "Inter, system-ui, sans-serif",
-        fontWeight: 700,
-        fontSize,
+        fontWeight: 800,
+        fontSize: responsiveFontSize,
         lineHeight: 1.25,
         letterSpacing: 0.5,
         textTransform: "uppercase",
-        textShadow: "0 4px 24px rgba(0,0,0,0.65)",
+        textShadow: "0 4px 24px rgba(0,0,0,0.85)",
+        zIndex: 50,
       }}
     >
       {wordList.map((w: any, i) => {

@@ -65,7 +65,7 @@ export class ProductionPackageService {
       throw new Error('Production package tsxSource must contain the Remotion composition code.');
     }
 
-    const validation = await tsxValidator.validate(candidate.tsxSource);
+    const validation = await tsxValidator.validate(candidate.tsxSource, { projectId });
     if (!validation.valid) {
       throw new Error(`Production package TSX validation failed: ${validation.errors.join('; ')}`);
     }
@@ -202,7 +202,20 @@ export class ProductionPackageService {
   async fail(projectId: string, packageVersion: number, errorMessage: string) {
     await this.ensureTable();
     await query(`UPDATE production_packages SET status = 'failed', error_message = $3, updated_at = CURRENT_TIMESTAMP WHERE project_id = $1 AND package_version = $2`, [projectId, packageVersion, errorMessage]);
-    realtime.publish({ type: 'pipeline_progress', projectId, progress: 100, status: 'Active CLI production package failed' });
+    await query(`UPDATE projects SET stage = 'failed', status = 'Active CLI production package failed', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [projectId]);
+    realtime.publish({
+      type: 'pipeline_progress',
+      projectId,
+      stage: 'failed',
+      progress: 100,
+      status: `Active CLI production package failed: ${errorMessage.slice(0, 100)}`
+    });
+    realtime.publish({
+      type: 'project_updated',
+      projectId,
+      stage: 'failed',
+      status: 'Active CLI production package failed'
+    });
   }
 }
 

@@ -33,11 +33,11 @@ export const api = {
     return res.json();
   },
 
-  async createProject(input_content: string, input_type: 'text' | 'topic' | 'url', title?: string, requested_duration_sec?: number, theme_id?: string): Promise<Project> {
+  async createProject(input_content: string, input_type: 'text' | 'topic' | 'url', title?: string, requested_duration_sec?: number, theme_id?: string, drawing_style?: string): Promise<Project> {
     const res = await fetch(`${API_BASE}/projects`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input_content, input_type, title, requested_duration_sec, theme_id }),
+      body: JSON.stringify({ input_content, input_type, title, requested_duration_sec, theme_id, drawing_style }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

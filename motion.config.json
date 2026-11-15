@@ -1,0 +1,12 @@
+{
+  "minMotionEnergy": 0.80,
+  "targetMotionEnergy": 0.90,
+  "sampleFps": 6,
+  "minStaticWindowSeconds": 1.0,
+  "maxOpticalFlowRandomness": 0.35,
+  "lufsTarget": -14,
+  "truePeakMax": -1,
+  "sfxLeadMs": 67,
+  "leadMs": 200,
+  "tailMs": 400
+}

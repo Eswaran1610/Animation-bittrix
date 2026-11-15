@@ -17,12 +17,15 @@ export interface DynamicNode {
 export const KineticTitle: React.FC<{
   title: string;
   badge?: string;
+  badgeText?: string;
   subtitle?: string;
   color?: string;
   badgeColor?: string;
   accentColor?: string;
   delayFrames?: number;
-}> = ({ title, badge, subtitle, color: propColor, badgeColor, accentColor, delayFrames = 0 }) => {
+  progress?: number;
+}> = ({ title, badge, badgeText, subtitle, color: propColor, badgeColor, accentColor, delayFrames = 0 }) => {
+  const displayBadge = badge || badgeText;
   const color = accentColor || badgeColor || propColor || '#38bdf8';
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -46,7 +49,7 @@ export const KineticTitle: React.FC<{
 
   return (
     <div style={{ textAlign: 'center', zIndex: 10, maxWidth: '1100px', padding: '0 20px' }}>
-      {badge && (
+      {displayBadge && (
         <div
           style={{
             fontSize: '18px',
@@ -58,7 +61,7 @@ export const KineticTitle: React.FC<{
             opacity: Math.min(1, Math.max(0, (frame - delayFrames) / 15)),
           }}
         >
-          {badge}
+          {displayBadge}
         </div>
       )}
 
@@ -263,16 +266,29 @@ export const OrbitalRings: React.FC<{ color?: string }> = ({ color = '#38bdf8' }
  */
 export const NetworkNodes: React.FC<{
   color?: string;
+  primaryColor?: string;
+  secondaryColor?: string;
+  count?: number;
+  progress?: number;
   nodes?: DynamicNode[];
   connections?: Array<{ from: string | number; to: string | number }>;
 }> = ({
-  color = '#818cf8',
+  color: propColor = '#818cf8',
+  primaryColor,
+  secondaryColor,
+  count,
+  progress,
   nodes = [],
   connections,
 }) => {
+  const color = primaryColor || propColor;
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const list = (nodes.length > 0 ? nodes : [{ label: 'Input' }, { label: 'Process' }, { label: 'Output' }]).slice(0, 6);
+  let list = (nodes.length > 0 ? nodes : [{ label: 'Input' }, { label: 'Process' }, { label: 'Output' }]);
+  if (count && count > 0 && nodes.length === 0) {
+    list = Array.from({ length: Math.min(count, 6) }, (_, idx) => ({ label: `Node ${idx + 1}` }));
+  }
+  list = list.slice(0, 6);
   const W = 960;
   const H = 1100;
   const pts = list.map((_, i) => ({
@@ -352,17 +368,19 @@ export const MetricBar: React.FC<{
   color?: string;
   label?: string;
   value?: number;
+  max?: number;
   maxValue?: number;
   unit?: string;
 }> = ({
   color = '#10b981',
   label = 'QUANTITATIVE METRIC',
   value = 92,
+  max: propMax,
   maxValue = 100,
   unit = '%',
 }) => {
   const frame = useCurrentFrame();
-  const max = Math.max(1, maxValue);
+  const max = Math.max(1, propMax ?? maxValue);
   const targetVal = Math.min(max, Math.max(0, value));
   const progress = Math.min(
     targetVal,
@@ -789,7 +807,11 @@ export const LaserBusLine: React.FC<{
   endY?: number;
   progress?: number;
   color?: string;
+  strokeWidth?: number;
+  active?: boolean;
+  animated?: boolean;
   delayFrames?: number;
+  style?: React.CSSProperties;
 }> = ({
   x1: pX1,
   y1: pY1,
@@ -801,7 +823,11 @@ export const LaserBusLine: React.FC<{
   endY,
   progress: customProgress,
   color = '#38bdf8',
+  strokeWidth = 2,
+  active = true,
+  animated = true,
   delayFrames = 0,
+  style,
 }) => {
   const x1 = pX1 ?? startX ?? 0;
   const y1 = pY1 ?? startY ?? 0;
@@ -851,8 +877,9 @@ export const LaserBusLine: React.FC<{
  * 11. Git Commit Branching DAG Graph
  */
 export const GitCommitGraph: React.FC<{
-  commits: Array<{ hash: string; label?: string; message?: string; branch?: string }>;
+  commits?: Array<{ hash: string; label?: string; message?: string; branch?: string }>;
   color?: string;
+  progress?: number;
   delayFrames?: number;
 }> = ({
   commits = [
@@ -862,6 +889,7 @@ export const GitCommitGraph: React.FC<{
     { hash: 'a1b2c3', label: 'merge feature into main', branch: 'main' },
   ],
   color = '#818cf8',
+  progress,
   delayFrames = 0,
 }) => {
   const frame = useCurrentFrame();

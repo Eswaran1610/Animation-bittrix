@@ -44,7 +44,10 @@ export interface AudioMixOptions {
 export class AudioMixerService {
   async mixMasterAudio(options: AudioMixOptions): Promise<string> {
     const { projectId, renderType, renderVersion, fps, totalDurationFrames, scenes, backgroundAudioUrl } = options;
-    const totalDurationSec = totalDurationFrames / fps;
+    const computedFrames = Number.isFinite(totalDurationFrames) && totalDurationFrames > 0
+      ? totalDurationFrames
+      : (scenes || []).reduce((acc, s) => acc + (s.durationInFrames || (s as any).frames || 0), 0);
+    const totalDurationSec = computedFrames > 0 ? computedFrames / fps : 30;
 
     const fileName = `${projectId}_${renderType}_v${renderVersion}_master.mp3`;
     const backendDir = path.join(projectPaths.backendMedia, 'audio', 'master');
@@ -162,7 +165,7 @@ export class AudioMixerService {
       `${finalLabels.join('')}amix=inputs=${finalLabels.length}:duration=longest:normalize=0,` +
       // broadcast-style loudness for shorts, then a hard ceiling so peaks never clip
       'loudnorm=I=-16:TP=-1.5:LRA=9,alimiter=limit=0.89,' +
-      'aformat=sample_rates=48000:channel_layouts=stereo[mixed]',
+      `aformat=sample_rates=48000:channel_layouts=stereo,apad=whole_dur=${totalDurationSec.toFixed(3)}[mixed]`,
     );
 
     ffmpegArgs.push('-filter_complex', filterParts.join(';'));

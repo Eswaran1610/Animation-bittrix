@@ -12,14 +12,102 @@ import fs from 'fs/promises';
 import { projectPaths } from '../../config/paths.js';
 import { realtime } from '../../realtime.js';
 import { execFile } from 'child_process';
+import { existsSync } from 'fs';
 import { promisify } from 'util';
 import { preflightRenderProps } from './preflight.js';
 import { formatRenderFailure } from './renderDiagnostics.js';
 import { productionPackageService } from '../production/productionPackageService.js';
 import { unifiedCliProvider } from '../providers/cliProvider.js';
 import { activeProviderService } from '../providers/activeProviderService.js';
+import { getDrawingStyle, drawingSkillDir } from '../drawing/drawingStyles.js';
 
 const execFileAsync = promisify(execFile);
+
+export const OUTRO_SECONDS = 3;
+const CLAUDE_VIDEO_FILE = 'ClaudeVideo';
+
+/**
+ * Timeline wiring only: mounts Claude's continuous video (or, for older
+ * projects, its per-scene components) and layers the fixed 3s Bittrix logo
+ * over the end. All visuals are Claude's code.
+ */
+function buildGeneratedVideoSource(scenes: any[], video?: any): string {
+  const outro = `
+      <Sequence from={total - outroFrames} durationInFrames={outroFrames}>
+        <BittrixOutroExact />
+      </Sequence>`;
+  const header = (extra: string) => `import React from 'react';
+import { Sequence } from 'remotion';
+import type { SceneDataPayload } from '../../data/sceneTypes';
+import { BittrixOutroExact } from '../../components/BittrixOutroExact';
+${extra}
+
+const timelineEnd = (list: any[]) =>
+  list.reduce((end: number, s: any) => Math.max(end, (s.start ?? s.startFrame ?? 0) + (s.durationInFrames || s.frames || 0)), 0);
+`;
+
+  if (video?.claudeVideoPath) {
+    return `${header(`import ClaudeVideo from './${CLAUDE_VIDEO_FILE}';`)}
+export default function GeneratedVideo({ video, scenes }: SceneDataPayload) {
+  const fps = video?.fps || 30;
+  const list = (scenes || []) as any[];
+  const total = timelineEnd(list);
+  const outroFrames = Math.min(total, ${OUTRO_SECONDS} * fps);
+  return (
+    <>
+      <ClaudeVideo fps={fps} durationInFrames={total} scenes={list} />${outro}
+    </>
+  );
+}
+`;
+  }
+
+  if (video?.drawingStyle) {
+    // Hand-drawn projects: the Claude agent renders the mp4 itself with the claude-drawing skill.
+    // This placeholder only keeps the Remotion project valid (and lets the agent render the outro frames from it).
+    return `${header(`import { AbsoluteFill } from 'remotion';`)}
+export default function GeneratedVideo({ video, scenes }: SceneDataPayload) {
+  const fps = video?.fps || 30;
+  const list = (scenes || []) as any[];
+  const total = timelineEnd(list);
+  const outroFrames = Math.min(total, ${OUTRO_SECONDS} * fps);
+  return (
+    <>
+      <AbsoluteFill style={{ backgroundColor: '#f3ecdc' }} />${outro}
+    </>
+  );
+}
+`;
+  }
+
+  const missing = (scenes || []).filter((s) => !s.customComponentPath).map((s) => s.scene_number);
+  if (missing.length) {
+    throw new Error(`Scene(s) ${missing.join(', ')} were made with the old template renderer. Send a visual revision so Claude writes the video, then render again.`);
+  }
+  const imports = scenes.map((s) => `import Scene_${s.scene_number} from './${s.customComponentPath}';`).join('\n');
+  const mapEntries = scenes.map((s) => `  ${s.scene_number}: Scene_${s.scene_number},`).join('\n');
+  return `${header(`import { CustomSceneHost } from '../../components/CustomSceneHost';\n${imports}`)}
+const CUSTOM_SCENES: Record<number, any> = {
+${mapEntries}
+};
+
+export default function GeneratedVideo({ video, scenes }: SceneDataPayload) {
+  const fps = video?.fps || 30;
+  const list = (scenes || []) as any[];
+  const total = timelineEnd(list);
+  const outroFrames = Math.min(total, ${OUTRO_SECONDS} * fps);
+  return (
+    <>
+      {list.map((scene: any, index: number) => (
+        <Sequence key={scene.id || index} from={scene.start ?? scene.startFrame ?? 0} durationInFrames={scene.durationInFrames || scene.frames}>
+          <CustomSceneHost scene={scene} Component={CUSTOM_SCENES[scene.scene_number]} />
+        </Sequence>
+      ))}${outro}
+    </>
+  );
+}
+`;
+}
 
 export class RendersService {
   private buildWordCaptions(text: string, durationSec: number, fps: number) {
@@ -48,6 +136,123 @@ export class RendersService {
   }
 
   private isWhisperAvailable: boolean | null = null;
+  /** claude-drawing style chosen on the dashboard for this project, if any. */
+  private async projectDrawingStyle(projectId: string) {
+    const res = await query(`SELECT * FROM projects WHERE id = $1`, [projectId]);
+    return getDrawingStyle(res.rows[0]?.drawing_style);
+  }
+
+  /**
+   * Props media reference -> absolute file. Accepts '/media/...' URLs, absolute paths, and the relative
+   * 'audio/master/...' style used in render props (backend media dir first, then remotion/public).
+   */
+  private mediaUrlToPath(url?: string): string | undefined {
+    if (!url) return undefined;
+    const clean = url.split('?')[0];
+    if (clean.startsWith('/media/')) return path.join(projectPaths.backendMedia, clean.slice('/media/'.length));
+    if (path.isAbsolute(clean) && existsSync(clean)) return clean;
+    const rel = clean.replace(/^\/+/, '');
+    const candidates = [path.join(projectPaths.backendMedia, rel), path.join(projectPaths.remotionPublic, rel)];
+    return candidates.find((c) => existsSync(c));
+  }
+
+  /**
+   * Hand-drawn path: Claude runs as a full agent with the claude-drawing skill and writes the mp4 itself.
+   * The backend only verifies it (exists, size, resolution, fps, duration vs audio) -- it never patches the video.
+   */
+  private async buildDrawnVideoWithAgent(opts: {
+    projectId: string;
+    projectTitle: string;
+    propsPath: string;
+    outputMp4: string;
+    style: NonNullable<ReturnType<typeof getDrawingStyle>>;
+    feedback?: string;
+    onProgress: (progress: number, status: string) => Promise<void>;
+  }): Promise<void> {
+    const props = JSON.parse(await fs.readFile(opts.propsPath, 'utf8'));
+    const fps = Number(props.video?.fps || 30);
+    const width = Number(props.video?.width || 1080);
+    const height = Number(props.video?.height || 1920);
+    const durationInFrames = Number(props.video?.durationInFrames);
+    const audioPath = this.mediaUrlToPath(props.video?.audioUrl);
+    if (!audioPath) throw new Error(`Hand-drawn build could not find the mixed master audio file for "${props.video?.audioUrl || '(no audioUrl in props)'}".`);
+    await fs.access(audioPath);
+    const workDir = path.join(projectPaths.backendMedia, 'projects', opts.projectId, 'drawing', path.basename(opts.outputMp4, '.mp4'));
+    await fs.mkdir(workDir, { recursive: true });
+    await fs.mkdir(path.dirname(opts.outputMp4), { recursive: true });
+    await fs.rm(opts.outputMp4, { force: true });
+
+    const targetDurationSec = durationInFrames / fps;
+    const probe = async (file: string, args: string[]) =>
+      JSON.parse((await execFileAsync('ffprobe', ['-v', 'error', ...args, '-of', 'json', file], { timeout: 60000 })).stdout);
+
+    // Ensure master audio matches the target duration, padding with silence if speech/sfx ended earlier
+    const initAudioProbe = await probe(audioPath, ['-show_entries', 'format=duration']);
+    const initAudioDur = Number(initAudioProbe.format?.duration || 0);
+    if (initAudioDur < targetDurationSec - (1 / fps + 0.02)) {
+      console.log(`[RendersService] Master audio duration (${initAudioDur.toFixed(3)}s) is shorter than target video duration (${targetDurationSec.toFixed(3)}s). Padding master audio with silence...`);
+      const tempPadded = `${audioPath}.padded.mp3`;
+      await execFileAsync('ffmpeg', [
+        '-v', 'error', '-y',
+        '-i', audioPath,
+        '-af', `apad=whole_dur=${targetDurationSec.toFixed(3)}`,
+        '-t', targetDurationSec.toFixed(3),
+        '-codec:a', 'libmp3lame', '-b:a', '192k',
+        tempPadded
+      ], { timeout: 30000 });
+      await fs.rename(tempPadded, audioPath);
+      const rel = path.relative(projectPaths.backendMedia, audioPath);
+      const remotionCopy = path.join(projectPaths.remotionPublic, rel);
+      if (existsSync(remotionCopy)) {
+        await fs.copyFile(audioPath, remotionCopy);
+      }
+    }
+
+    let progress = 52;
+    await opts.onProgress(progress, `Claude agent drawing the video in "${opts.style.label}" style...`);
+    let pending: Promise<void> = Promise.resolve();
+    await unifiedCliProvider.runClaudeAgentBuild({
+      projectId: opts.projectId,
+      projectTitle: opts.projectTitle,
+      fps, width, height, durationInFrames,
+      outroFrames: Math.min(durationInFrames, OUTRO_SECONDS * fps),
+      propsPath: opts.propsPath,
+      audioPath,
+      outputMp4: opts.outputMp4,
+      workDir,
+      drawingStyle: opts.style,
+      skillDir: drawingSkillDir(),
+      feedback: opts.feedback,
+      onEvent: (evt) => {
+        if (evt.kind === 'result') return;
+        progress = Math.min(94, progress + 0.4);
+        const label = evt.kind === 'tool' ? `Claude: ${evt.text}` : `Claude: ${evt.text.split('\n')[0]}`;
+        const p = Math.round(progress);
+        pending = pending.then(() => opts.onProgress(p, label.slice(0, 220))).catch(() => {});
+      },
+    });
+    await pending;
+
+    await opts.onProgress(96, 'Verifying the agent-rendered video...');
+    const stat = await fs.stat(opts.outputMp4).catch(() => null);
+    if (!stat || stat.size === 0) throw new Error(`Claude agent reported DONE but ${opts.outputMp4} is missing or empty.`);
+    const v = await probe(opts.outputMp4, ['-select_streams', 'v:0', '-show_entries', 'stream=width,height,r_frame_rate:format=duration']);
+    const a = await probe(audioPath, ['-show_entries', 'format=duration']);
+    const st = v.streams?.[0] || {};
+    const [num, den] = String(st.r_frame_rate || '0/1').split('/').map(Number);
+    const gotFps = den ? num / den : 0;
+    const vDur = Number(v.format?.duration || 0);
+    const aDur = Number(a.format?.duration || 0);
+    const targetDur = durationInFrames / fps;
+    const problems: string[] = [];
+    if (st.width !== width || st.height !== height) problems.push(`resolution ${st.width}x${st.height} != ${width}x${height}`);
+    if (Math.abs(gotFps - fps) > 0.01) problems.push(`fps ${gotFps.toFixed(2)} != ${fps}`);
+    if (Math.abs(vDur - aDur) > 1 / fps + 0.02 && Math.abs(vDur - targetDur) > 1 / fps + 0.02) {
+      problems.push(`video ${vDur.toFixed(3)}s vs audio ${aDur.toFixed(3)}s (target ${targetDur.toFixed(3)}s)`);
+    }
+    if (problems.length) throw new Error(`Agent-rendered video failed verification: ${problems.join('; ')}`);
+  }
+
   private async checkWhisperAvailable(): Promise<boolean> {
     if (this.isWhisperAvailable !== null) return this.isWhisperAvailable;
     if (process.env.DISABLE_WHISPER === '1') {
@@ -147,7 +352,16 @@ export class RendersService {
     const sceneTimeline = scenePlan.map((s: any, idx: number) => {
       const isCta = (idx === scenePlan.length - 1) || s.role === 'cta' || String(s.visual_type || '').toLowerCase() === 'outro' || /bittrix/i.test(s.narration || '');
       const narration = sceneNarration.get(Number(s.scene_number));
-      const voiceSec = Number(narration?.durationSec || 0);
+      // TTS clips carry ~0.8s of trailing silence; size the scene to the last spoken word
+      // so sentences don't have >1s dead air between them. The mixer delays each clip
+      // to its scene start, so the silent remainder harmlessly overlaps the next scene.
+      const clipSec = Number(narration?.durationSec || 0);
+      const lastWordEndSec = narration?.alignmentType === 'measured' && narration.words?.length
+        ? Number(narration.words[narration.words.length - 1].endSec)
+        : NaN;
+      const voiceSec = Number.isFinite(lastWordEndSec) && lastWordEndSec > 0
+        ? Math.min(clipSec, lastWordEndSec)
+        : clipSec;
       const ctaPadding = isCta ? Math.ceil(1.0 * fps) : 0;
       let frames = Math.ceil(voiceSec * fps) + ctaPadding + leadFrames + tailFrames;
       if (isCta) {
@@ -379,35 +593,8 @@ export class RendersService {
         }
       }
 
-      // Scene transition: whoosh at the midpoint of the transition
-      if (transitionOutFrames > 0 && idx < scenePlan.length - 1) {
-        const transitionHitFrame = durationInFrames - Math.round(transitionOutFrames / 2);
-        if (cueRequests.length < 6) cueRequests.push({
-          hitFrame: transitionHitFrame,
-          role: 'whoosh',
-          sourceId: `${s.scene_number}.transition`,
-          seedKey: `${projectId}:${s.scene_number}:transition`,
-          pan: idx % 2 === 0 ? -0.28 : 0.28,
-        });
-        if (cueRequests.length < 6) cueRequests.push({
-          hitFrame: Math.min(durationInFrames - 8, transitionHitFrame + 2),
-          role: sfxPack === 'cinematic' ? 'impact' : 'click',
-          sourceId: `${s.scene_number}.transition-layer`,
-          seedKey: `${projectId}:${s.scene_number}:transition-layer`,
-          pan: idx % 2 === 0 ? 0.28 : -0.28,
-        });
-      }
-
-      // Defensive fallback: ensure at least one subtle entrance sound per scene
-      if (cueRequests.length === 0) {
-        cueRequests.push({
-          hitFrame: 14,
-          role: 'pop',
-          sourceId: `${s.scene_number}.appear`,
-          seedKey: `${projectId}:${s.scene_number}:fallback`,
-          pan: 0,
-        });
-      }
+      // Scene transition: no repetitive transition whoosh between scenes
+      // Motion sounds are strictly mapped to purposeful, unique object movements.
 
       // Sort by hitFrame
       cueRequests.sort((a, b) => a.hitFrame - b.hitFrame);
@@ -430,9 +617,6 @@ export class RendersService {
           };
         })
       );
-      if (audioCues.length === 0) {
-        throw new Error(`Object sound generation failed for scene ${s.scene_number}; render refused without audio.`);
-      }
       scenesPrepared += 1;
       if (progressCallback) {
         await progressCallback(22 + Math.round((scenesPrepared / scenePlan.length) * 16), `Prepared visual assets and motion for scene ${scenesPrepared}/${scenePlan.length}`);
@@ -464,6 +648,11 @@ export class RendersService {
         frames: durationInFrames,
         visual_direction: s.visual_direction,
         duration_sec: durationSec,
+        // The planner authors motion_plan frame indices assuming this ORIGINAL
+        // estimated duration at a fixed 30fps. durationSec above is the REAL,
+        // measured-audio duration (can differ in length and in fps). The
+        // deterministic renderer needs both to rescale motion_plan correctly.
+        plannedDurationSec: Number(s.duration_sec) || durationSec,
         durationInFrames,
         transitionOutFrames,
         visualType,
@@ -474,7 +663,11 @@ export class RendersService {
         narration: s.narration,
         narrationAudio: narration?.staticUrl,
         narrationDurationSec: narration?.durationSec,
-        words: narration?.words || [],
+        words: (narration?.words || []).map((w: any) => ({
+          ...w,
+          startFrame: Number.isFinite(w.startSec) ? Math.round(w.startSec * fps) : w.startFrame,
+          endFrame: Number.isFinite(w.endSec) ? Math.round(w.endSec * fps) : w.endFrame,
+        })),
         audioCues,
         nodes: (s.visual_blueprint?.objects || []).map((o: any) => ({ label: o.label || o.id, sub: o.detail || '' })),
         labels: [s.on_screen_text, s.keyword].filter(Boolean),
@@ -492,9 +685,23 @@ export class RendersService {
       };
     }));
 
+    // Claude writes the whole film in one pass; there is no template fallback.
+    if (progressCallback) await progressCallback(37, 'Claude designing the full continuous video...');
+    // Hand-drawn projects: the Claude agent paints the video later with the claude-drawing skill,
+    // so the one-shot TSX authoring call is skipped here.
+    const drawingStyle = await this.projectDrawingStyle(projectId);
+    const claudeVideoPath = drawingStyle ? undefined : await this.authorAndStageFullVideo({
+      projectId,
+      projectTitle,
+      scenes: formattedScenes,
+      fps,
+      styleBrief,
+      sfx: { librarySeed: sfxLibrarySeed, scope: sfxScope, pack: sfxPack },
+    });
+
     // Video duration is strictly the sum of all scene frame durations (zero gaps, zero overlaps)
     const totalFrames = formattedScenes.reduce((acc: number, s: any) => acc + s.durationInFrames, 0);
-    
+
     if (progressCallback) await progressCallback(40, 'Generating ambient soundscape & background audio bed...');
     console.log(`[RendersService] Narration generated (${(narrationDurationSec).toFixed(1)}s total). Generating audio bed & master track...`);
     const backgroundAudioUrl = await audioBedService.generate(projectId, renderType, renderVersion, totalFrames / fps);
@@ -557,7 +764,9 @@ export class RendersService {
         backgroundAudioUrl: masterAudioUrl ? undefined : backgroundAudioUrl,
         captions,
         styleBrief,
-        styleProfile
+        styleProfile,
+        claudeVideoPath,
+        drawingStyle: drawingStyle?.id,
       },
       scenes: formattedScenes
     };
@@ -658,7 +867,8 @@ export class RendersService {
       projectId,
       currentPreviewVersion,
       projectRes.rows[0].title,
-      script
+      script,
+      visualFeedback
     );
 
     return renderJobRes.rows[0];
@@ -688,38 +898,145 @@ export class RendersService {
     if (!latestPackage?.package_path) {
       throw new Error('Production package not ready for visual revision.');
     }
+    if (getDrawingStyle(project.drawing_style)) {
+      realtime.publish({
+        type: 'pipeline_progress',
+        projectId,
+        stage: 'preview_revision',
+        progress: 25,
+        status: `Claude agent redrawing the video with your feedback: "${visualFeedback.slice(0, 60)}..."`
+      });
+      return this.createPreviewRender(projectId, scriptVersion, visualFeedback);
+    }
     const packagePayload = JSON.parse(await fs.readFile(latestPackage.package_path, 'utf8'));
-    const currentTsx = packagePayload.tsxSource;
     const remotionProps = packagePayload.remotionProps;
+    const fps = Number(remotionProps?.video?.fps || 30);
 
     realtime.publish({
       type: 'pipeline_progress',
       projectId,
       stage: 'preview_revision',
       progress: 25,
-      status: `Agent revising visual animation code according to your feedback: "${visualFeedback.slice(0, 60)}..."`
+      status: `Claude revising the video according to your feedback: "${visualFeedback.slice(0, 60)}..."`
     });
 
-    // Revise the visual code using the AI Agent (Solution B)
-    const revisedBundle = await unifiedCliProvider.revisePreviewVisuals({
+    const previewVersion = Number(project.current_preview_version || 1);
+    const sfxPack = (remotionProps?.video?.styleBrief?.sfxPack || 'digital');
+    const sfxLibrarySeed = `${projectId}:preview:${previewVersion}:${sfxPack}`;
+    const sfxScope = { projectId, previewVersion };
+    const sceneList: any[] = remotionProps.scenes || [];
+
+    // Claude revises the whole film with the feedback, seeing its current version.
+    // Older per-scene/template projects are re-authored as one continuous film.
+    const existingPath = path.join(projectPaths.remotionRoot, 'src', 'projects', projectId, 'ClaudeVideo.tsx');
+    const previousSource = remotionProps.video?.claudeVideoPath
+      ? await fs.readFile(existingPath, 'utf8').catch(() => undefined)
+      : undefined;
+    remotionProps.video.claudeVideoPath = await this.authorAndStageFullVideo({
       projectId,
       projectTitle: project.title,
-      scriptVersion,
-      previewVersion: Number(project.current_preview_version || 1),
-      visualFeedback,
-      currentTsxSource: currentTsx,
-      compactScenes: remotionProps.scenes || script.scene_plan || [],
+      scenes: sceneList,
+      fps,
+      styleBrief: remotionProps.video?.styleBrief,
+      sfx: { librarySeed: sfxLibrarySeed, scope: sfxScope, pack: sfxPack },
+      feedback: visualFeedback,
+      previousSource,
     });
 
-    // Update the package payload with the revised TSX source
-    packagePayload.tsxSource = revisedBundle.tsxSource;
+    packagePayload.remotionProps = remotionProps;
+    packagePayload.tsxSource = buildGeneratedVideoSource(remotionProps.scenes, remotionProps.video);
     await fs.writeFile(latestPackage.package_path, JSON.stringify(packagePayload, null, 2), 'utf8');
-
-    // Stage the updated TSX into remotion/src/projects/${projectId}/GeneratedVideo.tsx
-    await this.stageProjectRemotionFiles(projectId, revisedBundle.tsxSource);
 
     // Launch a new preview render (this automatically increments preview version to v2, v3, etc.)
     return this.createPreviewRender(projectId, scriptVersion, visualFeedback);
+  }
+
+  /**
+   * Has Claude write the whole film, saves it as the project's ClaudeVideo.tsx,
+   * and turns its declared hit moments into per-scene SFX cues.
+   */
+  private async authorAndStageFullVideo(opts: {
+    projectId: string;
+    projectTitle: string;
+    scenes: any[];
+    fps: number;
+    styleBrief?: any;
+    sfx: { librarySeed: string; scope: { projectId: string; previewVersion: number }; pack: any };
+    feedback?: string;
+    previousSource?: string;
+  }): Promise<string> {
+    const { projectId, scenes, fps, sfx } = opts;
+    const durationInFrames = scenes.reduce((end: number, s: any) => Math.max(end, (s.start ?? s.startFrame ?? 0) + s.durationInFrames), 0);
+    const authored = await unifiedCliProvider.authorFullVideo({
+      projectId,
+      projectTitle: opts.projectTitle,
+      fps,
+      durationInFrames,
+      outroFrames: Math.min(durationInFrames, OUTRO_SECONDS * fps),
+      styleBrief: opts.styleBrief,
+      scenes: scenes.map((s: any) => ({
+        scene_number: s.scene_number,
+        start: s.start ?? s.startFrame ?? 0,
+        durationInFrames: s.durationInFrames,
+        narration: s.narration,
+        on_screen_text: s.on_screen_text,
+        visual_direction: s.visual_direction,
+        motion_cue: s.motion_cue,
+        continuity_to_next: s.continuity_to_next,
+        words: s.words || [],
+      })),
+      feedback: opts.feedback,
+      previousSource: opts.previousSource,
+    });
+
+    const projectDir = path.join(projectPaths.remotionRoot, 'src', 'projects', projectId);
+    await fs.mkdir(projectDir, { recursive: true });
+    await fs.writeFile(path.join(projectDir, `${CLAUDE_VIDEO_FILE}.tsx`), authored.tsxSource, 'utf8');
+
+    if (authored.soundEvents.length > 0) {
+      const roles = ['pop', 'click', 'tick', 'whoosh', 'slide', 'riser', 'impact', 'sparkle', 'chime', 'draw', 'count', 'ding'] as const;
+      for (const scene of scenes) scene.audioCues = [];
+      await Promise.all(authored.soundEvents.map(async (evt, cueIndex) => {
+        const scene = scenes.find((s: any) => {
+          const start = s.start ?? s.startFrame ?? 0;
+          return evt.frame >= start && evt.frame < start + s.durationInFrames;
+        });
+        if (!scene) return;
+        const role = roles.includes(evt.role as any) ? (evt.role as SfxRole) : 'pop';
+        const hitFrame = evt.frame - (scene.start ?? scene.startFrame ?? 0);
+        const cueInfo = await sfxService.getCueForRole(role, `${projectId}:film:${cueIndex}`, fps, sfx.librarySeed, sfx.scope, sfx.pack, 0);
+        scene.audioCues.push({
+          frame: Math.max(0, hitFrame - cueInfo.transientFrames),
+          hitFrame,
+          src: cueInfo.src,
+          role: cueInfo.role,
+          volume: cueInfo.volume,
+          durationFrames: cueInfo.durationFrames,
+          transientMs: cueInfo.transientMs,
+          pan: cueInfo.pan,
+          sourceId: `film.cue-${cueIndex + 1}`,
+        });
+      }));
+      for (const [sceneIndex, scene] of scenes.entries()) {
+        if (!Array.isArray(scene.audioCues) || scene.audioCues.length === 0) {
+          const role: SfxRole = sceneIndex === scenes.length - 1 ? 'chime' : 'pop';
+          const cueInfo = await sfxService.getCueForRole(role, `${projectId}:fallback:${sceneIndex}`, fps, sfx.librarySeed, sfx.scope, sfx.pack, 0);
+          scene.audioCues = [{
+            frame: 0,
+            hitFrame: 0,
+            src: cueInfo.src,
+            role: cueInfo.role,
+            volume: cueInfo.volume,
+            durationFrames: cueInfo.durationFrames,
+            transientMs: cueInfo.transientMs,
+            pan: cueInfo.pan,
+            sourceId: `fallback.cue-${sceneIndex + 1}`,
+          }];
+        }
+        scene.audioCues.sort((a: any, b: any) => a.hitFrame - b.hitFrame);
+      }
+    }
+    return CLAUDE_VIDEO_FILE;
   }
 
   private async stageProjectRemotionFiles(projectId: string, tsxSource: string): Promise<void> {
@@ -827,9 +1144,17 @@ registerRoot(ProjectRoot);
     await fs.writeFile(path.join(projectDir, 'index.ts'), indexCode, 'utf8');
 
     // 4. Also keep legacy GeneratedCliVideo.tsx in root src for compatibility
+    // (the frontend's live preview -- LiveRemotionPreview.tsx -- imports this
+    // shared root copy directly, so its relative imports must resolve from
+    // remotion/src/, not from remotion/src/projects/<id>/ like the isolated
+    // copy above). Per-scene bespoke components only ever exist under this
+    // project's own scenes/ folder, so point there explicitly.
     const rootSrcTsx = tsxSource
       .replace(/from\s+['"]\.\.\/\.\.\/components\/([^'"]+)['"]/g, "from './components/$1'")
-      .replace(/from\s+['"]\.\.\/\.\.\/lib\/([^'"]+)['"]/g, "from './lib/$1'");
+      .replace(/from\s+['"]\.\.\/\.\.\/lib\/([^'"]+)['"]/g, "from './lib/$1'")
+      .replace(/from\s+['"]\.\.\/\.\.\/data\/([^'"]+)['"]/g, "from './data/$1'")
+      .replace(/from\s+['"]\.\/scenes\/([^'"]+)['"]/g, `from './projects/${projectId}/scenes/$1'`)
+      .replace(/from\s+['"]\.\/ClaudeVideo['"]/g, `from './projects/${projectId}/ClaudeVideo'`);
     const generatedTsxPath = path.join(projectPaths.remotionRoot, 'src', 'GeneratedCliVideo.tsx');
     await fs.writeFile(generatedTsxPath, rootSrcTsx, 'utf8');
     console.log(`[RendersService] Project ${projectId} isolated Remotion component and entry staged at ${projectDir}`);
@@ -846,14 +1171,27 @@ registerRoot(ProjectRoot);
       throw new Error('The CLI production package contains invalid Remotion props.');
     }
     props.video.previewVersion = previewVersion;
+    for (const [sceneIndex, scene] of (props.scenes || []).entries()) {
+      if (!Array.isArray(scene.audioCues) || scene.audioCues.length === 0) {
+        scene.audioCues = [{
+          frame: 0,
+          hitFrame: 0,
+          src: '/media/audio/sfx/pop_01.wav',
+          role: sceneIndex === props.scenes.length - 1 ? 'chime' : 'pop',
+          volume: 0.5,
+          durationFrames: 15,
+          transientMs: 20,
+          pan: 0,
+          sourceId: `fallback.cue-${sceneIndex + 1}`,
+        }];
+      }
+    }
     const renderDataPath = projectPaths.renderData(projectId, 'preview', previewVersion);
     await fs.mkdir(projectPaths.renderDataDir, { recursive: true });
     await fs.writeFile(renderDataPath, JSON.stringify(props, null, 2), 'utf8');
 
-    // Stage the TSX source code into isolated project folder and legacy fallback
-    if (packagePayload.tsxSource) {
-      await this.stageProjectRemotionFiles(projectId, packagePayload.tsxSource);
-    }
+    // Rebuild wiring from the scene list so older packages pick up the current timeline/outro.
+    await this.stageProjectRemotionFiles(projectId, buildGeneratedVideoSource(props.scenes, props.video));
 
     // Always derive global frames from scene-local Remotion cues. Older
     // packages stored local frames in `audio`; trusting them shifts later
@@ -917,45 +1255,10 @@ registerRoot(ProjectRoot);
     const propsPath = await this.writeRemotionSceneData(projectId, projectResult.rows[0].title, approvedScript, previewVersion, 'preview', audioProgress);
     const remotionProps = JSON.parse(await fs.readFile(propsPath, 'utf8'));
 
-    // 2. CLI generates content-specific Remotion TSX code aligned to the measured audio timestamps
-    await publishPackageProgress(52, 'CLI authoring scene-specific Remotion TSX code aligned to audio...');
-    const productionBundle = await unifiedCliProvider.generateApprovedProductionPackage({
-      projectId,
-      projectTitle: projectResult.rows[0].title,
-      scriptVersion,
-      scenePlan: approvedScript.scene_plan,
-      measuredScenes: remotionProps.scenes,
-      styleBrief: remotionProps.video?.styleBrief,
-    });
-
-    // 3. Merge visual metadata & audio design cues into Remotion props
-    if (Array.isArray(productionBundle.scenes) && productionBundle.scenes.length === remotionProps.scenes.length) {
-      remotionProps.scenes = remotionProps.scenes.map((s: any, idx: number) => {
-        const prod = productionBundle.scenes![idx] || {};
-        return {
-          ...s,
-          visual_type: prod.visual_type || s.visual_type,
-          nodes: prod.nodes || s.nodes,
-          labels: prod.labels || s.labels,
-          edges: prod.edges || s.edges,
-          emphasis_word: prod.emphasis_word || s.emphasis_word,
-          icon: prod.icon || s.icon,
-          stat_value: prod.stat_value || s.stat_value,
-        };
-      });
-    }
-
-    if (productionBundle.audioDesign?.scenes?.length) {
-      productionBundle.audioDesign.scenes.forEach((adScene: any, idx: number) => {
-        if (remotionProps.scenes[idx]) {
-          remotionProps.scenes[idx].production_audio_design = adScene;
-          if (Array.isArray(adScene.cues) && adScene.cues.length > 0) {
-            remotionProps.scenes[idx].audioCues = adScene.cues;
-          }
-        }
-      });
-    }
-    await fs.writeFile(propsPath, JSON.stringify(remotionProps, null, 2), 'utf8');
+    // 2. Visuals render deterministically from the same visual_blueprint/motion_plan
+    // that the SFX cues above were already anchored to -- no second, blind LLM call
+    // re-invents the picture, so sound and motion can never drift apart again.
+    await publishPackageProgress(52, 'Staging deterministic blueprint renderer...');
     const cueManifest = this.buildCueManifestFromProps(remotionProps);
     await fs.writeFile(`${propsPath}.cues.json`, JSON.stringify(cueManifest, null, 2), 'utf8');
 
@@ -963,21 +1266,34 @@ registerRoot(ProjectRoot);
     let manifest: any = {};
     try { manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8')); } catch { /* procedural-only projects have no manifest */ }
 
-    // 4. Validate & stage production package
+    // 3. Validate & stage production package
     await productionPackageService.receive(projectId, Number(packageRow.package_version), {
       generatedBy: unifiedCliProvider.name,
-      tsxSource: productionBundle.tsxSource,
+      tsxSource: buildGeneratedVideoSource(remotionProps.scenes, remotionProps.video),
       remotionProps,
       assets: manifest.assets || [],
-      audio: this.buildCueManifestFromProps(remotionProps),
+      audio: cueManifest,
       captions: remotionProps.video.captions || [],
-      productionDesign: productionBundle.audioDesign,
     });
 
     await publishPackageProgress(58, 'Animation package prepared; launching preview render...');
     await this.createPreviewRender(projectId, scriptVersion);
     } catch (err: any) {
       await query(`UPDATE production_packages SET status = 'failed', error_message = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [packageRow.id, err?.message || 'Production preparation failed']);
+      await query(`UPDATE projects SET stage = 'failed', status = 'Active CLI production package failed', updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [projectId]);
+      realtime.publish({
+        type: 'pipeline_progress',
+        projectId,
+        stage: 'failed',
+        progress: 100,
+        status: `Active CLI production package failed: ${(err?.message || '').slice(0, 100)}`
+      });
+      realtime.publish({
+        type: 'project_updated',
+        projectId,
+        stage: 'failed',
+        status: 'Active CLI production package failed'
+      });
       throw err;
     }
   }
@@ -987,7 +1303,8 @@ registerRoot(ProjectRoot);
     projectId: string,
     previewVersion: number,
     projectTitle: string,
-    script: any
+    script: any,
+    visualFeedback?: string
   ): Promise<void> {
     try {
       await query(
@@ -1017,6 +1334,19 @@ registerRoot(ProjectRoot);
       const previewProps = JSON.parse(await fs.readFile(propsPath, 'utf8'));
       const previewDiskPath = path.join(projectPaths.backendMedia, 'previews', `${projectId}_preview_v${previewVersion}.mp4`);
       await preflightRenderProps(propsPath);
+      const drawingStyle = await this.projectDrawingStyle(projectId);
+      if (drawingStyle) {
+        // Full-resolution agent build; the approved preview becomes the final video unchanged.
+        await this.buildDrawnVideoWithAgent({
+          projectId,
+          projectTitle,
+          propsPath,
+          outputMp4: previewDiskPath,
+          style: drawingStyle,
+          feedback: visualFeedback,
+          onProgress: publishPreviewProgress,
+        });
+      } else {
       await publishPreviewProgress(50, 'Preflight verified. Initializing Remotion motion renderer...');
       await videoRenderer.renderVideo({
         projectId,
@@ -1031,92 +1361,14 @@ registerRoot(ProjectRoot);
           await publishPreviewProgress(progress, status);
         },
       });
-      await publishPreviewProgress(92, 'Headless render complete; extracting scene stills for visual audit...');
-
-      // Extract scene midpoint stills in ~150ms using ffmpeg
-      const stillsDir = path.join(projectPaths.backendMedia, 'projects', projectId, 'previews', `v${previewVersion}`, 'stills');
-      await fs.mkdir(stillsDir, { recursive: true });
-      const stillFiles: string[] = [];
-      let offset = 0;
-      for (let idx = 0; idx < previewProps.scenes.length; idx++) {
-        const sc = previewProps.scenes[idx];
-        const midpointFrame = offset + Math.floor((sc.durationInFrames || 90) / 2);
-        offset += (sc.durationInFrames || 90);
-        const timeSec = (midpointFrame / (previewProps.video.fps || 30)).toFixed(2);
-        const stillTarget = path.join(stillsDir, `scene_${String(idx + 1).padStart(2, '0')}.png`);
-        try {
-          await execFileAsync('ffmpeg', [
-            '-v', 'error', '-y',
-            '-ss', timeSec,
-            '-i', previewDiskPath,
-            '-vframes', '1',
-            '-q:v', '2',
-            stillTarget
-          ], { timeout: 15000 });
-          stillFiles.push(stillTarget);
-        } catch {}
       }
-
-      // Autonomous Visual Audit & Self-Repair Gate (Active on preview v1)
-      if (previewVersion === 1 && stillFiles.length > 0) {
-        await publishPreviewProgress(94, 'AGY Visual QA Director auditing rendered scene stills...');
-        const latestPackage = await productionPackageService.latestReady(projectId, script.version);
-        let currentTsx: string | null = null;
-        let packagePayload: any = null;
-        if (latestPackage?.package_path) {
-          try {
-            packagePayload = JSON.parse(await fs.readFile(latestPackage.package_path, 'utf8'));
-            currentTsx = packagePayload.tsxSource;
-          } catch {}
-        }
-        if (!currentTsx) {
-          try {
-            const projectTsxPath = path.join(projectPaths.remotionRoot, 'src', 'projects', projectId, 'GeneratedVideo.tsx');
-            currentTsx = await fs.readFile(projectTsxPath, 'utf8');
-          } catch {}
-        }
-        if (currentTsx) {
-          try {
-            const audit = await unifiedCliProvider.auditAndSelfCorrectPreview({
-              projectId,
-              projectTitle,
-              previewVersion,
-              currentTsxSource: currentTsx,
-              stillImages: stillFiles,
-              compactScenes: previewProps.scenes,
-            });
-
-            if (!audit.approved && audit.revisedTsx) {
-              console.log(`[RendersService] AGY Visual Audit requested automatic revision: "${audit.summary}". Launching Preview v2...`);
-              await publishPreviewProgress(96, `AGY visual audit: self-repairing layout -> launching Preview v2`);
-
-              // Update package payload with repaired TSX
-              if (latestPackage?.package_path) {
-                const pkg = packagePayload || JSON.parse(await fs.readFile(latestPackage.package_path, 'utf8'));
-                pkg.tsxSource = audit.revisedTsx;
-                await fs.writeFile(latestPackage.package_path, JSON.stringify(pkg, null, 2), 'utf8');
-              }
-
-              // Stage repaired files
-              await this.stageProjectRemotionFiles(projectId, audit.revisedTsx);
-
-              // Launch Preview v2 automatically
-              await this.createPreviewRender(projectId, script.version, audit.summary);
-              return; // End v1 gracefully as v2 takes over
-            }
-          } catch (auditErr: any) {
-            console.warn(`[RendersService] AGY visual audit non-fatal error: ${auditErr.message}`);
-          }
-        }
-      }
-
       await query(
         `UPDATE render_jobs
          SET status = 'completed', progress = 100, updated_at = CURRENT_TIMESTAMP
          WHERE id = $1`,
         [renderJobId]
       );
-      realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress: 100, status: 'Preview verified by AGY visual audit and ready for review' });
+      realtime.publish({ type: 'render_progress', projectId, renderJobId, renderType: 'preview', previewVersion, progress: 100, status: 'Preview ready for review' });
       const latestPackage = await productionPackageService.latestReady(projectId, script.version);
       if (latestPackage) {
         await productionPackageService.saveDonePackage(
@@ -1127,46 +1379,24 @@ registerRoot(ProjectRoot);
         ).catch(() => {});
       }
 
-      // Auto-save directly into videos folder as final video
-      const finalDiskPath = path.join(projectPaths.backendMedia, 'videos', `${projectId}_final.mp4`);
-      await fs.mkdir(path.dirname(finalDiskPath), { recursive: true });
-      await fs.copyFile(previewDiskPath, finalDiskPath).catch(() => {});
-      const finalVideoUrl = `/media/videos/${projectId}_final.mp4`;
-      let fileSize = 0;
-      try {
-        const stats = await fs.stat(previewDiskPath);
-        fileSize = stats.size;
-      } catch {}
-      const durationSeconds = previewProps?.video?.durationInFrames && previewProps?.video?.fps
-        ? previewProps.video.durationInFrames / previewProps.video.fps
-        : 30;
-
-      await query(
-        `INSERT INTO videos (
-          project_id, render_job_id, storage_url, preview_version_approved, script_version_approved, duration_seconds, file_size_bytes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-        ON CONFLICT DO NOTHING`,
-        [projectId, renderJobId, finalVideoUrl, previewVersion, script.version, durationSeconds, fileSize]
-      ).catch(() => {});
-
       await query(
         `UPDATE projects
-         SET stage = 'completed', status = 'Completed', updated_at = CURRENT_TIMESTAMP
+         SET stage = 'preview_review', status = 'Preview ready for review', updated_at = CURRENT_TIMESTAMP
          WHERE id = $1`,
         [projectId]
       );
       realtime.publish({
         type: 'pipeline_progress',
         projectId,
-        stage: 'completed',
+        stage: 'preview_review',
         progress: 100,
-        status: `Video rendered and ready: ${finalDiskPath}`
+        status: 'Preview ready for review'
       });
       realtime.publish({
         type: 'project_updated',
         projectId,
-        stage: 'completed',
-        status: 'Completed'
+        stage: 'preview_review',
+        status: 'Preview ready for review'
       });
     } catch (err: any) {
       const errorMessage = formatRenderFailure(err);
@@ -1226,11 +1456,9 @@ registerRoot(ProjectRoot);
     });
     await preflightRenderProps(renderPropsPath);
 
-    const approvedPackage = await productionPackageService.latestReady(projectId, scriptVersion);
-    if (approvedPackage?.package_path) {
-      const bundle = JSON.parse(await fs.readFile(approvedPackage.package_path, 'utf8'));
-      if (typeof bundle.tsxSource !== 'string') throw new Error('The approved production package is missing its Remotion entry component.');
-      await this.stageProjectRemotionFiles(projectId, bundle.tsxSource);
+    const drawingStyle = getDrawingStyle(project.drawing_style);
+    if (!drawingStyle) {
+      await this.stageProjectRemotionFiles(projectId, buildGeneratedVideoSource(previewProps.scenes, previewProps.video));
     }
 
     // Real output path on disk
@@ -1274,6 +1502,13 @@ registerRoot(ProjectRoot);
         });
       };
 
+      if (drawingStyle) {
+        // The agent already rendered the approved preview at full 1080x1920 quality; finalize that exact file.
+        await publishFinalProgress(10, 'Finalizing the approved hand-drawn video...');
+        const approvedPreview = path.join(projectPaths.backendMedia, 'previews', `${projectId}_preview_v${previewVersion}.mp4`);
+        await fs.mkdir(path.dirname(diskPath), { recursive: true });
+        await fs.copyFile(approvedPreview, diskPath);
+      } else {
       await publishFinalProgress(10, 'Initializing 1080p final production render...');
       await videoRenderer.renderVideo({
         projectId,
@@ -1287,6 +1522,7 @@ registerRoot(ProjectRoot);
           await publishFinalProgress(progress, status);
         },
       });
+      }
       await publishFinalProgress(98, 'Finalizing audio normalization & quality verification...');
       await query(`UPDATE render_jobs SET status = 'completed', progress = 100, updated_at = CURRENT_TIMESTAMP WHERE id = $1`, [renderJobRes.rows[0].id]);
       realtime.publish({

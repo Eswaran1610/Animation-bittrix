@@ -252,8 +252,8 @@ export function App() {
   };
 
   // Handle creating a project
-  const handleCreateProject = async (content: string, type: 'text' | 'topic' | 'url', title?: string, durationSec?: number, themeId?: string) => {
-    const newProj = await api.createProject(content, type, title, durationSec, themeId);
+  const handleCreateProject = async (content: string, type: 'text' | 'topic' | 'url', title?: string, durationSec?: number, themeId?: string, drawingStyle?: string) => {
+    const newProj = await api.createProject(content, type, title, durationSec, themeId, drawingStyle);
     // Instantly append new project so it immediately renders in dashboard
     setProjects((prev) => {
       const exists = prev.some((p) => p.id === newProj.id);

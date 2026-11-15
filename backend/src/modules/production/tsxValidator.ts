@@ -44,7 +44,7 @@ const ALLOWED_MODULE_PREFIXES = [
 ];
 
 export class TsxValidator {
-  async validate(tsxSource: string, options?: { maxFrames?: number; fps?: number }): Promise<TsxValidationResult> {
+  async validate(tsxSource: string, options?: { maxFrames?: number; fps?: number; projectId?: string }): Promise<TsxValidationResult> {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -78,9 +78,12 @@ export class TsxValidator {
 
       // If it's a relative path, verify it physically resolves on disk
       if (moduleName.startsWith('./') || moduleName.startsWith('../')) {
+        // Candidate 2 simulates the file living at its real staged depth
+        // (remotion/src/projects/<id>/...) -- this is where per-project
+        // entries (and their own ./scenes/SceneNN siblings) actually live.
         const candidates = [
           path.resolve(projectPaths.remotionRoot, 'src', moduleName),
-          path.resolve(projectPaths.remotionRoot, 'src/projects/sample', moduleName),
+          path.resolve(projectPaths.remotionRoot, 'src/projects', options?.projectId || 'sample', moduleName),
           path.resolve(projectPaths.remotionRoot, 'src', moduleName.replace(/^\.\.\/\.\.\//, './')),
           path.resolve(projectPaths.remotionRoot, 'src', moduleName.replace(/^\.\//, '../../')),
         ];
@@ -99,7 +102,7 @@ export class TsxValidator {
       errors.push('TSX must have a default export or export GeneratedCliVideo as a React component.');
     }
 
-    // 4. In-memory TypeScript & JSX syntax compilation check via esbuild
+    // 4. In-memory TypeScript & JSX syntax compilation check via esbuild with line context
     try {
       await transform(tsxSource, {
         loader: 'tsx',
@@ -108,16 +111,33 @@ export class TsxValidator {
         sourcemap: false,
       });
     } catch (syntaxErr: any) {
-      const msg = syntaxErr.errors?.[0]?.text || syntaxErr.message || 'Syntax/Type compilation error';
-      const line = syntaxErr.errors?.[0]?.location?.line;
-      const column = syntaxErr.errors?.[0]?.location?.column;
+      const errItem = syntaxErr.errors?.[0];
+      const msg = errItem?.text || syntaxErr.message || 'Syntax/Type compilation error';
+      const line = errItem?.location?.line;
+      const column = errItem?.location?.column;
+      let contextSnippet = '';
+      if (line) {
+        const sourceLines = tsxSource.split('\n');
+        const start = Math.max(0, line - 3);
+        const end = Math.min(sourceLines.length, line + 2);
+        contextSnippet = '\nContext around error:\n' + sourceLines.slice(start, end).map((l, i) => `${start + i + 1 === line ? ' > ' : '   '}${start + i + 1}: ${l}`).join('\n');
+      }
       const loc = line ? ` (line ${line}, col ${column})` : '';
-      errors.push(`TSX syntax/compilation failed${loc}: ${msg}`);
+      errors.push(`TSX syntax/compilation failed${loc}: ${msg}${contextSnippet}`);
     }
 
     // 5. Deterministic Remotion animation conventions
+    if (/\bMath\.random\s*\(/.test(tsxSource)) {
+      errors.push('TSX calls non-deterministic Math.random(). Use remotion\'s random(seed) instead so renders are deterministic.');
+    }
+
     if (!tsxSource.includes('useCurrentFrame') && !tsxSource.includes('MainVideo')) {
       warnings.push('TSX does not directly call useCurrentFrame(). Ensure animation is deterministic.');
+    }
+
+    // 6. Audio tag check: master audio is managed at composition root
+    if (/<Audio\b/.test(tsxSource)) {
+      warnings.push('TSX renders an <Audio /> component directly. Master audio track is managed at the composition root.');
     }
 
     // 6. Anti-Placeholder and Anti-Meta-Clutter check (Corrections 2 & 8)

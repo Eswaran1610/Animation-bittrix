@@ -1,0 +1,160 @@
+TASK: Make the pipeline produce the SAME video quality as running Claude Code directly in the terminal
+=====================================================================================================
+
+GOAL
+----
+After the user confirms the script on the dashboard, the backend must:
+  1. Generate the voice + Whisper word timestamps (already exists).
+  2. Launch Claude Code as a FULL AGENT (multi-turn, can write files, run renders,
+     look at frames and fix its own mistakes) - exactly like typing in the terminal.
+  3. Claude writes the project TSX, renders preview + final, and saves the mp4 to a fixed path.
+  4. Backend only VERIFIES the mp4 and returns its path -> dashboard plays it.
+
+The backend must NOT parse Claude's text into TSX, NOT rebuild/override TSX, and NOT
+apply template visuals after Claude finishes. Claude is the only author.
+
+
+ROOT CAUSE (why pipeline video is worse today)
+----------------------------------------------
+A. backend/src/modules/providers/cliProvider.ts (~line 218-220, runGenericCliPlan, and
+   ~line 288-290, runText) spawns:
+       claude -p <prompt> --output-format json --dangerously-skip-permissions --model opus --safe-mode
+   * `--safe-mode` DISABLES CLAUDE.md / AGENTS.md, skills, plugins, hooks, MCP, memory.
+     Claude never sees the project rules.
+   * `--output-format json` + "Return ONLY one ```tsx code fence" (authorFullVideo, ~line 368-440)
+     makes Claude a one-shot text generator. It never renders, never sees the output, never fixes.
+B. Timeout default 600000 ms (10 min) is too short for an agentic build+render loop.
+C. rendersService.ts then parses/stages the TSX (authorAndStageFullVideo ~line 822,
+   stageProjectRemotionFiles ~line 889) and renders it itself - Claude has no feedback loop.
+
+
+CHANGES TO MAKE
+---------------
+
+1) NEW METHOD in backend/src/modules/providers/cliProvider.ts
+   ----------------------------------------------------------
+   Add `async runClaudeAgentBuild(input)`:
+
+   input = {
+     projectId: string,
+     projectTitle: string,
+     fps: number,                 // 30
+     scriptPath: string,          // locked script JSON (absolute)
+     alignmentPath: string,       // scenes + Whisper word timestamps JSON (absolute)
+     audioPath: string,           // final mixed voice audio (absolute)
+     outputMp4: string,           // frontend/public/projects/<projectId>/final.mp4 (absolute)
+     previewMp4: string,          // frontend/public/projects/<projectId>/preview_vN.mp4 (absolute)
+     feedback?: string,           // dashboard revision notes, optional
+     onEvent?: (evt: any) => void // live progress to dashboard
+   }
+
+   Spawn (use existing spawnProcess style, cwd MUST stay projectPaths.root so AGENTS.md is loaded):
+
+     claude -p "<AGENT_PROMPT>" \
+       --model ${CLAUDE_MODEL || 'opus'} \
+       --dangerously-skip-permissions \
+       --output-format stream-json --verbose
+
+   RULES:
+     * DO NOT pass `--safe-mode`.
+     * DO NOT pass `--bare`.
+     * Parse stdout line-by-line (each line is a JSON event). Forward assistant text / tool
+       use summaries to input.onEvent so the dashboard shows live progress.
+     * The final `{"type":"result", ...}` event contains `result` text. Look for a line
+       `DONE <absolute path>`. If missing -> treat as failure.
+     * Timeout: env CLAUDE_AGENT_TIMEOUT_MS, default 2700000 (45 min).
+     * Kill the whole process tree on timeout/cancel (reuse signalProcessTree / activeChildren).
+
+   AGENT_PROMPT (fill the ${...} values; no hardcoded project names):
+
+     Build the final video for project ${projectId} ("${projectTitle}").
+     Follow every rule in AGENTS.md in this repo.
+
+     Inputs (locked, do not modify):
+       - Script:     ${scriptPath}
+       - Alignment:  ${alignmentPath}   (scene start/frames + Whisper word timestamps)
+       - Audio:      ${audioPath}
+
+     Do this:
+       1. Read the inputs. Scene timing comes ONLY from the alignment file.
+          Caption WORDS come from the script (exact wording); caption TIMING from Whisper.
+       2. Write remotion/src/projects/${projectId}/GeneratedVideo.tsx (and Composition/Root/index
+          in that folder if needed). Only touch files inside that folder.
+       3. Render a 540x960 preview to ${previewMp4}. Extract frames, inspect them, check sync,
+          captions, motion and safe margins. Fix and re-render (max 3 preview retries).
+       4. Render the 1080x1920 @ ${fps}fps final to ${outputMp4}.
+       5. Verify with ffprobe that video duration == audio duration within 1 frame.
+     ${feedback ? 'Revision feedback from the user: ' + feedback : ''}
+
+     When finished, print exactly one last line:
+       DONE ${outputMp4}
+     If you cannot finish, print exactly one last line:
+       FAILED <short reason>
+
+
+2) WIRE IT IN backend/src/modules/renders/rendersService.ts
+   --------------------------------------------------------
+   * In processPreviewRender (~line 1119) and createFinalRender (~line 1248), when the
+     active provider is 'claude' (activeProviderService.get() === 'claude'):
+       a. Ensure voice audio + alignment JSON exist (use existing audio stage and
+          buildMeasuredCaptions ~line 135 for Whisper). Write the alignment JSON to
+          backend media / project folder and pass its absolute path.
+       b. Call cliProvider.runClaudeAgentBuild(...) instead of
+          authorAndStageFullVideo / stageProjectRemotionFiles / own Remotion render.
+       c. Forward onEvent -> realtime.publish({ type: 'render_progress', ... status: <text> })
+          and update render_jobs.progress gradually.
+   * Keep the old path for 'agy' / 'codex' providers unchanged (do not delete it).
+   * Increase Whisper execFile timeout from 30000 to 180000 ms (30s is too short for
+     longer audio).
+
+
+3) VERIFY + RETURN PATH (backend, after Claude prints DONE)
+   --------------------------------------------------------
+   * File exists and size > 0.
+   * ffprobe: width=1080, height=1920, fps=30.
+   * |videoDuration - audioDuration| <= 1/fps.
+   * If any check fails: mark job failed with the reason (optionally re-run the agent ONCE
+     with feedback = the failed check). Never patch the video in the backend.
+   * On success:
+       - Store web path `/projects/<projectId>/final.mp4` in the videos table / VideoRecord.
+       - In backend/src/modules/pipeline/autonomousPipelineService.ts set
+         job.videoUrl = that path (same place FINAL_VIDEO: is handled, ~line 191-196).
+       - Return URL with cache-buster: `/projects/<projectId>/final.mp4?v=<Date.now()>`
+         so the dashboard never shows a stale cached video.
+
+
+4) DASHBOARD (frontend)
+   --------------------
+   * Video player src = job.videoUrl / VideoRecord url from the API. Never build the path
+     on the frontend.
+   * Show the live progress text from render_progress events while Claude is working.
+
+
+5) ENV / CONFIG
+   ------------
+   Add to backend .env.example:
+     CLAUDE_MODEL=opus
+     CLAUDE_AGENT_TIMEOUT_MS=2700000
+     WHISPER_MODEL=base
+
+
+DO NOT
+------
+* Do not hardcode any project ID, title or file name.
+* Do not keep `--safe-mode` for the claude agent build.
+* Do not parse a ```tsx fence from Claude in the new path.
+* Do not re-stage, re-validate-and-rewrite, or override Claude's TSX after it runs.
+* Do not delete the agy/codex code paths.
+* Do not modify AGENTS.md.
+
+
+ACCEPTANCE TEST
+---------------
+1. Start backend + frontend. Set active provider = claude.
+2. Create a project, confirm the script on the dashboard.
+3. Dashboard shows live progress lines from Claude (writing TSX, rendering, checking frames).
+4. When done, file frontend/public/projects/<projectId>/final.mp4 exists, 1080x1920, 30fps,
+   duration matches audio within 1 frame.
+5. Dashboard plays that video automatically from job.videoUrl.
+6. Visual quality is comparable to running the same prompt manually:
+     cd <repo> && claude   (then paste the AGENT_PROMPT)

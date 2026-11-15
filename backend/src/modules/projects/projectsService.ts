@@ -16,7 +16,8 @@ export class ProjectsService {
     if (!this.styleColumnReady) {
       this.styleColumnReady = query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS style_signature TEXT`)
         .then(() => query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS requested_duration_sec INT`))
-        .then(() => query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS theme_id TEXT`).then(() => undefined))
+        .then(() => query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS theme_id TEXT`))
+        .then(() => query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS drawing_style TEXT`).then(() => undefined))
         .catch((error) => {
           this.styleColumnReady = undefined;
           throw error;
@@ -28,15 +29,15 @@ export class ProjectsService {
   /**
    * Create a new project and trigger initial research & script generation.
    */
-  async createProject(inputContent: string, inputType: 'text' | 'topic' | 'url', title?: string, requestedDurationSec?: number, themeId?: string): Promise<Project> {
+  async createProject(inputContent: string, inputType: 'text' | 'topic' | 'url', title?: string, requestedDurationSec?: number, themeId?: string, drawingStyle?: string): Promise<Project> {
     await this.ensureMotionUpgrade();
     const derivedTitle = title || inputContent.slice(0, 40).replace(/[\r\n]+/g, ' ') || 'Untitled Animation';
 
     const res = await query(
-      `INSERT INTO projects (title, input_content, input_type, requested_duration_sec, theme_id, stage, status)
-       VALUES ($1, $2, $3, $4, $5, 'research', 'Researching')
+      `INSERT INTO projects (title, input_content, input_type, requested_duration_sec, theme_id, drawing_style, stage, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'research', 'Researching')
        RETURNING *`,
-      [derivedTitle, inputContent, inputType, requestedDurationSec || null, themeId || null]
+      [derivedTitle, inputContent, inputType, requestedDurationSec || null, themeId || null, drawingStyle || null]
     );
 
     const project = res.rows[0];

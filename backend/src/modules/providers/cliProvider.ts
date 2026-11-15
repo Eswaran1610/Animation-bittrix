@@ -8,6 +8,7 @@ import { projectPaths } from '../../config/paths.js';
 import { realtime } from '../../realtime.js';
 import { tsxValidator } from '../production/tsxValidator.js';
 import { getThemeById } from '../themes/themeCatalog.js';
+import { resolveCliBinary } from '../auth/cliBinaryResolver.js';
 
 const activeChildren = new Set<ReturnType<typeof spawn>>();
 
@@ -60,8 +61,8 @@ export class UnifiedCliProvider extends BasePlanProvider {
       return Number.isFinite(configured) ? Math.max(60000, Math.min(900000, Math.round(configured))) : 600000;
     }
     if (active === 'claude') {
-      const configured = Number(process.env[fastCreative ? 'CLAUDE_CREATIVE_TIMEOUT_MS' : 'CLAUDE_TIMEOUT_MS'] || (fastCreative ? 300000 : 600000));
-      return Number.isFinite(configured) ? Math.max(60000, Math.min(900000, Math.round(configured))) : 600000;
+      const configured = Number(process.env[fastCreative ? 'CLAUDE_CREATIVE_TIMEOUT_MS' : 'CLAUDE_TIMEOUT_MS'] || (fastCreative ? 300000 : 900000));
+      return Number.isFinite(configured) ? Math.max(60000, Math.min(1800000, Math.round(configured))) : 900000;
     }
     const configured = Number(process.env[fastCreative ? 'CODEX_CREATIVE_TIMEOUT_MS' : 'CODEX_TIMEOUT_MS'] || (fastCreative ? 180000 : 240000));
     return Number.isFinite(configured) ? Math.max(60000, Math.min(240000, Math.round(configured))) : 240000;
@@ -122,7 +123,7 @@ export class UnifiedCliProvider extends BasePlanProvider {
 
     const printTimeoutMin = Math.max(5, Math.ceil(timeoutMs / 60000));
     const { stdout, stderr, code } = await this.spawnProcess(
-      'agy',
+      resolveCliBinary('agy'),
       [
         '-p', prompt,
         '--model', model,
@@ -203,6 +204,15 @@ export class UnifiedCliProvider extends BasePlanProvider {
 
 
 
+  private resolveClaudeModel(): string {
+    const raw = (process.env.CLAUDE_MODEL || '').trim().toLowerCase();
+    // Default and enforce Claude Opus 5.5
+    if (!raw || raw === 'sonnet' || raw === 'opus' || raw.includes('5.5') || raw.includes('opus')) {
+      return 'claude-opus-5-5';
+    }
+    return process.env.CLAUDE_MODEL || 'claude-opus-5-5';
+  }
+
   // ──────────────────────────────────────────────────
   // Generic / Claude Code Runner
   // ──────────────────────────────────────────────────
@@ -212,8 +222,8 @@ export class UnifiedCliProvider extends BasePlanProvider {
     timeoutMs: number,
     projectId: string | undefined
   ): Promise<{ output: string; tokenUsage: TokenUsage; parsed: any }> {
-    const claudeModel = process.env.CLAUDE_MODEL || 'opus';
-    const resolvedBin = cliBin === 'claude' ? (process.env.CLAUDE_BIN || '/home/inkyank/.local/bin/claude') : cliBin;
+    const claudeModel = this.resolveClaudeModel();
+    const resolvedBin = resolveCliBinary(cliBin);
     const args = ['-p', prompt, '--output-format', 'json', '--dangerously-skip-permissions'];
     if (cliBin === 'claude') {
       args.splice(2, 0, '--model', claudeModel, '--safe-mode');
@@ -262,7 +272,7 @@ export class UnifiedCliProvider extends BasePlanProvider {
     if (active === 'agy') {
       const model = process.env.AGY_MODEL || 'gemini-3.8-flash-medium';
       const printTimeoutMin = Math.max(5, Math.ceil(timeoutMs / 60000));
-      const { stdout, stderr, code } = await this.spawnProcess('agy', [
+      const { stdout, stderr, code } = await this.spawnProcess(resolveCliBinary('agy'), [
         '-p', prompt,
         '--model', model,
         '--output-format', 'json',
@@ -282,8 +292,8 @@ export class UnifiedCliProvider extends BasePlanProvider {
       }
     }
 
-    const resolvedBin = active === 'claude' ? (process.env.CLAUDE_BIN || '/home/inkyank/.local/bin/claude') : active;
-    const claudeModel = process.env.CLAUDE_MODEL || 'opus';
+    const resolvedBin = resolveCliBinary(active);
+    const claudeModel = this.resolveClaudeModel();
     const args = ['-p', prompt, '--output-format', 'json', '--dangerously-skip-permissions'];
     if (active === 'claude') {
       args.splice(2, 0, '--model', claudeModel, '--safe-mode');
@@ -299,326 +309,6 @@ export class UnifiedCliProvider extends BasePlanProvider {
     }
   }
 
-  async generateApprovedProductionPackage(input: {
-    projectId: string;
-    projectTitle: string;
-    scriptVersion: number;
-    scenePlan: any[];
-    measuredScenes?: any[];
-    styleBrief?: any;
-  }): Promise<{ tsxSource: string; audioDesign: { bedMood: string; voiceDirection: string; scenes: Array<{ scene_number: number; cues: Array<{ hitFrame: number; role: string; object_id?: string; reason: string }> }> }; scenes?: any[] }> {
-    const active = activeProviderService.get();
-    const sourceScenes = (input.measuredScenes && input.measuredScenes.length > 0)
-      ? input.measuredScenes
-      : input.scenePlan;
-
-    const compactScenes = sourceScenes.map((scene: any, idx: number) => {
-      const orig = input.scenePlan[idx] || {};
-      const fps = Number(scene.fps || orig.fps || 60);
-      const durationInFrames = Number(scene.durationInFrames || Math.round(Number(orig.duration_sec || 3.5) * fps));
-      return {
-        scene_number: Number(scene.scene_number || idx + 1),
-        role: scene.role || orig.role || (idx === 0 ? 'hook' : idx === sourceScenes.length - 1 ? 'cta' : 'body'),
-        durationInFrames,
-        duration_sec: Number((scene.duration_sec || (durationInFrames / fps)).toFixed(2)),
-        narration: scene.narration || orig.narration || '',
-        on_screen_text: scene.on_screen_text || orig.on_screen_text || orig.title || '',
-        visual_direction: scene.visual_direction || orig.visual_direction || '',
-        template: scene.template || orig.template || 'hero-center',
-        themeColor: scene.themeColor || orig.theme_color || '#22d3ee',
-        words: Array.isArray(scene.words)
-          ? scene.words.map((w: any) => ({
-              word: String(w.word || ''),
-              startFrame: Math.round(Number(w.startFrame || 0)),
-              endFrame: Math.max(Math.round(Number(w.startFrame || 0)) + 1, Math.round(Number(w.endFrame || 0))),
-            }))
-          : [],
-      };
-    });
-
-    const totalFrames = compactScenes.reduce((sum, s) => sum + s.durationInFrames, 0);
-
-    let facelessSkillContext = '';
-    const isFacelessArchetype = input.styleBrief?.archetype === 'faceless-story' || /\b(story|thief|police|chase|heist|drama|what if)\b/i.test(input.projectTitle || '');
-    if (isFacelessArchetype) {
-      try {
-        facelessSkillContext = await readFile(path.join(projectPaths.root, '.agents/skills/faceless-shorts/SKILL.md'), 'utf8');
-      } catch (err: any) {
-        console.warn(`[CliProvider] Note: faceless-shorts skill could not be read: ${err?.message}`);
-      }
-    }
-
-    const themeBrief = input.styleBrief || {};
-    const themePalette = themeBrief.palette || { bg: '#07080e', surface: '#121422', primary: '#38bdf8', accent: '#00f5d4', text: '#ffffff' };
-    const themeFonts = themeBrief.fonts || { heading: 'Inter, system-ui, sans-serif', body: 'Inter, system-ui, sans-serif' };
-
-    const themeDirective = `MANDATORY ANIMATION THEME & COLOR PALETTE SPECIFICATION:
-- Theme Archetype: ${themeBrief.archetype || 'motion-graphics'}
-- Motion Personality: ${themeBrief.motionPersonality || 'snappy spring physics'}
-- Background System: ${themeBrief.background || 'living gradient canvas with particle drift'}
-- Exact Colors:
-  * Background: ${themePalette.bg}
-  * Surface/Cards: ${themePalette.surface}
-  * Primary Brand: ${themePalette.primary}
-  * Secondary Accent: ${themePalette.accent}
-  * Text Color: ${themePalette.text}
-- Typography:
-  * Heading Font: "${themeFonts.heading}"
-  * Body Font: "${themeFonts.body}"
-CRITICAL: Every scene must be styled strictly according to this theme and palette!`;
-
-    const prompt = `You are the Lead Creative Director & Principal Motion Graphics Engineer.
-You have COMPLETE ARTISTIC FREEDOM to design and engineer bespoke Remotion TSX for this vertical 1080x1920 (9:16) video.
-
-PROJECT: "${input.projectTitle}" (ID: ${input.projectId}), Script v${input.scriptVersion}
-OUTPUT FORMAT: 1080 x 1920, 60 FPS, Total Duration: ${totalFrames} frames (${(totalFrames / 60).toFixed(2)}s).
-
-SCENES WITH MEASURED WORD TIMESTAMPS:
-${JSON.stringify(compactScenes, null, 2)}
-
-CREATIVE DIRECTOR PHILOSOPHY:
-You are not bound to rigid templates. Look at the topic "${input.projectTitle}".
-- If it is a STORY, CHILDREN'S ADVENTURE, FAIRY TALE, or WHAT-IF:
-  * Design rich story environments, cute animated characters, colorful props, toy chests, cars, animals, or isometric dioramas.
-  * DO NOT force developer terminals, code syntax diffs, or server telemetry onto a story.
-- If it is a TECH, CODE, ARCHITECTURE, or INFRASTRUCTURE topic:
-  * Design sleek, modern tech micro-UIs (Linear/Claude style), terminals, commit trees, network nodes, and bus lines.
-- If it is a SCIENCE, NATURE, or DOCUMENTARY topic:
-  * Design physical diagrams, biological cross-sections, zoom lenses, and kinetic explanations.
-
-YOU HAVE FULL ACCESS TO MODERN MOTION COMPONENTS (import and use whatever fits the topic):
-import {
-  TerminalWindow,   // (Use for tech/code only)
-  GlassCard,        // (Frosted glass cards, story plaques, telemetry)
-  LaserBusLine,     // (Connection bus lines)
-  GitCommitGraph,   // (Git DAG, branch trees - tech only)
-  TelemetryPill,    // (Status pills, badges)
-  NetworkNodes,     // (Node topologies, constellations)
-  MetricBar,        // (Progress bars, counters, meters)
-  KineticTitle      // (Hero titles with glowing badges)
-} from '../../components/MotionElements';
-import { SyncCaptions } from '../../components/SyncCaptions';
-import { BittrixOutroExact } from '../../components/BittrixOutroExact';
-
-CORE LAWS:
-1. CONTINUOUS LIVING CANVAS & CAMERA:
-   - A video is never a slideshow. The canvas is continuous.
-   - Interpolate a virtual camera (camX, camY, camScale, rot) across scenes to create organic motion.
-   - Use organic spring physics: spring({ frame, fps, config: { damping: 12, stiffness: 120 } }).
-
-2. VERTICAL SAFE MARGINS & CAPTIONS:
-   - Synchronized kinetic karaoke captions from scene.words using <SyncCaptions words={scene.words} currentFrame={frame} accentColor={...} /> placed in the safe zone (bottom > 380px).
-   - Visual focal points should sit in the middle zone (between top 160px and bottom 440px) so nothing clips or collides with captions.
-
-3. MANDATORY FINAL 3 SECONDS BITTRIX TECHNOLOGIES OUTRO:
-   - In the final scene (~last 3 seconds / ~90 frames), render the official Bittrix Technologies outro (<BittrixOutroExact /> or royal purple #5b1a78 branding) with spoken narration & captions: "Follow Bittrix Technologies for more interesting concepts."
-
-OUTPUT FORMAT:
-Return ONLY the working, self-contained Remotion TSX code block in a \`\`\`tsx code fence:
-export default function GeneratedCliVideo(props: any) { ... }
-Do NOT output conversational filler or placeholder stubs. Output only the working TSX code block.
-`;
-
-    let parsed: any = null;
-    let rawResponse = '';
-    const initialTimeoutMs = Math.max(480000, this.providerTimeoutMs());
-    try {
-      rawResponse = await this.runText(prompt, { timeoutMs: initialTimeoutMs, projectId: input.projectId });
-      const jsonMatch = rawResponse.match(/```(?:json)\s*(\{[\s\S]*?\})\s*```/i);
-      if (jsonMatch) {
-        try { parsed = JSON.parse(jsonMatch[1].trim()); } catch {}
-      }
-      if (!parsed) {
-        try { parsed = this.extractJson(rawResponse); } catch {}
-      }
-    } catch (cliErr: any) {
-      console.warn(`[${active.toUpperCase()}] CLI initial generation call failed: ${cliErr.message}. Proceeding to agent repair pass.`);
-    }
-
-    let finalScenes = compactScenes;
-    if (parsed && Array.isArray(parsed.scenePlan) && parsed.scenePlan.length === compactScenes.length) {
-      const planValidation = tsxValidator.validateScenePlan(parsed.scenePlan);
-      if (planValidation.valid) {
-        console.log(`[${active.toUpperCase()}] CLI-generated scene plan passed validation!`);
-        finalScenes = compactScenes.map((s, idx) => ({
-          ...s,
-          ...parsed.scenePlan[idx],
-          durationInFrames: s.durationInFrames,
-          words: s.words,
-        }));
-      } else {
-        console.warn(`[${active.toUpperCase()}] CLI scene plan validation warnings: ${planValidation.errors.join('; ')}`);
-      }
-    }
-
-    let validTsxSource: string | null = null;
-    let lastErrors: string[] = [];
-
-    // 1. Extract from ```tsx or ```typescript or ```jsx code fence
-    const tsxMatch = rawResponse.match(/```(?:tsx|typescript|jsx)\s*([\s\S]*?)```/i);
-    let candidateTsx = tsxMatch ? tsxMatch[1].trim() : null;
-
-    // 2. Also check if JSON had tsxSource
-    if (!candidateTsx && parsed && typeof parsed.tsxSource === 'string' && parsed.tsxSource.trim().length > 0) {
-      candidateTsx = parsed.tsxSource.trim();
-    }
-
-    if (candidateTsx) {
-      if (!candidateTsx.includes('export default') && !candidateTsx.includes('export const GeneratedCliVideo')) {
-        candidateTsx = `${candidateTsx}\n\nexport default GeneratedCliVideo;`;
-      }
-      const val = await tsxValidator.validate(candidateTsx);
-      if (val.valid) {
-        validTsxSource = candidateTsx;
-        console.log(`[${active.toUpperCase()}] Custom AI-generated Remotion TSX code passed validation! Using bespoke code.`);
-      } else {
-        lastErrors = val.errors;
-        console.warn(`[${active.toUpperCase()}] Custom TSX initial validation warnings: ${val.errors.join('; ')}`);
-      }
-    } else {
-      lastErrors = ['Agent did not return a ```tsx code fence in initial response'];
-    }
-
-    // Agent Self-Repair Loop: Per user rule, ZERO template fallbacks. The agent MUST author the code.
-    let repairAttempts = 0;
-    const maxRepairAttempts = 2;
-
-    while (!validTsxSource && repairAttempts < maxRepairAttempts) {
-      repairAttempts++;
-      console.log(`[${active.toUpperCase()}] Requesting agent TSX authoring/repair pass (Attempt ${repairAttempts}/${maxRepairAttempts})...`);
-
-      const repairPrompt = `You are an elite Motion Graphics Software Engineer authoring bespoke Remotion TSX code.
-CRITICAL CONSTRAINT: TEMPLATE FALLBACKS HAVE BEEN PERMANENTLY REMOVED. You as the AI agent MUST author 100% of the Remotion TSX component code yourself.
-
-${candidateTsx ? `Your previous TSX code failed validation with the following errors:\n- ${lastErrors.join('\n- ')}\n\nFix every issue and output the complete, corrected code.` : 'You did not output the required Remotion TSX component in a ```tsx code fence. You must generate the complete component now.'}
-
-PROJECT: "${input.projectTitle}" (ID: ${input.projectId})
-TOTAL DURATION: ${totalFrames} frames @ 60fps (${(totalFrames / 60).toFixed(2)}s)
-
-SCENES WITH MEASURED TIMESTAMPS:
-${JSON.stringify(compactScenes, null, 2)}
-
-STRICT RULES:
-1. Export default component: export default function GeneratedCliVideo(props: any) { ... }
-2. Import from 'remotion': AbsoluteFill, Sequence, spring, interpolate, useCurrentFrame, useVideoConfig
-3. Import Claude-grade micro-UI primitives from '../../components/MotionElements':
-   import { TerminalWindow, GlassCard, LaserBusLine, GitCommitGraph, TelemetryPill, NetworkNodes, MetricBar, KineticTitle } from '../../components/MotionElements';
-   import { SyncCaptions } from '../../components/SyncCaptions';
-   import { BittrixOutroExact } from '../../components/BittrixOutroExact';
-4. Single continuous living canvas with continuous virtual camera interpolation (camX, camY, camScale).
-5. Topic-specific physical visual mechanics for "${input.projectTitle}". ABSOLUTELY ZERO generic 50% border-radius circles or placeholder orbs. Use TerminalWindow, GlassCard, GitCommitGraph, LaserBusLine, etc.
-6. Synchronized kinetic karaoke captions from scene.words using SyncCaptions.
-7. The FINAL SCENE (~last 3s) MUST render the exact Bittrix Technologies royal purple (#5b1a78) outro (<BittrixOutroExact /> or equivalent).
-8. Return ONLY valid, self-contained TypeScript/TSX in a \`\`\`tsx code fence. No explanations, no placeholder stubs.
-`;
-
-      const repairTimeoutMs = Math.max(420000, this.providerTimeoutMs());
-      try {
-        const repairResponse = await this.runText(repairPrompt, { timeoutMs: repairTimeoutMs, projectId: input.projectId });
-        const repMatch = repairResponse.match(/```(?:tsx|typescript|jsx)\s*([\s\S]*?)```/i);
-        candidateTsx = repMatch ? repMatch[1].trim() : null;
-        if (!candidateTsx && repairResponse.includes('import') && repairResponse.includes('GeneratedCliVideo')) {
-          candidateTsx = repairResponse.trim();
-        }
-        if (candidateTsx) {
-          if (!candidateTsx.includes('export default') && !candidateTsx.includes('export const GeneratedCliVideo')) {
-            candidateTsx = `${candidateTsx}\n\nexport default GeneratedCliVideo;`;
-          }
-          const val = await tsxValidator.validate(candidateTsx);
-          if (val.valid) {
-            validTsxSource = candidateTsx;
-            console.log(`[${active.toUpperCase()}] Agent bespoke Remotion TSX code passed validation on attempt ${repairAttempts}!`);
-            break;
-          } else {
-            lastErrors = val.errors;
-            console.warn(`[${active.toUpperCase()}] Agent TSX validation failed on attempt ${repairAttempts}: ${val.errors.join('; ')}`);
-          }
-        } else {
-          lastErrors = ['Agent did not return a ```tsx code fence'];
-        }
-      } catch (err: any) {
-        console.error(`[${active.toUpperCase()}] Agent repair pass failed with error:`, err.message);
-        lastErrors = [err.message];
-      }
-    }
-
-    if (!validTsxSource) {
-      throw new Error(`[UnifiedCliProvider] The AI agent failed to author valid Remotion TSX after ${repairAttempts} attempts (${lastErrors.join('; ')}). Per user rule, template fallbacks are strictly disabled.`);
-    }
-
-    const roles = new Set(['pop', 'click', 'tick', 'whoosh', 'slide', 'riser', 'impact', 'sparkle', 'chime', 'draw', 'count', 'ding']);
-
-    const defaultAudioScenes = compactScenes.map((scene: any, index: number) => {
-      const maxFrame = Math.max(1, scene.durationInFrames - 8);
-      const cues: Array<{ hitFrame: number; role: string; object_id?: string; reason: string }> = [];
-      let lastFrame = -8;
-      const cueHit = Math.min(12, maxFrame);
-      cues.push({ hitFrame: cueHit, role: 'whoosh', reason: 'Scene visual entrance' });
-      if (scene.words && scene.words.length > 2) {
-        const midWord = scene.words[Math.floor(scene.words.length / 2)];
-        if (midWord && midWord.startFrame > cueHit + 10 && midWord.startFrame < maxFrame) {
-          cues.push({ hitFrame: midWord.startFrame, role: 'pop', reason: 'Key emphasis word' });
-        }
-      }
-      return {
-        scene_number: index + 1,
-        cues,
-      };
-    });
-
-    let audioDesign = parsed?.audioDesign;
-    if (!audioDesign || typeof audioDesign.bedMood !== 'string' || typeof audioDesign.voiceDirection !== 'string' || !Array.isArray(audioDesign.scenes) || audioDesign.scenes.length !== compactScenes.length) {
-      audioDesign = {
-        bedMood: 'focused electronic pulse',
-        voiceDirection: 'delivery guidance for the already-approved words; keep natural 1.00x',
-        scenes: defaultAudioScenes,
-      };
-    }
-
-    audioDesign.scenes.forEach((scene: any, index: number) => {
-      const source = compactScenes[index];
-      scene.scene_number = index + 1;
-      if (!Array.isArray(scene.cues)) {
-        scene.cues = [];
-      }
-      const maxFrame = Math.max(1, source.durationInFrames - 8);
-      const rawCues = [...scene.cues]
-        .filter((c: any) => c && typeof c === 'object')
-        .sort((a: any, b: any) => Number(a.hitFrame || 0) - Number(b.hitFrame || 0));
-
-      const sanitizedCues: Array<{ hitFrame: number; role: string; object_id?: string; reason: string }> = [];
-      let previousFrame = -8;
-      for (const cue of rawCues) {
-        let frame = Math.round(Number(cue.hitFrame ?? 0));
-        if (!Number.isFinite(frame)) continue;
-        frame = Math.max(0, Math.min(maxFrame, frame));
-        if (frame - previousFrame < 8) {
-          frame = previousFrame + 8;
-        }
-        if (frame > maxFrame) break;
-        const role = roles.has(cue.role) ? cue.role : 'click';
-        const reason = (typeof cue.reason === 'string' && cue.reason.trim()) ? cue.reason.trim() : 'Scene event cue';
-        sanitizedCues.push({
-          hitFrame: frame,
-          role,
-          object_id: typeof cue.object_id === 'string' ? cue.object_id : '',
-          reason,
-        });
-        previousFrame = frame;
-        if (sanitizedCues.length >= 5) break;
-      }
-      if (sanitizedCues.length === 0) {
-        sanitizedCues.push({ hitFrame: Math.min(10, maxFrame), role: 'whoosh', reason: 'Scene visual entrance' });
-      }
-      scene.cues = sanitizedCues;
-    });
-
-    return { tsxSource: validTsxSource, audioDesign, scenes: finalScenes };
-  }
-
-  // ──────────────────────────────────────────────────
-  // Process Spawner & Error Extraction Helper
-  // ──────────────────────────────────────────────────
   private extractProcessError(bin: string, code: number | null, stdout: string, stderr: string): Error {
     let detail = (stderr || '').trim();
     if (!detail && stdout) {
@@ -680,161 +370,293 @@ STRICT RULES:
   }
 
   /**
-   * Revise the existing bespoke Remotion TSX code based on user visual feedback (Gate 2).
-   * Voiceover audio and scene timings are preserved; only visual animation and styles are adjusted.
+   * Claude writes the ENTIRE video as one continuous Remotion component in a
+   * single pass (like authoring it in claude.ai), with the full script and the
+   * voice-locked timeline in view. The backend only mounts it.
    */
-  async revisePreviewVisuals(input: {
+  async authorFullVideo(input: {
     projectId: string;
     projectTitle: string;
-    scriptVersion: number;
-    previewVersion: number;
-    visualFeedback: string;
-    currentTsxSource: string;
-    compactScenes: any[];
-  }): Promise<{ tsxSource: string }> {
+    fps: number;
+    durationInFrames: number;
+    outroFrames: number;
+    styleBrief?: any;
+    scenes: Array<{
+      scene_number: number;
+      start: number;
+      durationInFrames: number;
+      narration: string;
+      on_screen_text?: string;
+      visual_direction?: string;
+      motion_cue?: string;
+      continuity_to_next?: string;
+      words: Array<{ word: string; startFrame: number; endFrame: number }>;
+    }>;
+    feedback?: string;
+    previousSource?: string;
+  }): Promise<{ tsxSource: string; soundEvents: Array<{ frame: number; role: string; description: string }> }> {
     const active = activeProviderService.get();
-    console.log(`[${active.toUpperCase()}] AI Agent revising visuals for project "${input.projectTitle}" based on user feedback: "${input.visualFeedback}"...`);
+    const { fps, durationInFrames, outroFrames } = input;
+    const outroStart = durationInFrames - outroFrames;
+    const timeline = input.scenes.map((s) => ({
+      scene: s.scene_number,
+      startFrame: s.start,
+      endFrame: s.start + s.durationInFrames,
+      narration: s.narration,
+      headline: s.on_screen_text,
+      visualIdea: s.visual_direction,
+      motionIdea: s.motion_cue,
+      handOffToNext: s.continuity_to_next,
+      words: s.words.map((w) => ({ word: w.word, startFrame: s.start + w.startFrame, endFrame: s.start + w.endFrame })),
+    }));
 
-    const prompt = `You are an elite Motion Graphics Software Engineer & Creative Animation Director.
-The user watched the Preview video (v${input.previewVersion}) and requested VISUAL REVISIONS.
-CRITICAL CONSTRAINT: DO NOT alter the narration text or scene durations, as audio is already recorded and approved.
-Update the Remotion TSX component code to fulfill the user's visual feedback precisely:
+    const brief = `You are a world-class motion designer and senior Remotion engineer. Create a professional, continuous motion-graphics short video for "${input.projectTitle}" -- the quality of a top-tier explainer reel or Apple/Stripe-style product film. Design it as ONE film, not a set of slides.
 
-USER VISUAL FEEDBACK:
-"${input.visualFeedback}"
+THE FILM:
+- 1080x1920 vertical (9:16), ${fps}fps, exactly ${durationInFrames} frames (${(durationInFrames / fps).toFixed(2)}s).
+- The voiceover is already recorded. This is the locked timeline (all frames are ABSOLUTE video frames). Each scene's visuals must show what its narration is saying while it is said:
+${JSON.stringify(timeline, null, 1)}
+${input.styleBrief ? `- Style direction from the plan (interpret it, don't treat it as a template): ${JSON.stringify(input.styleBrief)}` : ''}
+- Frames ${outroStart}-${durationInFrames - 1} (the last ${(outroFrames / fps).toFixed(1)}s) are covered by a fixed Bittrix Technologies logo animation layered on top of your video. Do NOT draw any logo or brand outro; let your visuals resolve naturally underneath by frame ${outroStart}.
 
-PROJECT: "${input.projectTitle}" (ID: ${input.projectId})
-SCENES WITH MEASURED TIMESTAMPS (PRESERVE EXACT TIMINGS & WORDS):
-${JSON.stringify(input.compactScenes, null, 2)}
+CONTINUOUS, NOT A SLIDESHOW (most important):
+- One persistent visual world for the whole film: a shared background/environment and a virtual camera that keeps moving (push-ins, pans, dives) across the scene boundaries.
+- Objects carry over and transform into the next idea (morph, zoom through, split, re-arrange) instead of disappearing and being replaced. The scene boundaries above are timing marks, not cuts.
+- Never: a static card/title page that appears, holds and gets swapped; fade-to-black; blank frames; repeated identical layouts.
+- Motion is continuous for every frame, smooth and eased or spring-driven, with anticipation/overshoot where it helps. No flicker or random jitter.
 
-EXISTING REMOTION TSX CODE:
-\`\`\`tsx
-${input.currentTsxSource}
-\`\`\`
+CONTENT:
+- Build the actual things the narration describes (objects, mechanisms, places, data) as rich SVG/CSS/3D illustrations -- not generic orbs, placeholder shapes, code windows or pipeline UI.
+- Real typographic hierarchy, a restrained palette you choose for this topic, depth (layers, gradients, shadows, parallax).
+- Word-synced captions: show the exact spoken words (no paraphrasing), highlight each word exactly from its startFrame to endFrame with no offset, readable at phone size, inside mobile-safe margins. Read the word timings from props (see contract) so they stay frame-exact.
 
-REQUIREMENTS:
-1. Apply the user's requested visual changes (e.g., colors, typography, 3D elements, diagrams, spring physics, or camera motion).
-2. Ensure all scene sequence timings, karaoke highlight conditions, and Bittrix outro remain intact.
-3. Return ONLY valid, self-contained TypeScript/TSX in a \`\`\`tsx code fence:
-export default function GeneratedCliVideo(props: any) { ... }
-`;
+TECHNICAL CONTRACT:
+1. \`export default function Video(props: { fps: number; durationInFrames: number; scenes: Array<{ scene_number: number; start: number; durationInFrames: number; narration: string; words: Array<{ word: string; startFrame: number; endFrame: number }> }> })\`. In props, scene.start is absolute and each word's startFrame/endFrame is RELATIVE to its scene's start. Use useCurrentFrame()/useVideoConfig() freely; you may use <Sequence>, <AbsoluteFill>, interpolate, spring, Easing, etc.
+2. Never render <Audio>/<Video>/<OffthreadVideo> -- the audio track is mixed separately.
+3. Also \`export const soundEvents = [ ... ]\`: a plain JSON array literal (double-quoted keys/strings) of up to 24 visual hit moments you choreographed across the film, e.g. [{"frame": 42, "role": "click", "description": "key appears"}]. "frame" is an ABSOLUTE integer frame in [0, \${durationInFrames}); role is one of: pop, click, tick, whoosh, slide, riser, impact, sparkle, chime, draw, count, ding. CRITICAL: Do NOT put repetitive generic "whoosh" sounds at scene cuts/transitions. Use object-specific sound roles (pop, click, tick, draw, chime, ding) tied to distinct physical on-screen actions.
+4. Imports only from: react, remotion, @remotion/shapes, @remotion/paths, @remotion/transitions, @remotion/three, three, @react-three/fiber. No relative imports, no fetch, no external URLs/assets, no timers. Deterministic: use remotion's random(seed), never Math.random().
+5. Single self-contained file.
 
-    const timeoutMs = Math.max(480000, this.providerTimeoutMs());
-    const rawResponse = await this.runText(prompt, { timeoutMs, projectId: input.projectId });
+Return ONLY one \`\`\`tsx code fence. No explanation.`;
 
-    const tsxMatch = rawResponse.match(/```(?:tsx|typescript|jsx)\s*([\s\S]*?)```/i);
-    let candidateTsx = tsxMatch ? tsxMatch[1].trim() : null;
-    if (!candidateTsx && rawResponse.includes('import') && rawResponse.includes('GeneratedCliVideo')) {
-      candidateTsx = rawResponse.trim();
+    const prompt = input.feedback && input.previousSource
+      ? `${brief}\n\nREVISION: Below is your current version of this film. Revise it to address this feedback, keeping everything that already works:\n${input.feedback}\n\nCURRENT VERSION:\n\`\`\`tsx\n${input.previousSource}\n\`\`\``
+      : brief;
+
+    const timeoutMs = Math.max(900000, this.providerTimeoutMs(false));
+    console.log(`[${active.toUpperCase()}] Authoring full continuous video for "${input.projectTitle}" (${durationInFrames} frames)...`);
+    let rawResponse = await this.runText(prompt, { timeoutMs, projectId: input.projectId });
+    let parsed = await this.parseFullVideoResponse(rawResponse, durationInFrames);
+
+    const maxAttempts = 2;
+    for (let attempt = 1; !parsed.valid && attempt <= maxAttempts; attempt++) {
+      console.warn(`[${active.toUpperCase()}] Full video invalid (${parsed.errors.join('; ')}); repair attempt ${attempt}/${maxAttempts}...`);
+      const repairPrompt = `${brief}\n\nYour previous version (below) failed validation:\n- ${parsed.errors.join('\n- ')}\n\nFix every issue and return the complete corrected file, keeping the design.\n\nPREVIOUS VERSION:\n\`\`\`tsx\n${parsed.candidate || rawResponse.slice(0, 200000)}\n\`\`\``;
+      rawResponse = await this.runText(repairPrompt, { timeoutMs, projectId: input.projectId });
+      parsed = await this.parseFullVideoResponse(rawResponse, durationInFrames);
     }
 
-    if (!candidateTsx) {
-      throw new Error('[UnifiedCliProvider] AI agent did not return a valid ```tsx code fence for visual revision.');
+    if (!parsed.valid) {
+      throw new Error(`[UnifiedCliProvider] Full video failed validation after ${maxAttempts} repair attempt(s): ${parsed.errors.join('; ')}`);
     }
-
-    if (!candidateTsx.includes('export default') && !candidateTsx.includes('export const GeneratedCliVideo')) {
-      candidateTsx = `${candidateTsx}\n\nexport default GeneratedCliVideo;`;
-    }
-
-    const val = await tsxValidator.validate(candidateTsx);
-    if (!val.valid) {
-      console.warn(`[${active.toUpperCase()}] Revised TSX validation warnings: ${val.errors.join('; ')}`);
-      // Run quick repair pass
-      const repairPrompt = `Your revised TSX code had validation issues:
-- ${val.errors.join('\n- ')}
-
-Fix all issues and return the complete, corrected Remotion TSX in a \`\`\`tsx code fence:
-export default function GeneratedCliVideo(props: any) { ... }`;
-      const repResponse = await this.runText(repairPrompt, { timeoutMs: 180000, projectId: input.projectId });
-      const repMatch = repResponse.match(/```(?:tsx|typescript|jsx)\s*([\s\S]*?)```/i);
-      if (repMatch) candidateTsx = repMatch[1].trim();
-    }
-
-    console.log(`[${active.toUpperCase()}] Visual revisions successfully applied by AI agent!`);
-    return { tsxSource: candidateTsx };
+    console.log(`[${active.toUpperCase()}] Full continuous video authored (${parsed.tsxSource.length} chars, ${parsed.soundEvents.length} sound events).`);
+    return { tsxSource: parsed.tsxSource, soundEvents: parsed.soundEvents };
   }
 
+  private async parseFullVideoResponse(rawResponse: string, durationInFrames: number): Promise<
+    | { valid: true; tsxSource: string; soundEvents: Array<{ frame: number; role: string; description: string }> }
+    | { valid: false; errors: string[]; candidate?: string }
+  > {
+    const fence = rawResponse.match(/```(?:tsx|typescript|jsx|ts)?\s*([\s\S]*?)```/i);
+    const candidate = fence ? fence[1].trim() : (rawResponse.includes('export default') ? rawResponse.trim() : null);
+    if (!candidate) return { valid: false, errors: ['No ```tsx code fence returned.'] };
+
+    const errors: string[] = [];
+    if (!/export\s+default\s+(?:function\s+\w+|\w+\s*;?)/.test(candidate)) errors.push('Missing a default-exported Video component.');
+    if (!/export\s+const\s+soundEvents/.test(candidate)) errors.push('Missing "export const soundEvents = [...]".');
+    if (/<(?:Audio|Video|OffthreadVideo)[\s/>]/.test(candidate)) errors.push('Must not render <Audio>/<Video>/<OffthreadVideo>; audio is mixed separately.');
+    if (/\bMath\.random\s*\(/.test(candidate)) errors.push('Use remotion random(seed) instead of Math.random() so renders are deterministic.');
+    if (/from\s+['"]\.{1,2}\//.test(candidate)) errors.push('Relative imports are not allowed; the file must be self-contained.');
+    const compileCheck = await tsxValidator.validate(candidate);
+    errors.push(...compileCheck.errors);
+    if (errors.length) return { valid: false, errors, candidate };
+
+    let soundEvents: Array<{ frame: number; role: string; description: string }> = [];
+    try {
+      const arr = candidate.match(/export\s+const\s+soundEvents[^=]*=\s*(\[[\s\S]*?\])\s*(?:as\s+const\s*)?;/);
+      if (arr) {
+        const list = JSON.parse(arr[1]);
+        if (Array.isArray(list)) {
+          soundEvents = list
+            .filter((e: any) => e && Number.isFinite(Number(e.frame)) && typeof e.role === 'string')
+            .map((e: any) => ({ frame: Math.round(Number(e.frame)), role: String(e.role), description: String(e.description || '') }))
+            .filter((e) => e.frame >= 0 && e.frame < durationInFrames);
+        }
+      }
+    } catch {
+      // Not valid JSON: the film simply gets no SFX cues.
+    }
+    return { valid: true, tsxSource: candidate, soundEvents };
+  }
+  // ──────────────────────────────────────────────────
+  // Claude agent build (full agent, skills enabled)
+  // ──────────────────────────────────────────────────
   /**
-   * Autonomous Post-Render Visual Audit & Self-Repair Gate
-   *
-   * AGY inspects the rendered scene stills and validates visual hierarchy,
-   * safe margins, topic coherence, and aesthetic quality. If issues are found,
-   * AGY directly authors the corrected TSX to trigger an automatic self-repair render.
+   * Runs Claude Code as a FULL AGENT in the repo root (AGENTS.md + .agents/skills are loaded; no --safe-mode),
+   * so it can write files, run the claude-drawing skill's Python, render, look at frames and fix its own work.
+   * Claude is the only author of the video. The backend only verifies the mp4 it reports with `DONE <path>`.
    */
-  async auditAndSelfCorrectPreview(input: {
+  async runClaudeAgentBuild(input: {
     projectId: string;
     projectTitle: string;
-    previewVersion: number;
-    currentTsxSource: string;
-    stillImages: string[];
-    compactScenes: any[];
-  }): Promise<{ approved: boolean; summary: string; revisedTsx?: string }> {
-    const active = activeProviderService.get();
-    console.log(`[${active.toUpperCase()}] Visual QA Director auditing rendered preview v${input.previewVersion} for "${input.projectTitle}" (${input.stillImages.length} scene stills)...`);
+    fps: number;
+    width: number;
+    height: number;
+    durationInFrames: number;
+    outroFrames: number;
+    propsPath: string;        // locked Remotion props: scenes, Whisper word timings, captions (absolute)
+    audioPath: string;        // final mixed master audio (absolute)
+    outputMp4: string;        // where Claude must write the finished video (absolute)
+    workDir: string;          // scratch dir Claude may use for scene scripts / frames (absolute)
+    drawingStyle: { id: string; label: string; module: string; cls: string; example: string };
+    skillDir: string;         // .agents/skills/claude-drawing (absolute)
+    feedback?: string;
+    onEvent?: (evt: { kind: 'text' | 'tool' | 'result'; text: string }) => void;
+  }): Promise<{ outputMp4: string; log: string }> {
+    const { fps, width, height, durationInFrames, outroFrames } = input;
+    const durationSec = durationInFrames / fps;
+    const outroStart = durationInFrames - outroFrames;
+    const style = input.drawingStyle;
+    const prompt = `Build the final video for project ${input.projectId} ("${input.projectTitle}").
+Follow every rule in AGENTS.md in this repo. The user picked a hand-drawn look, so the visuals are painted with the
+claude-drawing skill: read ${input.skillDir}/SKILL.md first (its workflow, the API section for the chosen style, its
+pitfall list and the "做成动画 / animation" section), then follow it.
 
-    const prompt = `You are an elite Motion Graphics Art Director and Senior Remotion Software Engineer.
-Perform an AUTONOMOUS VISUAL AUDIT of the rendered preview video (v${input.previewVersion}) for project "${input.projectTitle}".
+CHOSEN DRAWING STYLE: ${style.label}
+  - painter: ${input.skillDir}/${style.module} (class ${style.cls})
+  - quality reference to copy and adapt: ${input.skillDir}/${style.example}
+  Use ONLY this style for every scene. No image model, no stock images: every picture is painted by code with the skill's lib.
 
-RENDERED SCENE STILLS AVAILABLE ON DISK:
-${input.stillImages.map((img, i) => `- Scene ${i + 1}: ${img}`).join('\n')}
+INPUTS (locked, do not modify):
+  - Props / timeline: ${input.propsPath}
+      video.fps, video.durationInFrames, video.captions (absolute word frames), scenes[] with start/startFrame,
+      durationInFrames, narration, on_screen_text, visual_direction and per-scene words (frames relative to the scene).
+  - Master audio (narration + SFX + bed, already mixed): ${input.audioPath}
 
-CURRENT REMOTION TSX SOURCE CODE:
-\`\`\`tsx
-${input.currentTsxSource}
-\`\`\`
+OUTPUT: ${width}x${height}, ${fps}fps, exactly ${durationInFrames} frames (${durationSec.toFixed(2)}s), H.264 yuv420p + AAC,
+written to ${input.outputMp4}. Scratch files go in ${input.workDir} only. Do not edit backend/, frontend/ or other projects.
 
-SCENE TIMELINE & ROLES:
-${JSON.stringify(input.compactScenes, null, 2)}
+DO THIS:
+  1. Read the props. Scene timing comes ONLY from the props (scene start + durationInFrames). Caption WORDS are the
+     exact script words; caption TIMING is the Whisper word frames.
+  2. For each scene write a scene script in ${input.workDir} (copy the reference example, set the canvas to ${width}x${height})
+     that paints what that scene's narration says, with stage('...') calls in drawing order. Render it with
+     --stages so each scene yields its draw-on stage PNGs + final. Open the PNGs and fix them against the style's
+     pitfall list (2-4 rounds, only the most visible problem per round).
+  3. Animate: assemble the stage images into frames so each scene is visibly DRAWN ON across its exact frame window
+     (stroke/area reveals and dissolves between stages, gentle continuous camera drift, the finished picture held
+     briefly before the next scene; carry the paper/background across scene boundaries -- no hard cuts to black).
+  4. Burn in word-synced captions inside mobile-safe margins: exact words, each word highlighted from its startFrame
+     to endFrame, styled to match the drawing style.
+  5. Frames ${outroStart}-${durationInFrames - 1} (last ${(outroFrames / fps).toFixed(1)}s) must be the Bittrix Technologies outro
+     (AGENTS.md section 18): render those frames from remotion/src/components/BittrixOutroExact.tsx with Remotion
+     (e.g. a small composition under ${input.workDir}, or remotion render of MainComposition --props=${input.propsPath}
+     --frames=${outroStart}-${durationInFrames - 1}) and splice them in; let your drawing resolve underneath before frame ${outroStart}.
+  6. Encode with ffmpeg, mux ${input.audioPath} as the only audio track, and verify with ffprobe: ${width}x${height},
+     ${fps}fps, video duration == audio duration within 1 frame. Extract a few frames and look at them; fix and re-encode if needed
+     (max 3 retries).
+${input.feedback ? `\nREVISION FEEDBACK FROM THE USER (apply it, keep what already works):\n${input.feedback}\n` : ''}
+When finished, print exactly one last line:
+DONE ${input.outputMp4}
+If you cannot finish, print exactly one last line:
+FAILED <short reason>`;
 
-SENIOR MOTION GRAPHICS AUDIT CRITERIA:
-1. TOPIC-VISUAL COHERENCE:
-   - Does each scene reflect the literal subject matter of "${input.projectTitle}"?
-   - CRITICAL: If the project is a STORY, narrative, what-if, or character adventure, it MUST NOT use developer terminal windows ($ git commit), syntax diffs, or server telemetry pills. It must use story props, character silhouettes, or thematic artwork!
-2. SAFE MARGINS & READABILITY:
-   - Kinetic captions must stay inside the bottom safe zone above bottom 20% (bottom > 384px).
-   - Content cards must be centered between top 120px and bottom 440px without overflowing or clipping.
-3. MOTION & HIERARCHY:
-   - Elements must not be static or overlapping.
-   - Bittrix Technologies outro must be cleanly rendered in the final scene.
+    const timeoutMs = Number(process.env.CLAUDE_AGENT_TIMEOUT_MS || 2700000);
+    const args = [
+      '-p', prompt,
+      '--model', this.resolveClaudeModel(),
+      '--dangerously-skip-permissions',
+      '--output-format', 'stream-json', '--verbose',
+    ];
+    const bin = resolveCliBinary('claude');
+    console.log(`[UnifiedCliProvider:claude-agent] Building "${input.projectTitle}" in style ${style.id} (timeout ${Math.round(timeoutMs / 1000)}s)...`);
 
-DECISION PROTOCOL:
-If the visual design passes all criteria, reply with:
-STATUS: APPROVED
-SUMMARY: <1-2 sentences on why the visuals pass>
+    const finalText = await new Promise<string>((resolve, reject) => {
+      const child = spawn(bin, args, {
+        cwd: projectPaths.root,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        detached: process.platform !== 'win32',
+      });
+      activeChildren.add(child);
+      let buf = '';
+      let stderr = '';
+      let result = '';
+      let lastAssistant = '';
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        signalProcessTree(child, 'SIGTERM');
+        setTimeout(() => signalProcessTree(child, 'SIGKILL'), 2000);
+      }, timeoutMs);
 
-If the visual design has flaws (e.g. wrong archetype, terminal windows in a story, overlapping text, bad margins), reply with:
-STATUS: NEEDS_REVISION
-SUMMARY: <bulleted list of specific visual flaws>
-\`\`\`tsx
-<the complete, corrected, self-contained Remotion TSX component with the fixes applied>
-\`\`\`
-`;
+      const handleLine = (line: string) => {
+        if (!line.trim()) return;
+        let evt: any;
+        try { evt = JSON.parse(line); } catch { return; }
+        if (evt.type === 'assistant' && Array.isArray(evt.message?.content)) {
+          for (const part of evt.message.content) {
+            if (part?.type === 'text' && part.text) {
+              lastAssistant = part.text;
+              input.onEvent?.({ kind: 'text', text: String(part.text).slice(0, 300) });
+            } else if (part?.type === 'tool_use') {
+              const i = part.input || {};
+              const what = i.description || i.command || i.file_path || i.pattern || '';
+              input.onEvent?.({ kind: 'tool', text: `${part.name}${what ? `: ${String(what).slice(0, 160)}` : ''}` });
+            }
+          }
+        } else if (evt.type === 'result') {
+          result = String(evt.result ?? '');
+          input.onEvent?.({ kind: 'result', text: result.slice(-300) });
+        }
+      };
 
-    const timeoutMs = Math.max(300000, this.providerTimeoutMs());
-    const response = await this.runText(prompt, { timeoutMs, projectId: input.projectId });
+      child.stdout.on('data', (d) => {
+        buf += d.toString();
+        let nl: number;
+        while ((nl = buf.indexOf('\n')) >= 0) {
+          handleLine(buf.slice(0, nl));
+          buf = buf.slice(nl + 1);
+        }
+      });
+      child.stderr.on('data', (d) => { stderr += d.toString(); if (stderr.length > 20000) stderr = stderr.slice(-20000); });
+      child.on('close', (code) => {
+        activeChildren.delete(child);
+        clearTimeout(timer);
+        if (buf) handleLine(buf);
+        if (timedOut) return reject(new Error(`Claude agent build timed out after ${Math.round(timeoutMs / 1000)}s`));
+        const text = result || lastAssistant;
+        if (code !== 0 && !text) return reject(new Error(`claude exited with code ${code}: ${stderr.trim().slice(-400)}`));
+        resolve(text);
+      });
+      child.on('error', (err) => {
+        activeChildren.delete(child);
+        clearTimeout(timer);
+        reject(err);
+      });
+    });
 
-    if (response.includes('STATUS: APPROVED') && !response.includes('STATUS: NEEDS_REVISION')) {
-      const summaryMatch = response.match(/SUMMARY:\s*([\s\S]*?)(?:\n\n|$)/i);
-      const summary = summaryMatch ? summaryMatch[1].trim() : 'Visual composition and safe margins approved by AI Director.';
-      console.log(`[${active.toUpperCase()}] Visual QA Audit PASSED: ${summary}`);
-      return { approved: true, summary };
+    const lines = finalText.trim().split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const last = lines[lines.length - 1] || '';
+    const failed = lines.find((l) => l.startsWith('FAILED'));
+    const done = [...lines].reverse().find((l) => l.startsWith('DONE '));
+    if (!done) {
+      throw new Error(`Claude agent build did not finish: ${failed || last.slice(0, 300) || 'no DONE line'}`);
     }
-
-    const tsxMatch = response.match(/```(?:tsx|typescript|jsx)\s*([\s\S]*?)```/i);
-    let candidateTsx = tsxMatch ? tsxMatch[1].trim() : null;
-
-    if (candidateTsx) {
-      if (!candidateTsx.includes('export default') && !candidateTsx.includes('export const GeneratedCliVideo')) {
-        candidateTsx = `${candidateTsx}\n\nexport default GeneratedCliVideo;`;
-      }
-      const val = await tsxValidator.validate(candidateTsx);
-      if (val.valid) {
-        console.log(`[${active.toUpperCase()}] Visual QA Audit detected issues and automatically authored corrected TSX!`);
-        return { approved: false, summary: 'Autonomous visual repair applied by AI Director', revisedTsx: candidateTsx };
-      }
+    const reported = done.slice(5).trim();
+    if (path.resolve(reported) !== path.resolve(input.outputMp4)) {
+      throw new Error(`Claude agent reported ${reported}, expected ${input.outputMp4}`);
     }
-
-    return { approved: true, summary: 'Visual audit completed without requiring critical code revisions.' };
+    return { outputMp4: input.outputMp4, log: finalText };
   }
 }
 

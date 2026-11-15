@@ -21,6 +21,10 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const { resolveCliBinary } = await import(path.join(root, 'backend', 'dist', 'modules', 'auth', 'cliBinaryResolver.js'));
+const { audioMixerService } = await import(path.join(root, 'backend', 'dist', 'modules', 'audio', 'audioMixerService.js'));
+const { audioBedService } = await import(path.join(root, 'backend', 'dist', 'modules', 'audio', 'audioBedService.js'));
+const agyBin = resolveCliBinary('agy');
 
 function fail(msg) {
   console.error(`\n❌ [Autonomous Pipeline Error] ${msg}`);
@@ -33,7 +37,7 @@ let topic = '';
 let instructionFile = path.join(root, 'scripts', 'pipeline-instruction.json');
 let fps = 60;
 let resolution = '1080x1920';
-let voiceChoice = 'en-US-ChristopherNeural';
+let voiceChoice = 'en-US-AndrewNeural';
 let autoApprove = false;
 let customOut = '';
 let stageOnly = 0; // 0 = all, 1 = research/script, 2 = audio+props, 3 = render only
@@ -168,7 +172,7 @@ Respond with ONLY valid JSON with this exact structure:
 
   try {
     const { stdout: agyOutput } = await execFileAsync(
-      '/usr/bin/agy',
+      agyBin,
       ['-p', researchPrompt, '--model', 'gemini-3.8-flash-high', '--output-format', 'json', '--disable-slash-commands', '--dangerously-skip-permissions'],
       { timeout: 180000, maxBuffer: 10 * 1024 * 1024 }
     );
@@ -313,26 +317,47 @@ if (stageOnly === 3 && propsInputPath) {
   const makeSfxScript = path.join(root, 'scripts', 'make_sfx.py');
 
   const audioFileName = `vo-${projectId}.mp3`;
-  const alignFileName = `align-${projectId}.json`;
   const audioFilePath = path.join(publicAudioDir, audioFileName);
-  const alignFilePath = path.join(publicAudioDir, alignFileName);
 
-  const fullNarration = scriptPayload.scenes.map((s) => s.narration.trim()).join(' ');
+  // Synthesize per-scene voice audio with native word alignment
+  console.log(`Synthesizing per-scene edge-tts audio with voice: ${voiceChoice}...`);
+  const sentenceAudioData = [];
+  for (let idx = 0; idx < scriptPayload.scenes.length; idx++) {
+    const sc = scriptPayload.scenes[idx];
+    const scAudioFile = path.join(outputDir, `scene_${idx + 1}_voice.mp3`);
+    const scAlignFile = path.join(outputDir, `scene_${idx + 1}_align.json`);
+    const publicAudioName = `${projectId}_sc${idx + 1}_voice.mp3`;
+    const scPublicAudio = path.join(publicAudioDir, publicAudioName);
 
-  console.log(`Synthesizing edge-tts audio with voice: ${voiceChoice}...`);
-  await execFileAsync(pythonBin, [
-    ttsScript,
-    '--text', fullNarration,
-    '--audio', audioFilePath,
-    '--alignment', alignFilePath,
-    '--voice', voiceChoice,
-  ]);
+    await execFileAsync(pythonBin, [
+      ttsScript,
+      '--text', sc.narration.trim(),
+      '--audio', scAudioFile,
+      '--alignment', scAlignFile,
+      '--voice', voiceChoice,
+      '--speed', '1.0'
+    ]);
+    await fs.copyFile(scAudioFile, scPublicAudio);
 
-  const alignmentData = JSON.parse(await fs.readFile(alignFilePath, 'utf8'));
-  const wordTimings = alignmentData.words || [];
-  const sentenceTimings = alignmentData.sentences || [];
+    const scAlignment = JSON.parse(await fs.readFile(scAlignFile, 'utf8'));
+    const rawWords = scAlignment.words || [];
+    const words = rawWords.map((w) => ({
+      word: w.word,
+      startFrame: Math.round(Number(w.startSec) * targetFps),
+      endFrame: Math.max(Math.round(Number(w.startSec) * targetFps) + 1, Math.round(Number(w.endSec) * targetFps)),
+    }));
+    const voiceSec = Number(scAlignment.duration || (rawWords.length ? rawWords[rawWords.length - 1].endSec : 3.0));
 
-  // Procedural Sound Effects Generation
+    sentenceAudioData.push({
+      sentence: sc.narration,
+      words,
+      voiceSec,
+      narrationAudio: `audio/${publicAudioName}`,
+      scAudioFile,
+      scAlignFile,
+    });
+  }
+
   // Procedural Sound Effects Generation
   console.log('Synthesizing procedural sound effects library (SFX)...');
   const sfxDir = path.join(publicDir, 'sfx', projectId);
@@ -345,32 +370,15 @@ if (stageOnly === 3 && propsInputPath) {
     '--variants', '3',
   ]);
 
-  // Map sentences to real word alignments sequentially
-  let currentWordIdx = 0;
-  const sceneWordSlices = scriptPayload.scenes.map((sc) => {
-    const scWords = sc.narration.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/).filter(Boolean);
-    const count = scWords.length;
-    const slice = wordTimings.slice(currentWordIdx, currentWordIdx + count);
-    currentWordIdx += count;
-    return slice;
-  });
-
   // Build ONE authoritative timeline array from measured voice durations
   const leadFrames = 0;
   const tailFrames = Math.max(8, Math.round(0.4 * targetFps));
   let runningStart = 0;
 
-  const sceneTimeline = scriptPayload.scenes.map((sc, idx) => {
+  const sceneTimeline = sentenceAudioData.map((item, idx) => {
+    const sc = scriptPayload.scenes[idx];
     const isOutro = idx === scriptPayload.scenes.length - 1 || sc.visual_type === 'outro';
-    const words = sceneWordSlices[idx] || [];
-    let voiceSec = 0;
-    if (words.length > 0) {
-      const firstStart = Number(words[0].startSec ?? words[0].start_time ?? 0);
-      const lastEnd = Number(words[words.length - 1].endSec ?? words[words.length - 1].end_time ?? 0);
-      voiceSec = Math.max(0.1, lastEnd - firstStart);
-    } else {
-      voiceSec = 3.0;
-    }
+    const voiceSec = item.voiceSec;
 
     const ctaPadding = isOutro ? Math.ceil(1.0 * targetFps) : 0;
     let frames = Math.ceil(voiceSec * targetFps) + ctaPadding + leadFrames + tailFrames;
@@ -410,22 +418,10 @@ if (stageOnly === 3 && propsInputPath) {
   // Build Remotion Scene Payloads
   const remotionScenes = scriptPayload.scenes.map((sc, i) => {
     const timelineItem = sceneTimeline[i];
+    const audioItem = sentenceAudioData[i];
     const fromFrame = timelineItem.start;
     const durationInFrames = timelineItem.frames;
-
-    const matchedWords = sceneWordSlices[i] || [];
-    const baseWordStartSec = matchedWords.length > 0 ? Number(matchedWords[0].startSec ?? matchedWords[0].start_time) : 0;
-    const wordsInScene = matchedWords.length > 0
-      ? matchedWords.map((w) => ({
-          word: w.word,
-          startFrame: Math.max(0, Math.round((Number(w.startSec ?? w.start_time) - baseWordStartSec) * targetFps)),
-          endFrame: Math.max(1, Math.round((Number(w.endSec ?? w.end_time) - baseWordStartSec) * targetFps)),
-        }))
-      : sc.narration.split(/\s+/).filter(Boolean).map((w, wIdx) => ({
-          word: w,
-          startFrame: Math.round(wIdx * (durationInFrames / 5)),
-          endFrame: Math.round((wIdx + 1) * (durationInFrames / 5)),
-        }));
+    const wordsInScene = audioItem.words;
 
     // Map procedural sound effects (SFX) for object entrances and kinetic hits
     const audioCues = [
@@ -522,6 +518,23 @@ if (stageOnly === 3 && propsInputPath) {
     };
   });
 
+  // Generate ambient sound bed & Mix 1-track master audio with exact scene starts
+  console.log('   Generating ambient sound bed and mixing master audio track...');
+  const backgroundAudioUrl = await audioBedService.generate(projectId, 'preview', 1, totalFrames / targetFps);
+
+  const masterAudioRel = await audioMixerService.mixMasterAudio({
+    projectId,
+    renderType: 'final',
+    renderVersion: 1,
+    fps: targetFps,
+    totalDurationFrames: totalFrames,
+    scenes: remotionScenes,
+    backgroundAudioUrl,
+  });
+
+  const absMixed = path.join(root, 'remotion', 'public', ...masterAudioRel.replace(/^\//, '').split('/'));
+  await fs.copyFile(absMixed, audioFilePath);
+
   const finalProps = {
     video: {
       title: scriptPayload.title || topic,
@@ -533,11 +546,14 @@ if (stageOnly === 3 && propsInputPath) {
       style: 'CLI-authored content-specific 60fps motion plan',
       sourceProjectId: projectId,
       audioUrl: `audio/${audioFileName}`,
-      captions: wordTimings.map((w) => ({
-        word: w.word,
-        startFrame: Math.round(Number(w.startSec ?? w.start_time) * targetFps),
-        endFrame: Math.round(Number(w.endSec ?? w.end_time) * targetFps),
-      })),
+      backgroundAudioUrl,
+      captions: sentenceAudioData.flatMap((s, sIdx) =>
+        s.words.map((w) => ({
+          word: w.word,
+          startFrame: sceneTimeline[sIdx].start + w.startFrame,
+          endFrame: sceneTimeline[sIdx].start + w.endFrame,
+        }))
+      ),
     },
     scenes: remotionScenes,
     styleProfile: {
@@ -595,6 +611,7 @@ CREATIVE REQUIREMENTS:
    - Local high-quality open-source Three.js textures are ready in staticFile('assets/three/textures/...'): uv_grid.jpg, disc.png, spark1.png, carbon.png, matcap_white.jpg, cloud_noise.png.
    - 3D models available: staticFile('assets/three/models/primary_ion_drive.glb'), staticFile('assets/three/models/shader_ball.glb').
 4. Single continuous living canvas with continuous virtual camera (interpolate camX, camY, camScale across scenes).
+   - NOT A SLIDESHOW: one continuous animation, no static slides, no fade-to-black or blank frames between scenes; each scene flows into the next.
 5. Topic-specific visual mechanics for "${scriptPayload.title || topic}". ZERO 50% border-radius circles or placeholder orbs!
    - Tech/Code: Dark terminal windows, branching commit DAGs, syntax diff cards with green + and red - lines.
    - Systems & 3D: 3D server racks, rotating data cylinders, dynamic laser bus lines, packet queues, particle fields.
@@ -625,7 +642,7 @@ CREATIVE REQUIREMENTS:
 
   try {
     const { stdout: agyTsxOutput } = await execFileAsync(
-      '/usr/bin/agy',
+      agyBin,
       ['-p', tsxPrompt, '--model', agyModel, '--output-format', 'json', '--print-timeout', '5m', '--disable-slash-commands', '--dangerously-skip-permissions'],
       { timeout: 180000, maxBuffer: 10 * 1024 * 1024 }
     );
@@ -690,7 +707,7 @@ Requirements:
 `;
     try {
       const { stdout: repOutput } = await execFileAsync(
-        '/usr/bin/agy',
+        agyBin,
         ['-p', repairPrompt, '--model', agyModel, '--output-format', 'json', '--print-timeout', '5m', '--disable-slash-commands', '--dangerously-skip-permissions'],
         { timeout: 180000, maxBuffer: 10 * 1024 * 1024 }
       );
@@ -830,7 +847,11 @@ registerRoot(ProjectRoot);
   await fs.writeFile(path.join(projectDir, 'index.ts'), projectIndexCode, 'utf8');
 
   // Also stage legacy GeneratedCliVideo.tsx in root src for compatibility
-  await fs.writeFile(path.join(root, 'remotion', 'src', 'GeneratedCliVideo.tsx'), tsxSource, 'utf8');
+  // Root copy is imported from remotion/src/, so re-point project-relative imports.
+  const rootSrcTsx = tsxSource
+    .replace(/from\s+['"]\.\.\/\.\.\/(components|lib|data)\/([^'"]+)['"]/g, "from './$1/$2'")
+    .replace(/from\s+['"]\.\/scenes\/([^'"]+)['"]/g, `from './projects/${projectId}/scenes/$1'`);
+  await fs.writeFile(path.join(root, 'remotion', 'src', 'GeneratedCliVideo.tsx'), rootSrcTsx, 'utf8');
   console.log(`⚛️  Project-isolated files staged in remotion/src/projects/${projectId}/ and GeneratedCliVideo.tsx!`);
 
   if (stageOnly === 2) {
@@ -874,7 +895,7 @@ console.log(`Voice-Visual Sync Gate: PASS (Max drift: ${maxDrift} frames)\n`);
 
 // 2. Run Quality Gate (Checks layout, 1080x1920 bounds, margin zones)
 console.log(`[QA 2/4] Running Motion Graphics Playbook Quality Gate...`);
-await execFileAsync('/usr/bin/node', [qualityGateScript, savedPropsPath], {
+await execFileAsync(process.execPath, [qualityGateScript, savedPropsPath], {
   cwd: root,
   timeout: 120000,
 });
@@ -894,7 +915,7 @@ const renderArgs = [
   '--overwrite',
 ];
 
-await execFileAsync('/usr/bin/node', [remotionHostScript, ...renderArgs], {
+await execFileAsync(process.execPath, [remotionHostScript, ...renderArgs], {
   cwd: path.join(root, 'remotion'),
   timeout: 600000,
 });
@@ -902,7 +923,7 @@ await execFileAsync('/usr/bin/node', [remotionHostScript, ...renderArgs], {
 // 3. Motion Energy Verification
 console.log(`[QA 3/4] Checking motion energy thresholds (target >= 0.85)...`);
 try {
-  await execFileAsync('/usr/bin/node', [motionEnergyScript, finalVideoPath, savedPropsPath], {
+  await execFileAsync(process.execPath, [motionEnergyScript, finalVideoPath, savedPropsPath], {
     cwd: root,
     timeout: 120000,
   });

@@ -37,6 +37,7 @@ export interface Project {
   current_preview_version: number;
   requested_duration_sec?: number;
   theme_id?: string;
+  drawing_style?: string | null;
   style_signature?: string;
   created_at: string;
   updated_at: string;

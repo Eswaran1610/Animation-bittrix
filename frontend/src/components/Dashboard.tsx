@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Project } from '../types';
 import { THEME_CATALOG } from '../data/themes';
+import { DRAWING_STYLES } from '../data/drawingStyles';
 import { 
   Sparkles, Plus, Clock, FileText, Play, Trash2, ArrowRight, 
   CheckCircle2, AlertCircle, Cpu, Globe, Layers, LayoutDashboard, Loader2 
@@ -13,7 +14,7 @@ interface DashboardProps {
   liveUsage?: { active?: boolean } | null;
   liveProgress?: { progress: number; label: string; stage?: string; projectId?: string };
   onSelectProject: (projectId: string) => void;
-  onCreateProject: (content: string, type: 'text' | 'topic' | 'url', title?: string, durationSec?: number, themeId?: string) => Promise<void>;
+  onCreateProject: (content: string, type: 'text' | 'topic' | 'url', title?: string, durationSec?: number, themeId?: string, drawingStyle?: string) => Promise<void>;
   onDeleteProject: (projectId: string) => Promise<void>;
 }
 
@@ -30,6 +31,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const providerLabel = activeProvider === 'agy' ? 'AGY' : activeProvider === 'claude' ? 'Claude Code' : 'AI';
   const [inputType, setInputType] = useState<'text' | 'topic' | 'url'>('topic');
   const [selectedThemeId, setSelectedThemeId] = useState<string>('character-explainer');
+  // '' = no hand-drawn style (normal Remotion pipeline); otherwise a claude-drawing style id
+  const [drawingStyleId, setDrawingStyleId] = useState<string>('');
   const [inputContent, setInputContent] = useState('');
   const [projectTitle, setProjectTitle] = useState('');
   const [durationSec, setDurationSec] = useState(30);
@@ -68,7 +71,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     setErrorMsg('');
     setSubmitting(true);
     try {
-      await onCreateProject(inputContent, inputType, projectTitle.trim() || undefined, durationSec, selectedThemeId);
+      await onCreateProject(inputContent, inputType, projectTitle.trim() || undefined, durationSec, drawingStyleId ? undefined : selectedThemeId, drawingStyleId || undefined);
       setInputContent('');
       setProjectTitle('');
     } catch (err: any) {
@@ -153,7 +156,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           {/* Row 1: Theme, Duration & Title */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: drawingStyleId ? '1fr 1fr' : '1.4fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+            {/* A drawing style replaces the animation theme: only one look is sent to the agent */}
+            {!drawingStyleId && (
             <div>
               <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
                 <span>🎨 Animation Theme ({THEME_CATALOG.length} Styles)</span>
@@ -184,6 +189,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 {(THEME_CATALOG.find((t) => t.id === selectedThemeId) || THEME_CATALOG[0]).tagline}
               </div>
             </div>
+            )}
 
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
@@ -213,6 +219,36 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 onChange={(e) => setProjectTitle(e.target.value)}
               />
               <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Auto-derived if left blank.</div>
+            </div>
+          </div>
+
+          {/* Row 1b: claude-drawing style (agent paints the video with the skill) */}
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+              <span>✏️ Drawing Style — claude-drawing skill ({DRAWING_STYLES.length} Styles)</span>
+              {drawingStyleId && (
+                <span style={{ fontSize: '11px', color: 'var(--accent-blue)', fontWeight: 700 }}>
+                  Claude agent will paint every scene in this style
+                </span>
+              )}
+            </label>
+            <select
+              className="input-text"
+              value={drawingStyleId}
+              onChange={(e) => setDrawingStyleId(e.target.value)}
+              style={{ background: 'var(--surface-color, #1e293b)', color: '#f8fafc', fontWeight: 600, fontSize: '13px', cursor: 'pointer', width: '100%' }}
+            >
+              <option value="" style={{ background: '#0f172a', color: '#f8fafc' }}>None — standard motion-graphics video</option>
+              {DRAWING_STYLES.map((style) => (
+                <option key={style.id} value={style.id} style={{ background: '#0f172a', color: '#f8fafc' }}>
+                  {style.label}
+                </option>
+              ))}
+            </select>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+              {drawingStyleId
+                ? DRAWING_STYLES.find((s) => s.id === drawingStyleId)?.summary
+                : 'Pick a style to have Claude draw the video stroke by stroke with code (no image model). Picking one replaces the Animation Theme.'}
             </div>
           </div>
 
@@ -246,9 +282,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 borderRadius: '50%',
                 background: (THEME_CATALOG.find((t) => t.id === selectedThemeId) || THEME_CATALOG[0]).palette.primary
               }} />
-              <span>
-                Selected: <strong>{(THEME_CATALOG.find((t) => t.id === selectedThemeId) || THEME_CATALOG[0]).name}</strong> — {(THEME_CATALOG.find((t) => t.id === selectedThemeId) || THEME_CATALOG[0]).description.slice(0, 75)}...
-              </span>
+              {drawingStyleId ? (
+                <span>
+                  Selected: <strong>✏️ {DRAWING_STYLES.find((d) => d.id === drawingStyleId)?.label}</strong> — hand-drawn by the Claude agent (animation theme not used)
+                </span>
+              ) : (
+                <span>
+                  Selected: <strong>{(THEME_CATALOG.find((t) => t.id === selectedThemeId) || THEME_CATALOG[0]).name}</strong> — {(THEME_CATALOG.find((t) => t.id === selectedThemeId) || THEME_CATALOG[0]).description.slice(0, 75)}...
+                </span>
+              )}
             </div>
 
             <button

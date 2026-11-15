@@ -18,14 +18,32 @@ import crypto from 'node:crypto';
 const execFileAsync = promisify(execFile);
 const execAsync = promisify(exec);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const { resolveCliBinary } = await import(path.join(root, 'backend', 'dist', 'modules', 'auth', 'cliBinaryResolver.js'));
+const agyBin = resolveCliBinary('agy');
 
 const topic = process.argv[2];
 const targetDuration = Number(process.argv[3] || 20);
 const fps = Number(process.argv[4] || 30);
 const requestedThemeId = process.argv[5];
+const requestedVoice = process.argv[6] || process.env.VOICE;
+
+function selectNormalVoice(topicStr, requested) {
+  if (requested) return requested;
+  const t = (topicStr || '').toLowerCase();
+  if (t.includes('biology') || t.includes('nature') || t.includes('ocean') || t.includes('water') || t.includes('earth') || t.includes('space') || t.includes('psychology') || t.includes('human') || t.includes('design') || t.includes('art') || t.includes('life') || t.includes('health')) {
+    return 'en-US-AvaNeural'; // warm, natural conversational female voice
+  }
+  if (t.includes('casual') || t.includes('story') || t.includes('hack') || t.includes('tip') || t.includes('secret') || t.includes('funny')) {
+    return 'en-US-GuyNeural'; // casual, punchy conversational American male
+  }
+  // Default for modern tech & engineering explainers: AndrewNeural (sounds like a real YouTube creator, very natural and clean)
+  return 'en-US-AndrewNeural';
+}
+
+const activeVoice = selectNormalVoice(topic, requestedVoice);
 
 if (!topic) {
-  console.error('Usage: node scripts/cli-generate.mjs "<Topic>" [durationSeconds] [fps] [themeId]');
+  console.error('Usage: node scripts/cli-generate.mjs "<Topic>" [durationSeconds] [fps] [themeId] [voice]');
   process.exit(1);
 }
 
@@ -43,6 +61,7 @@ await fs.mkdir(outDir, { recursive: true });
 console.log('====================================================');
 console.log('🚀 STANDALONE CLI MOTION PIPELINE — 2-STAGE');
 console.log(`Topic       : "${topic}"`);
+console.log(`Voice       : "${activeVoice}" (natural human conversational neural TTS)`);
 console.log(`Duration    : ${targetDuration}s @ ${fps} FPS`);
 console.log(`Theme       : "${activeTheme.name}" (${activeTheme.id})`);
 console.log(`Archetype   : ${activeTheme.archetype}`);
@@ -93,7 +112,7 @@ Return ONLY a JSON array of strings:
 
 try {
   const { stdout: scriptOut } = await execFileAsync(
-    '/usr/bin/agy',
+    agyBin,
     ['-p', scriptPrompt, '--model', process.env.AGY_MODEL || 'gemini-3.8-flash-medium', '--output-format', 'json', '--dangerously-skip-permissions'],
     { timeout: 35000, maxBuffer: 5 * 1024 * 1024 }
   );
@@ -142,7 +161,7 @@ for (let idx = 0; idx < sentences.length; idx++) {
     '--text', sentence,
     '--audio', scAudioFile,
     '--alignment', scAlignFile,
-    '--voice', 'en-US-ChristopherNeural',
+    '--voice', activeVoice,
     '--speed', '1.0'
   ]);
   await fs.copyFile(scAudioFile, scPublicAudio);
@@ -178,7 +197,8 @@ console.log('\n📐 [2/5] Building ONE Authoritative Timeline Array from Measure
 // Never use a fixed per-scene duration.
 // CTA scene must be at least as long as its voice plus 1s; final video length = sum of scene frames.
 const leadFrames = 0;
-const tailFrames = Math.max(8, Math.round(0.4 * fps));
+// Tight 3-4 frames (~100-130ms) speech breathing gap — ensures continuous, unbroken voice narration without awkward silence
+const tailFrames = Math.max(3, Math.round(0.12 * fps));
 
 let runningStart = 0;
 const sceneTimeline = sentenceAudioData.map((item, idx) => {
@@ -265,8 +285,49 @@ const scenes = sentenceAudioData.map((item, idx) => {
   ];
 
   const wordList = words.map(w => w.word);
-  const visualType = isOutro ? 'outro' : (idx % 2 === 0 ? 'concept-diagram' : 'process-flow');
-  const icons = ['⚡', '🛡️', '⚙️', '🚀', '🎯', '💡', '🔍', '🌐'];
+  const sentenceLower = item.sentence.toLowerCase();
+  let visualType = 'concept-diagram';
+  let template = 'concept-diagram';
+
+  if (isOutro) {
+    visualType = 'outro';
+    template = 'cta-outro';
+  } else if (isHook && (sentenceLower.includes('?') || sentenceLower.startsWith('why') || sentenceLower.startsWith('how') || sentenceLower.startsWith('what'))) {
+    visualType = 'kinetic-hook';
+    template = 'question-hook';
+  } else if (sentenceLower.includes('not') || sentenceLower.includes('vs') || sentenceLower.includes('versus') || sentenceLower.includes('differ') || sentenceLower.includes('instead') || sentenceLower.includes('compare')) {
+    visualType = 'split-compare';
+    template = 'split-compare';
+  } else if (sentenceLower.includes('code') || sentenceLower.includes('git') || sentenceLower.includes('terminal') || sentenceLower.includes('command') || sentenceLower.includes('pointer') || sentenceLower.includes('memory') || sentenceLower.includes('buffer') || sentenceLower.includes('index') || sentenceLower.includes('cache') || sentenceLower.includes('query')) {
+    visualType = 'terminal-code';
+    template = 'terminal-code';
+  } else if (sentenceLower.includes('speed') || sentenceLower.includes('latency') || sentenceLower.includes('iops') || sentenceLower.includes('throughput') || sentenceLower.includes('scale') || sentenceLower.includes('million') || sentenceLower.includes('percent') || sentenceLower.includes('low') || sentenceLower.includes('high') || sentenceLower.includes('zero')) {
+    visualType = 'metric-hero';
+    template = 'stat-metric';
+  } else if (sentenceLower.includes('3d') || sentenceLower.includes('mesh') || sentenceLower.includes('core') || sentenceLower.includes('particle') || sentenceLower.includes('ray') || sentenceLower.includes('light') || sentenceLower.includes('quantum') || sentenceLower.includes('wave') || sentenceLower.includes('atom') || sentenceLower.includes('depth')) {
+    visualType = '3d-spatial';
+    template = 'spatial-simulation';
+  } else if (sentenceLower.includes('network') || sentenceLower.includes('node') || sentenceLower.includes('branch') || sentenceLower.includes('cluster') || sentenceLower.includes('route') || sentenceLower.includes('tree') || sentenceLower.includes('leaf') || sentenceLower.includes('link')) {
+    visualType = 'network-graph';
+    template = 'graph-topology';
+  } else if (sentenceLower.includes('step') || sentenceLower.includes('first') || sentenceLower.includes('next') || sentenceLower.includes('then') || sentenceLower.includes('flow') || sentenceLower.includes('process') || sentenceLower.includes('pipeline')) {
+    visualType = 'process-flow';
+    template = 'kinetic-flow';
+  } else {
+    // Dynamic cycle across archetypes so consecutive scenes never repeat
+    const archetypes = ['concept-diagram', 'terminal-code', 'metric-hero', 'network-graph', '3d-spatial'];
+    const chosen = archetypes[idx % archetypes.length];
+    visualType = chosen;
+    template = chosen;
+  }
+
+  // Extract meaningful subject keywords from the actual sentence
+  const cleanWords = item.sentence.replace(/[^a-zA-Z0-9\s]/g, '').split(/\s+/).filter(w => w.length > 2);
+  const keywordA = cleanWords[0] || topic;
+  const keywordB = cleanWords[Math.floor(cleanWords.length / 2)] || 'System';
+  const keywordC = cleanWords[cleanWords.length - 1] || 'Target';
+
+  const icons = ['⚡', '🛡️', '⚙️', '🚀', '🎯', '💡', '🔍', '🌐', '📊', '🔗'];
   const nodeIconA = icons[idx % icons.length];
   const nodeIconB = icons[(idx + 3) % icons.length];
 
@@ -274,7 +335,7 @@ const scenes = sentenceAudioData.map((item, idx) => {
     id: `scene-${idx + 1}`,
     scene_number: idx + 1,
     role: isHook ? 'hook' : isOutro ? 'cta' : 'body',
-    template: isHook ? 'question-hook' : isOutro ? 'cta-outro' : 'steps-numbered',
+    template,
     visual_type: visualType,
     themeColor: activeTheme.palette.primary,
     start: startFrame,
@@ -288,13 +349,13 @@ const scenes = sentenceAudioData.map((item, idx) => {
     narrationAudio: item.narrationAudio,
     title: wordList.slice(0, 4).join(' '),
     on_screen_text: item.sentence,
-    emphasis_word: wordList[Math.floor(wordList.length / 2)] || wordList[0] || topic,
+    emphasis_word: cleanWords[Math.floor(cleanWords.length / 2)] || wordList[0] || topic,
     audioCues,
     nodes: [
-      { label: wordList.slice(0, Math.ceil(wordList.length / 2)).join(' ') || topic, sub: 'Core Engine', icon: nodeIconA },
-      { label: wordList.slice(Math.ceil(wordList.length / 2)).join(' ') || 'Scale Target', sub: 'High Throughput', icon: nodeIconB }
+      { label: keywordA, sub: keywordB, icon: nodeIconA },
+      { label: keywordB, sub: keywordC, icon: nodeIconB }
     ],
-    labels: wordList.slice(0, 3),
+    labels: [keywordA, keywordB, keywordC],
     words,
   };
 });
@@ -350,26 +411,34 @@ ${JSON.stringify(scenes, null, 2)}
 
 CREATIVE REQUIREMENTS:
 1. Export default: export default function GeneratedCliVideo(props: any) { ... }
-2. Import from 'remotion': AbsoluteFill, Sequence, Audio, staticFile, spring, interpolate, useCurrentFrame, useVideoConfig
+2. Import from 'remotion': AbsoluteFill, Sequence, staticFile, spring, interpolate, useCurrentFrame, useVideoConfig
    - Claude-Grade Micro-UI Primitives: Import { TerminalWindow, GlassCard, LaserBusLine, GitCommitGraph, TelemetryPill, NetworkNodes, MetricBar, KineticTitle } from './components/MotionElements'
    - Kinetic Captions: Import { SyncCaptions } from './components/SyncCaptions'
    - Optional 3D Animation: Import { ThreeCanvas } from '@remotion/three' and * as THREE from 'three'
-3. Include master voiceover track:
-   <Audio src={staticFile('audio/${audioFileName}')} volume={1.0} startFrom={0} />
-4. DYNAMIC TIMELINE SEQUENCE LAW:
-   - Every scene visual Sequence MUST read from scene.start:
-     <Sequence from={scene.start} durationInFrames={scene.durationInFrames}>
-   - NEVER use a fixed per-scene duration. Visual and voice share this exact timeline.
-5. VERTICAL SAFE ZONE & CENTERING:
+3. SEPARATELY MIXED MASTER AUDIO:
+   The master voiceover, SFX, and ambient bed are already mixed and mounted at the composition root. Do NOT render <Audio /> or <Video /> tags inside GeneratedCliVideo.
+4. CONTINUOUS LIVING CANVAS & SEAMLESS TRANSITIONS (NO SLIDE SHOWS):
+   - FORBIDDEN: Do not create separate isolated slides that cut or fade to black.
+   - NOT A SLIDESHOW: the video must play as one continuous animation. No static slides/cards that appear, sit still and get replaced; no fade-to-black or blank frames between scenes. Every scene starts mid-motion from the previous one and flows into the next.
+   - Continuous Virtual Camera: Author a master virtual camera with dynamic coordinates (camX, camY, camScale, camRot) that flies continuously across scenes.
+   - Directional Overlapping Transitions: Between every scene, use directional kinetic transitions (e.g. whip-pan left/right, vertical dive down, spatial zoom-through). Scenes must overlap their entrance and exit motions by 10-14 frames so directional momentum carries seamlessly from one scene into the next with velocity motion blur.
+   - Persistent Visual Anchors: Key elements from Scene N must not vanish into thin air; they must morph, dock, or connect into Scene N+1 via laser bus lines, data tracks, or expanding stages.
+   - Shared Living Atmosphere: Background grid/mesh, caustics, and ambient dust particles must be shared at the root level and drift uninterrupted across the entire video.
+5. DYNAMIC TIMELINE TIMING:
+   - Voice and visuals share the authoritative sceneTimeline timestamps. Captions track scene.words.
+6. VERTICAL SAFE ZONE & CENTERING:
    - Captions: Place kinetic karaoke captions strictly in the bottom safe zone above bottom 20% (> 384px from bottom, e.g. style={{ position: 'absolute', bottom: 400, left: 60, right: 60, textAlign: 'center' }}).
    - Content: Vertically center all primary diagrams, cards, 3D canvases, and graphics in the viewport (between top 120px and bottom 440px).
-6. 3D & MOTION ARCHITECTURE:
+7. 3D & MOTION ARCHITECTURE:
    - For 3D elements, use <ThreeCanvas width={1080} height={1920}> with <ambientLight />, <pointLight />, and 3D meshes (<boxGeometry />, <sphereGeometry />, <meshStandardMaterial /> or Three.js particle systems).
-   - Local open-source Three.js textures ready in staticFile('assets/three/textures/...'): uv_grid.jpg, disc.png, spark1.png, carbon.png, matcap_white.jpg, cloud_noise.png.
-   - 3D models available: staticFile('assets/three/models/primary_ion_drive.glb'), staticFile('assets/three/models/shader_ball.glb').
-7. Single continuous living canvas with continuous virtual camera (interpolate camX, camY, camScale across scenes).
-8. Topic-specific visual mechanics for "${topic}". ZERO 50% border-radius circles or placeholder orbs! Compose real UI elements: TerminalWindow with diffs, GitCommitGraph, GlassCard with TelemetryPill.
-   - For story / faceless shorts: Review and adhere to .agents/skills/faceless-shorts/SKILL.md (Zack D. Films style story-based animation, dramatic camera journeys through internal mechanisms, and punchy word captions).
+8. DIVERSE TOPIC-DRIVEN UI MOVEMENT (NO REPETITIVE TEMPLATES):
+   - FORBIDDEN: Do not make every video use the same UI movement, generic cards, or canned transitions!
+   - Every video MUST design UI movements and layouts tailored uniquely to "${topic}":
+     * For Systems / Code / Cloud: Use live TerminalWindows with syntax diffs, branching GitCommitGraph trees, and LaserBusLine pulses carrying data packets.
+     * For Physics / Nature / Science: Use continuous spatial camera dives through 3D meshes, particle fields, optical prism rays, fluid waves, or cross-sections.
+     * For Metrics / Hardware / Benchmarks: Use massive typographic hero counters, radial telemetry speedometers, and split comparison sliders.
+     * For Architecture / Product: Use network topology node webs with expanding bezier curves and interactive glassmorphic HUD cards.
+   - For story / faceless shorts: Follow Zack D. Films style story-based animation, dramatic camera journeys through internal mechanisms, and punchy word captions.
 9. MANDATORY 3 CONTENT IMAGES/VISUALS:
    - Exactly 3 distinct, fresh content-based visual images or technical diagrams must appear across the video (staggered in scenes 2, 3, and 4) tailored directly to "${topic}".
    - Each image must enter dynamically with spring physics (anticipation + overshoot), subtle continuous float or rotation, and sound cue hits.
@@ -394,7 +463,7 @@ let lastErrors = [];
 
 try {
   const { stdout: agyTsxOutput } = await execFileAsync(
-    '/usr/bin/agy',
+    agyBin,
     ['-p', tsxPrompt, '--model', process.env.AGY_MODEL || 'gemini-3.8-flash-medium', '--output-format', 'json', '--dangerously-skip-permissions'],
     { timeout: 300000, maxBuffer: 10 * 1024 * 1024 }
   );
@@ -452,16 +521,15 @@ Requirements:
 2. Import from 'remotion': AbsoluteFill, Sequence, Audio, staticFile, spring, interpolate, useCurrentFrame, useVideoConfig
    - Optional 3D: Import { ThreeCanvas } from '@remotion/three' and * as THREE from 'three'
 3. Master audio track: <Audio src={staticFile('audio/${audioFileName}')} volume={1.0} startFrom={0} />
-4. Single continuous living canvas with continuous camera motion.
-5. Topic-specific physical mechanics for "${topic}" (can use <ThreeCanvas> 3D meshes/particles or dynamic 2D SVGs).
-6. Kinetic karaoke captions from scene.words.
-7. Exact royal purple (#5b1a78) Bittrix outro in final scene with rotating gear and chain track.
-8. Dynamic Timeline: Every scene visual Sequence MUST read from scene.start: <Sequence from={scene.start} durationInFrames={scene.durationInFrames}>.
-9. Vertical Safe Zone & Centering: Captions MUST be in safe zone strictly above bottom 20% (> 384px from bottom, bottom: 400). Center primary content between top 120px and bottom 440px.
+4. Single continuous living canvas with continuous virtual camera motion (camX, camY, camScale, camRot) traveling across scenes.
+5. NO ISOLATED SLIDES: Overlap scene entrance/exit motions by 10-14 frames with directional momentum (whip-pan, zoom-dive, push-through) and motion blur.
+6. Diverse topic-specific UI movement: Tailor UI movement, layouts, and camera mechanics specifically to "${topic}" (no repetitive cards, orbs, or canned transitions).
+7. Kinetic karaoke captions from scene.words (safe zone strictly above bottom 20%, bottom: 400). Center primary content between top 120px and bottom 440px.
+8. Exact royal purple (#5b1a78) Bittrix outro in final scene with rotating gear, rolling chain track, and glowing underline.
 `;
   try {
     const { stdout: repOutput } = await execFileAsync(
-      '/usr/bin/agy',
+      agyBin,
       ['-p', repairPrompt, '--model', process.env.AGY_MODEL || 'gemini-3.8-flash-medium', '--output-format', 'json', '--dangerously-skip-permissions'],
       { timeout: 300000, maxBuffer: 10 * 1024 * 1024 }
     );

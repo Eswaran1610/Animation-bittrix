@@ -1,0 +1,21 @@
+{
+  "B-Tree": "B tree",
+  "O(log n)": "O of log n",
+  "O(1)": "O of one",
+  "O(n)": "O of n",
+  "SQL": "sequel",
+  "NoSQL": "no sequel",
+  "1NF": "first normal form",
+  "2NF": "second normal form",
+  "3NF": "third normal form",
+  "ZTNA": "Z T N A",
+  "VPN": "V P N",
+  "API": "A P I",
+  "CLI": "C L I",
+  "UI": "U I",
+  "UX": "U X",
+  "CSS": "C S S",
+  "TSX": "T S X",
+  "HTML": "H T M L",
+  "SDK": "S D K"
+}

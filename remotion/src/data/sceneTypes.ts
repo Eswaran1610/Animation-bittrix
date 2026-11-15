@@ -168,9 +168,16 @@ export interface SceneData {
   motion_cue: string;
   continuity_to_next: string;
   duration_sec: number;
+  /** Duration the research agent assumed (at its fixed 30fps authoring convention) when it
+   * wrote this scene's motion_plan frame indices. The real durationInFrames is driven by the
+   * measured voice-audio length and can differ (different fps, different actual speech length).
+   * Renderers must rescale motion_plan frames by durationInFrames / (plannedDurationSec * 30). */
+  plannedDurationSec?: number;
   durationInFrames: number;
+  words?: Array<{ word: string; startFrame: number; endFrame: number }>;
   transitionOutFrames?: number;
   visualType?: 'blueprint' | 'orbital' | 'network' | 'metric' | 'headline' | 'diagram' | string;
+  visual_type?: string;
   themeColor: string;
   narration: string;
   narrationAudio?: string;

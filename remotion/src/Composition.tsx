@@ -34,20 +34,21 @@ export const MainComposition: React.FC<SceneDataPayload> = (sceneData) => {
                 <Audio src={assetSource(scene.narrationAudio)} volume={1.0} />
               </Sequence>
             )}
-            {/* Dynamic Procedural SFX Audio Cues (whoosh, pop, hit, tick on object actions) */}
-            {scene.audioCues?.map((cue, cueIdx) => {
-              if (!cue?.src) return null;
-              const cueStart = Math.max(0, fromFrame + (cue.frame ?? cue.hitFrame ?? 0));
-              return (
-                <Sequence
-                  key={`cue-${scene.id || sceneIndex}-${cueIdx}`}
-                  from={cueStart}
-                  durationInFrames={cue.durationFrames || 60}
-                >
-                  <Audio src={assetSource(cue.src)} volume={cue.volume ?? 0.6} />
-                </Sequence>
-              );
-            })}
+            {/* Dynamic Procedural SFX Audio Cues (play only when master audio is not already mixed) */}
+            {!masterAudioUrl &&
+              scene.audioCues?.map((cue, cueIdx) => {
+                if (!cue?.src) return null;
+                const cueStart = Math.max(0, fromFrame + (cue.frame ?? cue.hitFrame ?? 0));
+                return (
+                  <Sequence
+                    key={`cue-${scene.id || sceneIndex}-${cueIdx}`}
+                    from={cueStart}
+                    durationInFrames={cue.durationFrames || 60}
+                  >
+                    <Audio src={assetSource(cue.src)} volume={cue.volume ?? 0.6} />
+                  </Sequence>
+                );
+              })}
           </React.Fragment>
         );
       })}

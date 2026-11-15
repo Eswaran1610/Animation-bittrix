@@ -1,0 +1,749 @@
+[
+ {
+  "id": "inkpaint",
+  "name": "Ink wash",
+  "label": "Ink wash (水墨)",
+  "module": "lib/inkpaint.py",
+  "cls": "Painting",
+  "example": "examples/bawansiqian.py",
+  "summary": "rice paper"
+ },
+ {
+  "id": "watercolor",
+  "name": "Watercolour",
+  "label": "Watercolour",
+  "module": "lib/watercolor.py",
+  "cls": "Watercolor",
+  "example": "examples/watercolor_autumn.py",
+  "summary": "cold-press paper tooth"
+ },
+ {
+  "id": "papercut",
+  "name": "Paper collage",
+  "label": "Paper collage",
+  "module": "lib/papercut.py",
+  "cls": "Collage",
+  "example": "examples/papercut_balloons.py",
+  "summary": "torn edges with a white fibrous core"
+ },
+ {
+  "id": "colorpencil",
+  "name": "Coloured pencil",
+  "label": "Coloured pencil (Korean style)",
+  "module": "lib/colorpencil.py",
+  "cls": "ColorPencil",
+  "example": "examples/colorpencil_dessert.py",
+  "summary": "short directional hatching"
+ },
+ {
+  "id": "anime",
+  "name": "Anime",
+  "label": "Anime (Japanese)",
+  "module": "lib/anime.py",
+  "cls": "Anime",
+  "example": "examples/anime_summer.py",
+  "summary": "gradient skies"
+ },
+ {
+  "id": "editorial",
+  "name": "Editorial",
+  "label": "Editorial (risograph)",
+  "module": "lib/editorial.py",
+  "cls": "Editorial",
+  "example": "examples/editorial_ideas.py",
+  "summary": "4–5 spot inks with grain, uneven density and mis-registration"
+ },
+ {
+  "id": "oilpaint",
+  "name": "Impasto oil",
+  "label": "Impasto oil",
+  "module": "lib/oilpaint.py",
+  "cls": "OilPainting",
+  "example": "examples/oil_wheatfield.py",
+  "summary": "thousands of strokes following a flow field"
+ },
+ {
+  "id": "ukiyoe",
+  "name": "Ukiyo-e woodblock",
+  "label": "Ukiyo-e woodblock",
+  "module": "lib/ukiyoe.py",
+  "cls": "Ukiyoe",
+  "example": "examples/ukiyoe_fuji.py",
+  "summary": "one block per colour on washi, with wood grain and registration drift"
+ },
+ {
+  "id": "pixelart",
+  "name": "Pixel art",
+  "label": "Pixel art",
+  "module": "lib/pixelart.py",
+  "cls": "PixelArt",
+  "example": "examples/pixel_rainy_cafe.py",
+  "summary": "a 320×180 canvas painted pixel by pixel"
+ },
+ {
+  "id": "clay",
+  "name": "Stop-motion clay",
+  "label": "Stop-motion clay",
+  "module": "lib/clay.py",
+  "cls": "Clay",
+  "example": "examples/clay_lighthouse.py",
+  "summary": "a height map of pressed pieces (pads, balls, rolled snakes, puffy letters, finger-smeared slabs, tool grooves, pokes) with lumps and fingerp"
+ },
+ {
+  "id": "cyanotype",
+  "name": "Cyanotype",
+  "label": "Cyanotype (sun print)",
+  "module": "lib/cyanotype.py",
+  "cls": "Cyanotype",
+  "example": "examples/cyanotype_botanicals.py",
+  "summary": "emulsion brushed on in strokes with dry-brush ends"
+ },
+ {
+  "id": "stitch",
+  "name": "Cross-stitch embroidery",
+  "label": "Cross-stitch embroidery",
+  "module": "lib/stitch.py",
+  "cls": "Stitch",
+  "example": "examples/stitch_sampler.py",
+  "summary": "Aida cloth with a hole at every block corner"
+ },
+ {
+  "id": "panel",
+  "name": "Vintage instrument panel",
+  "label": "Vintage instrument panel",
+  "module": "lib/panel.py",
+  "cls": "Panel",
+  "example": "examples/panel_radio.py",
+  "summary": "teak veneer, brushed aluminium, moulded plastic, grille cloth with lurex floats, perforated metal"
+ },
+ {
+  "id": "sticker",
+  "name": "Sticker collage × receipt",
+  "label": "Sticker collage × receipt",
+  "module": "lib/sticker.py",
+  "cls": "Sticker",
+  "example": "examples/sticker_market.py",
+  "summary": "cream card board with grain, mottling and fibres"
+ },
+ {
+  "id": "notebook",
+  "name": "Lab notebook × stickers",
+  "label": "Lab notebook × stickers",
+  "module": "lib/notebook.py",
+  "cls": "Notebook",
+  "example": "examples/notebook_brewing.py",
+  "summary": "a wire-o graph-paper notebook on a graphite desk (hard back cover, stepped page stack, divider tabs, dog-ear, wire loops lit as metal tubes)"
+ },
+ {
+  "id": "chalk",
+  "name": "Chalkboard",
+  "label": "Chalkboard",
+  "module": "lib/chalk.py",
+  "cls": "Chalkboard",
+  "example": "examples/chalk_lesson.py",
+  "summary": "cloudy green slate paint"
+ },
+ {
+  "id": "cyberpunk",
+  "name": "Cyberpunk",
+  "label": "Cyberpunk",
+  "module": "lib/cyberpunk.py",
+  "cls": "Cyberpunk",
+  "example": "examples/cyberpunk_neon_street.py",
+  "summary": "a pinhole camera down a rain-soaked street canyon, rendered in HDR with a z-buffer: glass-tube neon with over-exposed cores, dead and flicke"
+ },
+ {
+  "id": "cartoon",
+  "name": "Hand-drawn cartoon",
+  "label": "Hand-drawn cartoon",
+  "module": "lib/cartoon.py",
+  "cls": "Cartoon",
+  "example": "examples/cartoon_toaster.py",
+  "summary": "drawn the way an animator draws one frame: a blue col-erase pencil rough left under everything"
+ },
+ {
+  "id": "isometric",
+  "name": "Isometric 2.5D",
+  "label": "Isometric 2.5D",
+  "module": "lib/isometric.py",
+  "cls": "Isometric",
+  "example": "examples/isometric_weather_island.py",
+  "summary": "a true isometric orthographic camera and a small ray tracer: every part is an exact analytic solid (chamfered boxes, roofs, rocks and hulls "
+ },
+ {
+  "id": "lineart",
+  "name": "Continuous line art",
+  "label": "Continuous line art",
+  "module": "lib/lineart.py",
+  "cls": "LineArt",
+  "example": "examples/lineart_paper_plane.py",
+  "summary": "the whole picture is one path: shapes strung together in drawing order with tangent-continuous bridges, loop-the-loops laid along the path, "
+ },
+ {
+  "id": "soft3d",
+  "name": "Soft 3D",
+  "label": "Soft 3D",
+  "module": "lib/soft3d.py",
+  "cls": "Soft3D",
+  "example": "examples/soft3d_rise.py",
+  "summary": "an actual little ray tracer: tens of thousands of balls found by walking a grid (DDA) with exact ray–sphere hits"
+ },
+ {
+  "id": "morph",
+  "name": "Shape morph",
+  "label": "Shape morph",
+  "module": "lib/morph.py",
+  "cls": "Morph",
+  "example": "examples/morph_water_cycle.py",
+  "summary": "one closed outline per object: resampled to 256 points evenly along its arc length, given the same winding, start point aligned by FFT cross"
+ },
+ {
+  "id": "newscollage",
+  "name": "Newspaper collage",
+  "label": "Newspaper collage",
+  "module": "lib/newscollage.py",
+  "cls": "NewsCollage",
+  "example": "examples/newscollage_curiosity.py",
+  "summary": "everything is paper that was printed, then torn or cut, then glued: kraft board with fibres"
+ },
+ {
+  "id": "aurora",
+  "name": "Aurora glassmorphism",
+  "label": "Aurora glassmorphism",
+  "module": "lib/aurora.py",
+  "cls": "Aurora",
+  "example": "examples/aurora_morning.py",
+  "summary": "a mesh gradient of colour pools mixed in OKLab on a domain-warped grid, with aurora ribbons and fine grain"
+ },
+ {
+  "id": "bauhaus",
+  "name": "Bauhaus geometric",
+  "label": "Bauhaus geometric",
+  "module": "lib/bauhaus.py",
+  "cls": "Bauhaus",
+  "example": "examples/bauhaus_form_colour.py",
+  "summary": "a press sheet printed screen by screen, light to dark, on cream uncoated stock (cloudy pulp, fibres, flecks, tooth, a slight cockle)"
+ },
+ {
+  "id": "synthwave",
+  "name": "Retro synthwave",
+  "label": "Retro synthwave",
+  "module": "lib/synthwave.py",
+  "cls": "Synthwave",
+  "example": "examples/synthwave_coastline.py",
+  "summary": "an 80s retro-future dusk through a pinhole camera: a gradient sun cut by slits that thicken toward the horizon"
+ },
+ {
+  "id": "perler",
+  "name": "Perler beads",
+  "label": "Perler beads",
+  "module": "lib/perler.py",
+  "cls": "Perler",
+  "example": "examples/perler_strawberry_coaster.py",
+  "summary": "a height field of real tubes seen by a camera leaning back a little (each pixel walks its column to the first surface), so every bead shows "
+ },
+ {
+  "id": "petroglyph",
+  "name": "Petroglyph",
+  "label": "Petroglyph",
+  "module": "lib/petroglyph.py",
+  "cls": "Petroglyph",
+  "example": "examples/petroglyph_migration.py",
+  "summary": "the picture is knocked out of the rock, not painted on: a sandstone height field (swells, faint bedding, grain, solution pockets, a stepped "
+ },
+ {
+  "id": "tomb",
+  "name": "Egyptian tomb painting",
+  "label": "Egyptian tomb painting",
+  "module": "lib/tomb.py",
+  "cls": "TombPainting",
+  "example": "examples/tomb_harvest.py",
+  "summary": "the wall is built in the painters' own order and every layer is kept: straw-tempered mud under gypsum plaster, a red-ochre squaring grid sna"
+ },
+ {
+  "id": "mosaic",
+  "name": "Roman mosaic",
+  "label": "Roman mosaic",
+  "module": "lib/mosaic.py",
+  "cls": "Mosaic",
+  "example": "examples/mosaic_harbor.py",
+  "summary": "a hidden cartoon that every stone samples and snaps to a finite box of stones (limestone, veined marble, smalti glass, terracotta), matched "
+ },
+ {
+  "id": "stainedglass",
+  "name": "Stained glass",
+  "label": "Stained glass",
+  "module": "lib/stainedglass.py",
+  "cls": "StainedGlass",
+  "example": "examples/stainedglass_seasons.py",
+  "summary": "the glazier's process: a cartoon cut into pieces (Voronoi mosaics, explicit cut sites for borders, slivers merged away)"
+ },
+ {
+  "id": "illuminated",
+  "name": "Illuminated manuscript",
+  "label": "Illuminated manuscript",
+  "module": "lib/illuminated.py",
+  "cls": "Illuminated",
+  "example": "examples/illuminated_starchart.py",
+  "summary": "textura written with a simulated broad-edged quill (a stroke is the area an angled nib sweeps, so the diamond feet and hairline joins come f"
+ },
+ {
+  "id": "codex",
+  "name": "Leonardo codex",
+  "label": "Leonardo codex",
+  "module": "lib/codex.py",
+  "cls": "Codex",
+  "example": "examples/codex_ornithopter.py",
+  "summary": "laid rag paper on a mount (laid and chain lines, fibre tooth), aged unevenly: browned ragged edges, a lost corner, yellowed clouds, crisp fo"
+ },
+ {
+  "id": "silhouette",
+  "name": "Silhouette",
+  "label": "Silhouette",
+  "module": "lib/silhouette.py",
+  "cls": "Silhouette",
+  "example": "examples/silhouette_family.py",
+  "summary": "black paper that is actually cut: a glued outline re-cut into tiny straight scissor facets, separately snipped strands (plume barbs, lashes,"
+ },
+ {
+  "id": "letterpress",
+  "name": "Letterpress poster",
+  "label": "Letterpress poster",
+  "module": "lib/letterpress.py",
+  "cls": "Letterpress",
+  "example": "examples/letterpress_circus.py",
+  "summary": "one forme per ink, pressed one pass at a time, and each pass lands a few pixels off: the red tint creeps out from under the black key on one"
+ },
+ {
+  "id": "constructivism",
+  "name": "Soviet constructivism",
+  "label": "Soviet constructivism",
+  "module": "lib/constructivism.py",
+  "cls": "Constructivism",
+  "example": "examples/constructivism_radio.py",
+  "summary": "one sheet, two plates: everything red is on one plate and everything black (solids, type, every halftone dot) on the other, each laid down w"
+ },
+ {
+  "id": "artdeco",
+  "name": "Art Deco",
+  "label": "Art Deco",
+  "module": "lib/artdeco.py",
+  "cls": "ArtDeco",
+  "example": "examples/artdeco_express.py",
+  "summary": "nothing is ever outlined: every shape is a knife-cut frisket sprayed with an airbrush, so edges are crisp and every inside is one smooth fad"
+ },
+ {
+  "id": "comic",
+  "name": "Golden-age comic",
+  "label": "Golden-age comic",
+  "module": "lib/comic.py",
+  "cls": "ComicCover",
+  "example": "examples/comic_rocket.py",
+  "summary": "made the way the shop made it, printed the way the press printed it: brush key lines on the black plate that land thin, swell, lift off and "
+ },
+ {
+  "id": "popart",
+  "name": "Pop silkscreen",
+  "label": "Pop silkscreen",
+  "module": "lib/popart.py",
+  "cls": "PopSilkscreen",
+  "example": "examples/popart_cat_moods.py",
+  "summary": "the Factory method rebuilt step by step on one gessoed cotton-duck canvas (a plain-weave height field with slubs), taped into a grid with pa"
+ },
+ {
+  "id": "lineprinter",
+  "name": "ASCII art",
+  "label": "ASCII art (line printer)",
+  "module": "lib/lineprinter.py",
+  "cls": "LinePrinter",
+  "example": "examples/lineprinter_launch.py",
+  "summary": "the scene is never drawn on the paper: it is painted into a hidden role map at six by ten samples per character cell, then every cell picks "
+ },
+ {
+  "id": "lowpoly",
+  "name": "Low poly",
+  "label": "Low poly (1999 3D)",
+  "module": "lib/lowpoly.py",
+  "cls": "LowPoly",
+  "example": "examples/lowpoly_canyon.py",
+  "summary": "an actual little software rasterizer drawing into a 384×216 framebuffer: a pinhole camera, vertices snapped to whole pixels, back-face culli"
+ },
+ {
+  "id": "stencil",
+  "name": "Stencil graffiti",
+  "label": "Stencil graffiti",
+  "module": "lib/stencil.py",
+  "cls": "Stencil",
+  "example": "examples/stencil_kite.py",
+  "summary": "a board-marked concrete wall built as albedo plus height and lit by a low sun (sawn-plank bands and wood grain pressed into the cement, brok"
+ },
+ {
+  "id": "patch",
+  "name": "Embroidered patches",
+  "label": "Embroidered patches",
+  "module": "lib/patch.py",
+  "cls": "Patch",
+  "example": "examples/patch_camping.py",
+  "summary": "stitched the way an embroidery machine does it: every shape is cut into parallel rows at its own angle and each row into stitches — short st"
+ },
+ {
+  "id": "blueprint",
+  "name": "Blueprint",
+  "label": "Blueprint",
+  "module": "lib/blueprint.py",
+  "cls": "Blueprint",
+  "example": "examples/blueprint_lighthouse.py",
+  "summary": "the drawing is inked first, on tracing linen, with a few fixed ruling-pen weights and single-stroke lettering-guide capitals (pencil guide l"
+ },
+ {
+  "id": "crayon",
+  "name": "Children's crayon",
+  "label": "Children's crayon",
+  "module": "lib/crayon.py",
+  "cls": "Crayon",
+  "example": "examples/crayon_picnic.py",
+  "summary": "rough paper whose tooth is equalised so pressure maps straight to coverage"
+ },
+ {
+  "id": "crt",
+  "name": "Green-screen CRT terminal",
+  "label": "Green-screen CRT terminal",
+  "module": "lib/crt.py",
+  "cls": "CRTTerminal",
+  "example": "examples/crt_weather.py",
+  "summary": "a character terminal, not a picture: 120×36 cells of character memory with dim / normal / bold, reverse video, underline and double-height l"
+ },
+ {
+  "id": "thermal",
+  "name": "Thermal camera",
+  "label": "Thermal camera",
+  "module": "lib/thermal.py",
+  "cls": "Thermal",
+  "example": "examples/thermal_kitchen.py",
+  "summary": "never painted in colour: the scene is a temperature field in °C — a room layered warm over cool, every object at its own temperature with it"
+ },
+ {
+  "id": "delft",
+  "name": "Delft tiles",
+  "label": "Delft tiles",
+  "module": "lib/delft.py",
+  "cls": "DelftTile",
+  "example": "examples/delft_canal.py",
+  "summary": "a tin-glazed tile wall made in workshop order: blank tiles on a grid that is never quite straight, the design pounced through a pricked patt"
+ },
+ {
+  "id": "cave",
+  "name": "Cave painting",
+  "label": "Cave painting (ochre)",
+  "module": "lib/cave.py",
+  "cls": "CavePainting",
+  "example": "examples/cave_hunt.py",
+  "summary": "the opposite of the petroglyph: pigment laid on pale limestone and seen only by a fire. The wall is a height field (broad swells, ridged fol"
+ },
+ {
+  "id": "macpaint",
+  "name": "1-bit paint program",
+  "label": "1-bit paint program",
+  "module": "lib/macpaint.py",
+  "cls": "MacPaint",
+  "example": "examples/macpaint_garden.py",
+  "summary": "the whole screen of a 1984-style black-and-white paint program, not \"pixel art\": a 640×360 framebuffer with exactly two values, blown up ×3 "
+ },
+ {
+  "id": "blackfigure",
+  "name": "Greek black-figure vase",
+  "label": "Greek black-figure vase",
+  "module": "lib/blackfigure.py",
+  "cls": "BlackFigure",
+  "example": "examples/blackfigure_games.py",
+  "summary": "the pot is thrown first — a profile r(y) with two round handles — and everything is painted on its unrolled surface, so the same painting wr"
+ },
+ {
+  "id": "graphite",
+  "name": "Graphite pencil",
+  "label": "Graphite pencil",
+  "module": "lib/graphite.py",
+  "cls": "Graphite",
+  "example": "examples/graphite_bicycle.py",
+  "summary": "graphite is a mass on the paper, not a colour: value is Dmax·(1 − e^−m), so layers build up but never reach black, darks stay a cool slate a"
+ },
+ {
+  "id": "xray",
+  "name": "X-ray",
+  "label": "X-ray",
+  "module": "lib/xray.py",
+  "cls": "XRay",
+  "example": "examples/xray_luggage.py",
+  "summary": "nothing is drawn as a picture of an object: every object is built as material along the beam (a solid with rounded edges, a hollow shell, a "
+ },
+ {
+  "id": "rubberhose",
+  "name": "1930s rubber hose",
+  "label": "1930s rubber hose",
+  "module": "lib/rubberhose.py",
+  "cls": "RubberHose",
+  "example": "examples/rubberhose_morning.py",
+  "summary": "made the way a studio made one frame, then printed and worn: a grey-gouache background painted once on board (washes with a dry-brush streak"
+ },
+ {
+  "id": "linocut",
+  "name": "Linocut",
+  "label": "Linocut",
+  "module": "lib/linocut.py",
+  "cls": "Linocut",
+  "example": "examples/linocut_snowy_village.py",
+  "summary": "made by subtraction, like the real thing: a rolled-up block prints solid black and every white in the picture is lino a gouge took away. Eac"
+ },
+ {
+  "id": "vhs",
+  "name": "VHS home video",
+  "label": "VHS home video",
+  "module": "lib/vhs.py",
+  "cls": "VHSCamcorder",
+  "example": "examples/vhs_birthday.py",
+  "summary": "not a retro filter over a picture but the three steps a home-video frame really went through, each one leaving its own marks. The room is pa"
+ },
+ {
+  "id": "flatvector",
+  "name": "Flat vector",
+  "label": "Flat vector",
+  "module": "lib/flatvector.py",
+  "cls": "FlatVector",
+  "example": "examples/flatvector_night_camp.py",
+  "summary": "an artboard of crisp anti-aliased geometric shapes (analytic circles, filleted polygons, tapered capsules, spline land profiles) combined wi"
+ },
+ {
+  "id": "storybook",
+  "name": "Storybook animation",
+  "label": "Storybook animation",
+  "module": "lib/storybook.py",
+  "cls": "Storybook",
+  "example": "examples/storybook_acorn.py",
+  "summary": "a real animation, not a draw-on: every piece of scenery is pre-painted once with a reveal map (the moment the pen or brush reaches each pixe"
+ },
+ {
+  "id": "ballpoint",
+  "name": "Ballpoint doodle",
+  "label": "Ballpoint doodle",
+  "module": "lib/ballpoint.py",
+  "cls": "Ballpoint",
+  "example": "examples/ballpoint_board_game.py",
+  "summary": "ballpoint ink is an oil paste a rolling ball lays down, kept as optical density, so a line drawn twice, a crossing or a blob goes darker and"
+ },
+ {
+  "id": "overlay",
+  "name": "Overlay sheets",
+  "label": "Overlay sheets (tracing paper on a light box)",
+  "module": "lib/overlay.py",
+  "cls": "Overlay",
+  "example": "examples/overlay_city_map.py",
+  "summary": "the picture is a product of transmittances: a warm light box glows through a base sheet printed in black line and grey tints, then through t"
+ },
+ {
+  "id": "pastelui",
+  "name": "Pastel UI",
+  "label": "Pastel UI (product-film interface)",
+  "module": "lib/pastelui.py",
+  "cls": "PastelUI",
+  "example": "examples/pastelui_packing.py",
+  "summary": "one frame of a modern product film: a flat pastel field (blue, pink, yellow, lilac, mint, peach) with one big pool of soft light and a few w"
+ },
+ {
+  "id": "grading",
+  "name": "Exam grading",
+  "label": "Exam grading (an answer sheet marked in red)",
+  "module": "lib/grading.py",
+  "cls": "Grading",
+  "example": "examples/grading_math_quiz.py",
+  "summary": "an answer sheet on a green felt desk, printed like the real form — timing marks down the edge, a heavy title, fields, a ticket number with i"
+ },
+ {
+  "id": "shadowpuppet",
+  "name": "Shadow puppetry",
+  "label": "Shadow puppetry (皮影戏)",
+  "module": "lib/shadowpuppet.py",
+  "cls": "ShadowPuppet",
+  "example": "examples/shadowpuppet_cuju.py",
+  "summary": "a shadow play seen from the audience, where everything on the screen is lamp light that came through it: a cloth screen lit by an oil lamp b"
+ },
+ {
+  "id": "penwash",
+  "name": "Pen & wash",
+  "label": "Pen & wash (钢笔淡彩)",
+  "module": "lib/penwash.py",
+  "cls": "PenWash",
+  "example": "examples/penwash_neighbours.py",
+  "summary": "small cold-press sketch cards made the way a sketcher makes them — a fineliner line first, loose watercolour after, then the cards photograp"
+ },
+ {
+  "id": "gouache",
+  "name": "Retro gouache",
+  "label": "Retro gouache (复古水粉)",
+  "module": "lib/gouache.py",
+  "cls": "GouachePortrait",
+  "example": "examples/gouache_rainy_day.py",
+  "summary": "picture-book character portraits in opaque gouache, painted the way a gouache painter works, dark to light and big to small: a warm imprimat"
+ },
+ {
+  "id": "bluebook",
+  "name": "Blue picture book",
+  "label": "Blue picture book (蓝调绘本)",
+  "module": "lib/bluebook.py",
+  "cls": "BlueBook",
+  "example": "examples/bluebook_shared_umbrella.py",
+  "summary": "a page of a soft-blue modern picture book, drawn the way the illustrator works and then printed: colour blocks, a loose ink line, dark masse"
+ },
+ {
+  "id": "jiangnan",
+  "name": "Jiangnan garden",
+  "label": "Jiangnan garden (江南园林)",
+  "module": "lib/jiangnan.py",
+  "cls": "JiangnanGarden",
+  "example": "examples/jiangnan_spring_water.py",
+  "summary": "a lush, finely painted spring garden in the manner of a contemporary digital-gouache illustration, painted back to front the way a landscape"
+ },
+ {
+  "id": "drybrush",
+  "name": "Dry-brush blocks",
+  "label": "Dry-brush blocks (干刷色块)",
+  "module": "lib/drybrush.py",
+  "cls": "DryBrushBlocks",
+  "example": "examples/drybrush_noodle_counter.py",
+  "summary": "a mid-century poster / gouache-collage illustration built from a few big dry-brushed blocks of colour on cream paper, in a strictly limited "
+ },
+ {
+  "id": "twilight",
+  "name": "Twilight storybook",
+  "label": "Twilight storybook (暮色微缩绘本)",
+  "module": "lib/twilight.py",
+  "cls": "TwilightStorybook",
+  "example": "examples/twilight_paper_kite.py",
+  "summary": "a tender dusk picture-book page full of miniature detail, at the hour when day turns to night. The dusk sky is a six-stop gradient (lavender"
+ },
+ {
+  "id": "nocturne",
+  "name": "Hatched nocturne",
+  "label": "Hatched nocturne (排线夜景)",
+  "module": "lib/nocturne.py",
+  "cls": "Nocturne",
+  "example": "examples/nocturne_lava_sea.py",
+  "summary": "a small night print built entirely from short directional strokes, the way a pastel or coloured-pencil artist hatches a nocturne, then mount"
+ },
+ {
+  "id": "obsidianui",
+  "name": "Obsidian UI",
+  "label": "Obsidian UI (笔记应用界面)",
+  "module": "lib/obsidianui.py",
+  "cls": "ObsidianUI",
+  "example": "examples/obsidianui_reading_notes.py",
+  "summary": "a dark note-taking app the way an explainer film shows it: a near-black page with a soft violet glow and the app window on it — a tab bar wi"
+ },
+ {
+  "id": "canvasboard",
+  "name": "Canvas board",
+  "label": "Canvas board (白板卡片)",
+  "module": "lib/canvasboard.py",
+  "cls": "CanvasBoard",
+  "example": "examples/canvasboard_moving_plan.py",
+  "summary": "the canvas view of a dark note-taking app, as a product film shows it: a dark page with a faint violet glow, the app window (traffic lights "
+ },
+ {
+  "id": "flexoki",
+  "name": "Flexoki paper",
+  "label": "Flexoki paper (Flexoki 纸面)",
+  "module": "lib/flexoki.py",
+  "cls": "FlexokiPaper",
+  "example": "examples/flexoki_pour_over.py",
+  "summary": "an explainer sheet the way a docs site themed with the Flexoki palette shows its diagrams: warm paper #FFFCF0, ink-black type, a ladder of w"
+ },
+ {
+  "id": "pencilbook",
+  "name": "Warm pencil storybook",
+  "label": "Warm pencil storybook (暖调彩铅绘本)",
+  "module": "lib/pencilbook.py",
+  "cls": "PencilStorybook",
+  "example": "examples/pencilbook_tortoise_crossing.py",
+  "summary": "a children's-storybook page in soft, layered coloured pencil on warm, toothy paper — a giant gentle creature and a small child at dusk. The "
+ },
+ {
+  "id": "colortown",
+  "name": "Colour town",
+  "label": "Colour town (彩色小镇)",
+  "module": "lib/colortown.py",
+  "cls": "ColorTown",
+  "example": "examples/colortown_festival_steps.py",
+  "summary": "a dense, cheerful storybook hill town in opaque gouache and a fine ink line — tall narrow houses in tomato, mustard, teal, mint, coral and c"
+ },
+ {
+  "id": "pastelvignette",
+  "name": "Pastel vignette",
+  "label": "Pastel vignette (色粉小像)",
+  "module": "lib/pastelvignette.py",
+  "cls": "PastelVignette",
+  "example": "examples/pastelvignette_marmalade_scarf.py",
+  "summary": "a whimsical picture-book vignette in soft chalk pastel and a little gouache on pure white paper — a person and an animal companion, half-len"
+ },
+ {
+  "id": "poetichalloween",
+  "name": "Poetic Halloween",
+  "label": "Poetic Halloween (诗意万圣夜)",
+  "module": "lib/poetichalloween.py",
+  "cls": "PoeticHalloween",
+  "example": "examples/poetichalloween_ghost_jar.py",
+  "summary": "a melancholic, slightly surreal picture-book portrait for an autumn night, in opaque gouache and fine pencil hatching on a dark toned board,"
+ },
+ {
+  "id": "oilpastel",
+  "name": "Oil-pastel portrait",
+  "label": "Oil-pastel portrait (油画棒肖像)",
+  "module": "lib/oilpastel.py",
+  "cls": "OilPastel",
+  "example": "examples/oilpastel_warm_cup.py",
+  "summary": "a figure drawn with oil pastels (wax crayons) on white, toothy cold-press paper and left floating as a vignette — no background, at most a s"
+ },
+ {
+  "id": "sketchbook",
+  "name": "Sketchbook doodle",
+  "label": "Sketchbook doodle (手账线描)",
+  "module": "lib/sketchbook.py",
+  "cls": "Sketchbook",
+  "example": "examples/sketchbook_kite_day.py",
+  "summary": "a page from an illustrator's sketchbook: warm off-white paper with a faint blush, mostly left empty, one small character and two or three sp"
+ },
+ {
+  "id": "spotillo",
+  "name": "Flat spot illustration",
+  "label": "Flat spot illustration (日系扁平小插画)",
+  "module": "lib/spotillo.py",
+  "cls": "SpotIllustration",
+  "example": "examples/spotillo_rainy_saturday.py",
+  "summary": "Japanese-style spot illustrations of everyday life: several small vignettes floating on white with generous space between them — no ground, "
+ },
+ {
+  "id": "grainbook",
+  "name": "Grainy picture book",
+  "label": "Grainy picture book (颗粒童书)",
+  "module": "lib/grainbook.py",
+  "cls": "GrainBook",
+  "example": "examples/grainbook_duck_pond.py",
+  "summary": "the sweet, grainy mid-century children's-book look: a full-bleed page — no margin, no vignette — in a small, saturated palette (cobalt and u"
+ },
+ {
+  "id": "dreamhills",
+  "name": "Dreamy hills",
+  "label": "Dreamy hills (柔光草丘)",
+  "module": "lib/dreamhills.py",
+  "cls": "DreamHills",
+  "example": "examples/dreamhills_long_walk.py",
+  "summary": "the minimalist, dreamy hills wallpaper: a tall 1:2 picture with a clean, deep sky over half of it, giant soft hills below, and one person a "
+ },
+ {
+  "id": "sunlitgreen",
+  "name": "Sunlit greenery",
+  "label": "Sunlit greenery (夏日光绿)",
+  "module": "lib/sunlitgreen.py",
+  "cls": "SunlitGreen",
+  "example": "examples/sunlitgreen_stream_steps.py",
+  "summary": "bright, high-key summer daylight as an anime background painter or a digital-gouache illustrator paints it — no outlines, hard-edged flat sh"
+ }
+]

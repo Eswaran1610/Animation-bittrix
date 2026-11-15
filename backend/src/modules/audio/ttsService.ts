@@ -93,7 +93,8 @@ export class TTSService {
     text: string,
     outputAudio: string,
     outputAlignment: string,
-    speedMultiplier = 1
+    speedMultiplier = 1,
+    fps = 30
   ): Promise<WordAlignment[]> {
     const alignScript = path.join(projectPaths.root, 'backend', 'src', 'modules', 'audio', 'edgeTtsAlign.py');
     const isWindows = process.platform === 'win32';
@@ -125,8 +126,8 @@ export class TTSService {
         endSec: Number(w.endSec || 0),
         startMs: Number(w.startMs || 0),
         endMs: Number(w.endMs || 0),
-        startFrame: Math.round(Number(w.startSec || 0) * 30),
-        endFrame: Math.max(Math.round(Number(w.startSec || 0) * 30) + 1, Math.round(Number(w.endSec || 0) * 30)),
+        startFrame: Math.round(Number(w.startSec || 0) * fps),
+        endFrame: Math.max(Math.round(Number(w.startSec || 0) * fps) + 1, Math.round(Number(w.endSec || 0) * fps)),
       }));
     }
     return [];
@@ -177,7 +178,7 @@ export class TTSService {
   }
 
   /** Generate full narration with authoritative word-level alignment. */
-  async generateNarrationWithAlignment(projectId: string, text: string): Promise<NarrationResult> {
+  async generateNarrationWithAlignment(projectId: string, text: string, fps = 30): Promise<NarrationResult> {
     const mediaDir = path.join(projectPaths.backendMedia, 'audio');
     const remotionPublicDir = path.join(projectPaths.remotionPublic, 'audio');
     await fs.mkdir(mediaDir, { recursive: true });
@@ -206,7 +207,7 @@ export class TTSService {
             audioPath: backendFile,
             staticUrl: `audio/${fileName}`,
             durationSec: cachedDuration,
-            durationInFrames: Math.ceil(cachedDuration * 30),
+            durationInFrames: Math.ceil(cachedDuration * fps),
             words: cachedAlign.words,
             alignmentType: 'measured',
           };
@@ -216,7 +217,7 @@ export class TTSService {
 
     if (TTS_PROVIDER === 'edge-tts') {
       try {
-        words = await this.synthesizeEdgeTtsWithAlignment(text, backendFile, backendAlignFile, 1);
+        words = await this.synthesizeEdgeTtsWithAlignment(text, backendFile, backendAlignFile, 1, fps);
       } catch (err: any) {
         console.warn(`[TTSService] edge-tts alignment synthesis failed (${err.message}). Falling back to Kokoro...`);
       }
@@ -231,10 +232,10 @@ export class TTSService {
       '-of', 'default=noprint_wrappers=1:nokey=1', backendFile,
     ]);
     const durationSec = parseFloat(stdout.trim()) || 0;
-    const durationInFrames = Math.ceil(durationSec * 30);
+    const durationInFrames = Math.ceil(durationSec * fps);
 
     if (!words.length) {
-      words = this.computeFallbackWordAlignment(text, durationSec, 30);
+      words = this.computeFallbackWordAlignment(text, durationSec, fps);
       alignmentType = 'fallback';
       await fs.writeFile(backendAlignFile, JSON.stringify({ text, voice: 'fallback', words }, null, 2), 'utf8');
     }
@@ -268,7 +269,8 @@ export class TTSService {
     sceneNumber: number,
     text: string,
     renderVersion = 1,
-    speedMultiplier = 1
+    speedMultiplier = 1,
+    fps = 30
   ): Promise<NarrationResult> {
     const mediaDir = path.join(projectPaths.backendMedia, 'audio');
     const remotionPublicDir = path.join(projectPaths.remotionPublic, 'audio');
@@ -300,7 +302,7 @@ export class TTSService {
             audioPath: backendFile,
             staticUrl: `audio/${fileName}`,
             durationSec: cachedDuration,
-            durationInFrames: Math.ceil(cachedDuration * 30),
+            durationInFrames: Math.ceil(cachedDuration * fps),
             words: cachedAlign.words,
             alignmentType: 'measured',
           };
@@ -310,7 +312,7 @@ export class TTSService {
 
     if (TTS_PROVIDER === 'edge-tts') {
       try {
-        words = await this.synthesizeEdgeTtsWithAlignment(text, backendFile, backendAlignFile, speedMultiplier);
+        words = await this.synthesizeEdgeTtsWithAlignment(text, backendFile, backendAlignFile, speedMultiplier, fps);
       } catch (err: any) {
         console.warn(`[TTSService] Scene ${sceneNumber} edge-tts alignment failed (${err.message}). Falling back to Kokoro...`);
       }
@@ -325,10 +327,10 @@ export class TTSService {
       '-of', 'default=noprint_wrappers=1:nokey=1', backendFile,
     ]);
     const durationSec = parseFloat(stdout.trim()) || 0;
-    const durationInFrames = Math.ceil(durationSec * 30);
+    const durationInFrames = Math.ceil(durationSec * fps);
 
     if (!words.length) {
-      words = this.computeFallbackWordAlignment(text, durationSec, 30);
+      words = this.computeFallbackWordAlignment(text, durationSec, fps);
       alignmentType = 'fallback';
       await fs.writeFile(backendAlignFile, JSON.stringify({ text, voice: 'fallback', words }, null, 2), 'utf8');
     }
@@ -347,8 +349,8 @@ export class TTSService {
   }
 
   /** Generate and probe one scene clip so visual timing follows real speech (legacy compatible). */
-  async generateSceneNarration(projectId: string, sceneNumber: number, text: string, renderVersion = 1, speedMultiplier = 1): Promise<{ audioPath: string; staticUrl: string; durationSec: number }> {
-    const result = await this.generateSceneNarrationWithAlignment(projectId, sceneNumber, text, renderVersion, speedMultiplier);
+  async generateSceneNarration(projectId: string, sceneNumber: number, text: string, renderVersion = 1, speedMultiplier = 1, fps = 30): Promise<{ audioPath: string; staticUrl: string; durationSec: number }> {
+    const result = await this.generateSceneNarrationWithAlignment(projectId, sceneNumber, text, renderVersion, speedMultiplier, fps);
     return {
       audioPath: result.audioPath,
       staticUrl: result.staticUrl,

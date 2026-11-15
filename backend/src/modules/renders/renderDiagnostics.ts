@@ -7,7 +7,7 @@ const tail = (value: unknown) => String(value || '').slice(-MAX_LOG_CHARS);
 export const classifyRenderFailure = (error: unknown): RenderFailureTag => {
   const message = String((error as any)?.message || error || '').toLowerCase();
   if (/asset|image|model|glb|file does not exist|enoent|decode/.test(message)) return 'asset';
-  if (/audio-sync|verify_sync|cue manifest|audible hit|dead-air/.test(message)) return 'audio-sync';
+  if (/audio-sync|verify_sync|cue manifest|audible hit|dead-air|video.*vs audio/.test(message)) return 'audio-sync';
   if (/quality gate|quality-gate|text overflow|zone overlap|canvas bounds/.test(message)) return 'quality-gate';
   if (/props-invalid|invalid props|schema|preflight|scene plan|missing .*props/.test(message)) return 'props-invalid';
   if (/out of memory|oom|memory limit|heap out of memory/.test(message)) return 'memory';

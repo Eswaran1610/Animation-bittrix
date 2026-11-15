@@ -141,7 +141,7 @@ class AutonomousPipelineService {
     const id = crypto.randomUUID();
     const fps = params.fps || 60;
     const resolution = params.resolution || '1080x1920';
-    const voice = params.voice || 'en-US-ChristopherNeural';
+    const voice = params.voice || 'en-US-AndrewNeural';
     const displayTopic = params.projectName ? `${params.projectName}: ${params.topic}` : params.topic;
 
     const job: AutonomousJob = {
@@ -162,13 +162,21 @@ class AutonomousPipelineService {
 
     const scriptPath = path.join(this.rootDir, 'scripts', 'run-autonomous-pipeline.mjs');
     const child = spawn(
-      '/usr/bin/node',
+      process.execPath,
       [scriptPath, '--topic', params.topic, '--fps', String(fps), '--resolution', resolution, '--voice', voice, '--auto-approve'],
       {
         cwd: this.rootDir,
         env: { ...process.env, NODE_ENV: 'production' },
       }
     );
+
+    child.on('error', (err) => {
+      job.status = 'failed';
+      job.currentStage = 'error';
+      job.error = `Process spawn error: ${err.message}`;
+      job.logs.push(`❌ [Spawn Error] ${err.message}`);
+      this.broadcast(job);
+    });
 
     child.stdout.on('data', (chunk) => {
       const text = chunk.toString();
@@ -237,6 +245,8 @@ class AutonomousPipelineService {
 
   private broadcast(job: AutonomousJob) {
     try {
+      const lastLog = job.logs[job.logs.length - 1] || job.status;
+      // 1. Specific autonomous channel
       realtime.publish({
         type: 'autonomous_pipeline_update',
         job: {
@@ -248,8 +258,17 @@ class AutonomousPipelineService {
           videoUrl: job.videoUrl,
           propsPath: job.propsPath,
           error: job.error,
-          lastLog: job.logs[job.logs.length - 1],
+          lastLog,
         },
+      });
+
+      // 2. Standard frontend pipeline progress event for real-time status bar updates
+      realtime.publish({
+        type: 'pipeline_progress',
+        projectId: job.id,
+        progress: job.progress,
+        stage: job.currentStage,
+        status: lastLog,
       });
     } catch {}
   }

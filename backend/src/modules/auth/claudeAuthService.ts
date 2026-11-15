@@ -3,6 +3,8 @@ import { promisify } from 'util';
 import { projectPaths } from '../../config/paths.js';
 import { activeProviderService } from '../providers/activeProviderService.js';
 
+import { resolveCliBinary } from './cliBinaryResolver.js';
+
 const execFileAsync = promisify(execFile);
 type ConnectionState = 'unknown' | 'connected' | 'failed';
 
@@ -18,7 +20,7 @@ class ClaudeAuthService {
         cliAvailable: false,
         state: 'failed' as const,
         isActive: false,
-        message: 'Claude Code CLI is not installed. Install via: npm install -g @anthropic-ai/claude-code',
+        message: 'Claude Code CLI is not installed. Install via: npm install -g @anthropic-ai/claude-code or curl -fsSL https://claude.ai/install.sh | bash',
       };
     }
 
@@ -30,7 +32,7 @@ class ClaudeAuthService {
       });
       const version = stdout.trim();
       this.lastState = 'connected';
-      this.lastMessage = `Claude Code CLI is available on this machine (${version}).`;
+      this.lastMessage = `Claude Code CLI is available and connected on this machine (${version}).`;
     } catch {
       this.lastState = 'failed';
       this.lastMessage = 'Claude Code CLI could not be verified. Check its installation and run `claude login` if generation reports an authentication error.';
@@ -38,7 +40,7 @@ class ClaudeAuthService {
     const isActive = activeProviderService.get() === 'claude';
     return {
       cliAvailable: true,
-      state: this.lastState === 'connected' ? (isActive ? 'connected' as const : 'standby' as const) : this.lastState,
+      state: this.lastState,
       isActive,
       message: isActive ? `Claude Code is selected as the active CLI. ${this.lastMessage}` : this.lastMessage,
     };
@@ -57,7 +59,7 @@ class ClaudeAuthService {
   }
 
   private getClaudeBin(): string {
-    return process.env.CLAUDE_BIN || '/home/inkyank/.local/bin/claude';
+    return resolveCliBinary('claude');
   }
 
   private async isCliAvailable(): Promise<boolean> {
@@ -72,3 +74,4 @@ class ClaudeAuthService {
 }
 
 export const claudeAuthService = new ClaudeAuthService();
+

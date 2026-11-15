@@ -19,6 +19,7 @@ import { activeProviderService } from './modules/providers/activeProviderService
 import { THEME_CATALOG } from './modules/themes/themeCatalog.js';
 import { motionCanvasService } from './modules/motionCanvas/motionCanvasService.js';
 import { autonomousPipelineService } from './modules/pipeline/autonomousPipelineService.js';
+import { getDrawingStyle, listDrawingStyles } from './modules/drawing/drawingStyles.js';
 
 dotenv.config();
 
@@ -167,6 +168,15 @@ app.get('/api/projects', async (req, res) => {
   }
 });
 
+// claude-drawing skill styles (the dashboard's Drawing Style dropdown)
+app.get('/api/drawing-styles', (_req, res) => {
+  try {
+    res.json(listDrawingStyles().map(({ id, label, summary }) => ({ id, label, summary })));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/projects', async (req, res) => {
   try {
     const input_content = req.body.input_content || req.body.content || req.body.topic;
@@ -181,7 +191,11 @@ app.post('/api/projects', async (req, res) => {
       return res.status(400).json({ error: 'requested_duration_sec must be an integer between 15 and 60 seconds' });
     }
     const selectedTheme = typeof (theme_id || theme) === 'string' ? String(theme_id || theme).trim() : undefined;
-    const project = await projectsService.createProject(input_content, input_type, title, duration, selectedTheme);
+    const rawDrawingStyle = typeof req.body.drawing_style === 'string' ? req.body.drawing_style.trim() : '';
+    if (rawDrawingStyle && !getDrawingStyle(rawDrawingStyle)) {
+      return res.status(400).json({ error: `Unknown drawing_style "${rawDrawingStyle}". See GET /api/drawing-styles.` });
+    }
+    const project = await projectsService.createProject(input_content, input_type, title, duration, selectedTheme, rawDrawingStyle || undefined);
     res.status(201).json(project);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -435,8 +449,11 @@ app.post('/api/projects/:id/previews/render', async (req, res) => {
     const renderJob = await rendersService.createPreviewRender(req.params.id, script_version, visual_feedback);
     res.json(renderJob);
   } catch (err: any) {
+    if (err?.message?.includes('is still being prepared')) {
+      return res.status(202).json({ status: 'preparing', message: err.message });
+    }
     // Return 403 Forbidden if Gate 1 is violated
-    const status = err.message.includes('Gate 1') ? 403 : 500;
+    const status = err.message?.includes('Gate 1') ? 403 : 500;
     res.status(status).json({ error: err.message });
   }
 });

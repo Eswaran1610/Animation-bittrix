@@ -55,18 +55,30 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, activePro
   const isCurrentPreviewApproved = currentPreviewVer > 0 && !!previewApproval;
 
   const latestPreviewJob = renderJobs.find((j) => j.render_type === 'preview');
+  const latestFinalJob = renderJobs.find((j) => j.render_type === 'final');
   const finalVideo = videos[0];
   const latestProductionPackage = productionPackages[0];
 
   useEffect(() => {
-    if (!latestPreviewJob || latestPreviewJob.status === 'completed' || latestPreviewJob.status === 'failed') {
-      if (latestProductionPackage?.status !== 'queued' && latestProductionPackage?.status !== 'building') return;
-    }
+    const isPreviewActive = latestPreviewJob && latestPreviewJob.status !== 'completed' && latestPreviewJob.status !== 'failed';
+    const isFinalActive = latestFinalJob && latestFinalJob.status !== 'completed' && latestFinalJob.status !== 'failed';
+    const isPackageActive = latestProductionPackage?.status === 'queued' || latestProductionPackage?.status === 'building';
+    const isProjectActive = project.stage === 'animation_prep' || project.stage === 'preview_render' || project.stage === 'final_render';
+
+    if (!isPreviewActive && !isFinalActive && !isPackageActive && !isProjectActive) return;
+
     const refreshTimer = window.setInterval(() => {
       void onRefresh();
     }, 2000);
     return () => window.clearInterval(refreshTimer);
-  }, [latestPreviewJob?.id, latestPreviewJob?.status, latestProductionPackage?.status]);
+  }, [
+    latestPreviewJob?.id,
+    latestPreviewJob?.status,
+    latestFinalJob?.id,
+    latestFinalJob?.status,
+    latestProductionPackage?.status,
+    project.stage
+  ]);
 
   useEffect(() => {
     if (currentPreviewVer > 0) {
@@ -471,12 +483,18 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, activePro
               <div style={{ paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
                 <button
                   onClick={handleRenderPreview}
-                  disabled={!isScriptApproved || isSubmittingPreviewAction}
+                  disabled={!isScriptApproved || isSubmittingPreviewAction || latestProductionPackage?.status === 'building'}
                   className="btn btn-primary"
                   style={{ width: '100%', padding: '12px' }}
                 >
                   <Play size={18} />
-                  {isSubmittingPreviewAction ? 'Waiting for CLI production package...' : 'Render CLI Package Preview'}
+                  {isSubmittingPreviewAction
+                    ? 'Waiting for CLI production package...'
+                    : latestProductionPackage?.status === 'building'
+                    ? 'Building CLI Production Package...'
+                    : latestProductionPackage?.status === 'failed'
+                    ? 'Retry CLI Package & Preview'
+                    : 'Render CLI Package Preview'}
                 </button>
                 {!isScriptApproved && (
                   <p style={{ fontSize: '11px', color: '#f59e0b', marginTop: '8px', textAlign: 'center' }}>

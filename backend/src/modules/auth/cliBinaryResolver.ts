@@ -8,6 +8,9 @@ import { execSync } from 'child_process';
  * office vs. home machines, and various user home directories.
  */
 export function resolveCliBinary(name: 'claude' | 'agy' | string): string {
+  if (!name || name === 'none') {
+    name = 'agy';
+  }
   const envVar = name === 'claude' ? 'CLAUDE_BIN' : name === 'agy' ? 'AGY_BIN' : undefined;
   if (envVar && process.env[envVar]) {
     return process.env[envVar]!;

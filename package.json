@@ -22,6 +22,9 @@
     "render:server": "node scripts/remotion-render-server.mjs",
     "qa:scene-stills": "node scripts/render-scene-stills.mjs",
     "qa:quality-gate": "node scripts/qualityGate.mjs",
+    "mobile:start": "npm --prefix mobile-app start",
+    "mobile:apk": "npm --prefix mobile-app run build:apk",
+    "tunnel": "node scripts/start-tunnel.mjs",
     "build": "npm run backend:build && npm run frontend:build && npm run remotion:typecheck && npm run motion-canvas:build"
   },
   "engines": {

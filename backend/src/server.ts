@@ -20,6 +20,7 @@ import { THEME_CATALOG } from './modules/themes/themeCatalog.js';
 import { motionCanvasService } from './modules/motionCanvas/motionCanvasService.js';
 import { autonomousPipelineService } from './modules/pipeline/autonomousPipelineService.js';
 import { getDrawingStyle, listDrawingStyles } from './modules/drawing/drawingStyles.js';
+import { mobileRouter } from './modules/mobile/mobileRoutes.js';
 
 dotenv.config();
 
@@ -34,6 +35,9 @@ app.use(express.json());
 app.use('/media', express.static(projectPaths.backendMedia));
 app.use('/sfx', express.static(path.join(projectPaths.remotionPublic, 'sfx')));
 app.use('/motion-canvas-dist', express.static(projectPaths.motionCanvasDist));
+
+// Native Android Mobile API (Idea Pool, Peer-Review, Stage 1 Preview, Final Video)
+app.use('/api/mobile', mobileRouter);
 
 // Health & System Info
 app.get('/api/health', (req, res) => {

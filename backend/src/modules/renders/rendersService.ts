@@ -577,20 +577,33 @@ export class RendersService {
         }
       });
 
-      // Final CTA sting: short chime or ding on the closing scene
+      // Final CTA sting: Bittrix Outro chain rolling, gear ratchet, and shine chime
       if (s.role === 'cta' || idx === scenePlan.length - 1) {
-        const ctaHitFrame = Math.max(12, durationInFrames - 24);
-        const isSpaced = cueRequests.length < 6 && lastHitTime.every((t) => Math.abs(t - ctaHitFrame) >= 12);
-        if (isSpaced) {
-          lastHitTime.push(ctaHitFrame);
-          cueRequests.push({
-            hitFrame: ctaHitFrame,
-            role: 'ding',
-            sourceId: `${s.scene_number}.cta-sting`,
-            seedKey: `${projectId}:${s.scene_number}:cta`,
-            pan: 0,
-          });
-        }
+        const chainHitFrame = Math.round(0.35 * fps);
+        const gearHitFrame = Math.round(1.0 * fps);
+        const shineHitFrame = Math.max(chainHitFrame + 20, durationInFrames - 20);
+
+        cueRequests.push({
+          hitFrame: chainHitFrame,
+          role: 'tick',
+          sourceId: `${s.scene_number}.chain-roll`,
+          seedKey: `${projectId}:${s.scene_number}:chain`,
+          pan: 0,
+        });
+        cueRequests.push({
+          hitFrame: gearHitFrame,
+          role: 'slide',
+          sourceId: `${s.scene_number}.gear-slide`,
+          seedKey: `${projectId}:${s.scene_number}:gear`,
+          pan: 0,
+        });
+        cueRequests.push({
+          hitFrame: shineHitFrame,
+          role: 'chime',
+          sourceId: `${s.scene_number}.cta-sting`,
+          seedKey: `${projectId}:${s.scene_number}:cta`,
+          pan: 0,
+        });
       }
 
       // Scene transition: no repetitive transition whoosh between scenes

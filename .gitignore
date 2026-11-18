@@ -34,6 +34,9 @@ remotion/public/audio/*
 remotion/public/assets/*
 !remotion/public/assets/.gitkeep
 remotion/public/projects/
+remotion/src/projects/
+__pycache__/
+*.pyc
 
 # Environment variables
 .env

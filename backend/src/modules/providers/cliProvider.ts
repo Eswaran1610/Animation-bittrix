@@ -226,7 +226,7 @@ export class UnifiedCliProvider extends BasePlanProvider {
     const resolvedBin = resolveCliBinary(cliBin);
     const args = ['-p', prompt, '--output-format', 'json', '--dangerously-skip-permissions'];
     if (cliBin === 'claude') {
-      args.splice(2, 0, '--model', claudeModel, '--safe-mode');
+      args.splice(2, 0, '--model', claudeModel);
     }
     console.log(`[UnifiedCliProvider:${cliBin}] Spawning ${resolvedBin} CLI (model=${cliBin === 'claude' ? claudeModel : 'default'}, timeout=${Math.round(timeoutMs / 1000)}s)...`);
     const { stdout, stderr, code } = await this.spawnProcess(
@@ -296,7 +296,7 @@ export class UnifiedCliProvider extends BasePlanProvider {
     const claudeModel = this.resolveClaudeModel();
     const args = ['-p', prompt, '--output-format', 'json', '--dangerously-skip-permissions'];
     if (active === 'claude') {
-      args.splice(2, 0, '--model', claudeModel, '--safe-mode');
+      args.splice(2, 0, '--model', claudeModel);
     }
 
     const { stdout, stderr, code } = await this.spawnProcess(resolvedBin, args, timeoutMs + 10000);
@@ -433,7 +433,7 @@ CONTENT:
 TECHNICAL CONTRACT:
 1. \`export default function Video(props: { fps: number; durationInFrames: number; scenes: Array<{ scene_number: number; start: number; durationInFrames: number; narration: string; words: Array<{ word: string; startFrame: number; endFrame: number }> }> })\`. In props, scene.start is absolute and each word's startFrame/endFrame is RELATIVE to its scene's start. Use useCurrentFrame()/useVideoConfig() freely; you may use <Sequence>, <AbsoluteFill>, interpolate, spring, Easing, etc.
 2. Never render <Audio>/<Video>/<OffthreadVideo> -- the audio track is mixed separately.
-3. Also \`export const soundEvents = [ ... ]\`: a plain JSON array literal (double-quoted keys/strings) of up to 24 visual hit moments you choreographed across the film, e.g. [{"frame": 42, "role": "click", "description": "key appears"}]. "frame" is an ABSOLUTE integer frame in [0, \${durationInFrames}); role is one of: pop, click, tick, whoosh, slide, riser, impact, sparkle, chime, draw, count, ding. CRITICAL: Do NOT put repetitive generic "whoosh" sounds at scene cuts/transitions. Use object-specific sound roles (pop, click, tick, draw, chime, ding) tied to distinct physical on-screen actions.
+3. Also \`export const soundEvents = [ ... ]\`: a plain JSON array literal (double-quoted keys/strings) of up to 24 visual hit moments you choreographed across the film, e.g. [{"frame": 42, "role": "keyboard_clack", "description": "terminal command typed"}]. "frame" is an ABSOLUTE integer frame in [0, \${durationInFrames}); "role" is the specific context sound descriptor (e.g. keyboard_clack, camera_shutter, sub_bass_drop, glitch, laser_chirp, coin_clink, metallic_latch, or classic roles like tick, click, ding, impact, draw, chime). CRITICAL: Do NOT put repetitive generic "whoosh" sounds at scene cuts. Choose real context-specific sounds tied to distinct physical on-screen actions.
 4. Imports only from: react, remotion, @remotion/shapes, @remotion/paths, @remotion/transitions, @remotion/three, three, @react-three/fiber. No relative imports, no fetch, no external URLs/assets, no timers. Deterministic: use remotion's random(seed), never Math.random().
 5. Single self-contained file.
 

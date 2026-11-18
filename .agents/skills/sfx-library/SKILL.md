@@ -5,8 +5,16 @@ description: Generate and use object sound effects (pop, click, tick, whoosh, sl
 
 # sfx-library
 
-Object sounds are synthesized by `make_sfx.py` (no samples, no downloads, no licence issues).
-A new seed gives a new sound set, so each daily video sounds different but renders repeatably.
+## Primary SFX Pipeline: Real-World Web & Browser Fetching
+Never restrict videos to repetitive synthetic toys (`pop`, `whoosh`). The agent must use the browser and web search tools to discover, fetch, and download real CC0 / Public Domain sound effects from Openverse (`https://openverse.org`), Freesound, or open sound archives:
+- **Terminal / Code:** Real mechanical keyboard clicks, clatter, enter key.
+- **Hardware / Device:** Camera shutter, lens zoom, biometric beep, hardware click.
+- **Cloud / Cyber:** High-tech data stream, server fan, glitch, sub-bass impact.
+- **Physical Action:** Heavy metal latch, glass shatter, door slam, hydraulic hiss.
+- **Save Location:** Download audio files to `remotion/public/assets/projects/${projectId}/audio/sfx/`.
+
+## Procedural Fallback:
+If an authentic sound cannot be fetched or when working offline, procedural sound effects can be synthesized by `make_sfx.py`.
 
 ## Every video, in this order
 1. Take the job id from the plan (`plan.jobId`).

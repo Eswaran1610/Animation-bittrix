@@ -1002,7 +1002,29 @@ export class RendersService {
           return evt.frame >= start && evt.frame < start + s.durationInFrames;
         });
         if (!scene) return;
-        const role = roles.includes(evt.role as any) ? (evt.role as SfxRole) : 'pop';
+        const rawRole = String(evt.role || '').toLowerCase();
+        let role: SfxRole = 'pop';
+        if (roles.includes(rawRole as any)) {
+          role = rawRole as SfxRole;
+        } else if (/key|type|code|terminal|keyboard/i.test(rawRole)) {
+          role = 'tick';
+        } else if (/shutter|camera|button|switch|toggle|tap|click/i.test(rawRole)) {
+          role = 'click';
+        } else if (/drop|boom|slam|crash|heavy|bass|thud|impact|smash/i.test(rawRole)) {
+          role = 'impact';
+        } else if (/glitch|pulse|laser|hum|sweep|fly|whoosh/i.test(rawRole)) {
+          role = 'whoosh';
+        } else if (/bell|chime|ring|success|win|check|ding/i.test(rawRole)) {
+          role = 'ding';
+        } else if (/glow|spark|shine|magic/i.test(rawRole)) {
+          role = 'sparkle';
+        } else if (/rise|build|charge|swell/i.test(rawRole)) {
+          role = 'riser';
+        } else if (/line|path|draw|write/i.test(rawRole)) {
+          role = 'draw';
+        } else if (/count|stat|num|score/i.test(rawRole)) {
+          role = 'count';
+        }
         const hitFrame = evt.frame - (scene.start ?? scene.startFrame ?? 0);
         const cueInfo = await sfxService.getCueForRole(role, `${projectId}:film:${cueIndex}`, fps, sfx.librarySeed, sfx.scope, sfx.pack, 0);
         scene.audioCues.push({

@@ -98,6 +98,7 @@ export const ProjectDetail: React.FC<ProjectDetailProps> = ({ details, activePro
     try {
       await api.approveScript(project.id, activeScript.id, activeScript.version);
       await onRefresh();
+      setActiveTab('preview');
     } catch (err: any) {
       alert(`Script approval error: ${err.message}`);
     } finally {

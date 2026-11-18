@@ -85,11 +85,11 @@ const audioFile = path.join(outDir, 'master_audio.mp3');
 const alignFile = path.join(outDir, 'alignment.json');
 
 // Dynamic Technical Script Generation via AGY AI Director
-const outroText = `Accelerate your engineering with Bittrix Technologies.`;
-const targetContentSec = Math.max(12, targetDuration - 3.5);
+const outroText = `Follow Bittrix Technologies for more interesting concepts.`;
+const targetContentSec = Math.max(8, targetDuration);
 const targetContentScenes = Math.max(3, Math.round(targetContentSec / 3.8));
 
-console.log(`📝 Authoring dynamic technical script for ${targetDuration}s (~${targetContentScenes} scenes + Bittrix outro)...`);
+console.log(`📝 Authoring dynamic technical script for ${targetDuration}s content + 3s Bittrix outro (~${targetContentScenes} content scenes + outro)...`);
 
 let sentences = [];
 const scriptPrompt = `You are a Principal Software & Systems Engineer and Motion Graphics Director.
@@ -113,7 +113,7 @@ Return ONLY a JSON array of strings:
 try {
   const { stdout: scriptOut } = await execFileAsync(
     agyBin,
-    ['-p', scriptPrompt, '--model', process.env.AGY_MODEL || 'gemini-3.8-flash-medium', '--output-format', 'json', '--dangerously-skip-permissions'],
+    ['-p', scriptPrompt, '--model', process.env.AGY_MODEL || 'gemini-3.8-flash-medium', '--output-format', 'json', '--disable-slash-commands', '--dangerously-skip-permissions'],
     { timeout: 35000, maxBuffer: 5 * 1024 * 1024 }
   );
   let rawJson = scriptOut.trim();
@@ -265,7 +265,32 @@ const scenes = sentenceAudioData.map((item, idx) => {
   const firstWordFrame = words[0]?.startFrame ?? 4;
   const midWordFrame = words[Math.floor(words.length / 2)]?.startFrame ?? Math.round(durationInFrames * 0.4);
 
-  const audioCues = [
+  const audioCues = isOutro ? [
+    {
+      frame: Math.round(0.35 * fps),
+      hitFrame: Math.round(0.35 * fps),
+      src: `sfx/${projectId}/tick_01.wav`,
+      role: 'tick',
+      volume: 0.50,
+      durationFrames: 30,
+    },
+    {
+      frame: Math.round(1.0 * fps),
+      hitFrame: Math.round(1.0 * fps),
+      src: `sfx/${projectId}/slide_01.wav`,
+      role: 'slide',
+      volume: 0.45,
+      durationFrames: 35,
+    },
+    {
+      frame: Math.round(2.35 * fps),
+      hitFrame: Math.round(2.35 * fps),
+      src: `sfx/${projectId}/chime_01.wav`,
+      role: 'chime',
+      volume: 0.55,
+      durationFrames: 30,
+    }
+  ] : [
     {
       frame: Math.max(0, firstWordFrame - 2),
       hitFrame: Math.max(0, firstWordFrame - 2),
@@ -277,8 +302,8 @@ const scenes = sentenceAudioData.map((item, idx) => {
     {
       frame: Math.max(2, midWordFrame - 2),
       hitFrame: Math.max(2, midWordFrame - 2),
-      src: isOutro ? `sfx/${projectId}/chime_01.wav` : (idx % 2 === 0 ? `sfx/${projectId}/pop_01.wav` : `sfx/${projectId}/impact_01.wav`),
-      role: isOutro ? 'chime' : (idx % 2 === 0 ? 'pop' : 'impact'),
+      src: idx % 2 === 0 ? `sfx/${projectId}/pop_01.wav` : `sfx/${projectId}/impact_01.wav`,
+      role: idx % 2 === 0 ? 'pop' : 'impact',
       volume: 0.55,
       durationFrames: 25,
     }
@@ -464,7 +489,7 @@ let lastErrors = [];
 try {
   const { stdout: agyTsxOutput } = await execFileAsync(
     agyBin,
-    ['-p', tsxPrompt, '--model', process.env.AGY_MODEL || 'gemini-3.8-flash-medium', '--output-format', 'json', '--dangerously-skip-permissions'],
+    ['-p', tsxPrompt, '--model', process.env.AGY_MODEL || 'gemini-3.8-flash-medium', '--output-format', 'json', '--disable-slash-commands', '--dangerously-skip-permissions'],
     { timeout: 300000, maxBuffer: 10 * 1024 * 1024 }
   );
   let rawText = agyTsxOutput.trim();
@@ -530,7 +555,7 @@ Requirements:
   try {
     const { stdout: repOutput } = await execFileAsync(
       agyBin,
-      ['-p', repairPrompt, '--model', process.env.AGY_MODEL || 'gemini-3.8-flash-medium', '--output-format', 'json', '--dangerously-skip-permissions'],
+      ['-p', repairPrompt, '--model', process.env.AGY_MODEL || 'gemini-3.8-flash-medium', '--output-format', 'json', '--disable-slash-commands', '--dangerously-skip-permissions'],
       { timeout: 300000, maxBuffer: 10 * 1024 * 1024 }
     );
     let repText = repOutput.trim();

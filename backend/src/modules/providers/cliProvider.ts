@@ -51,11 +51,13 @@ export const shutdownAllCliProcesses = () => {
  */
 export class UnifiedCliProvider extends BasePlanProvider {
   get name(): string {
-    return activeProviderService.get();
+    const act = activeProviderService.get();
+    return act === 'none' ? 'agy' : act;
   }
 
   providerTimeoutMs(fastCreative = false): number {
-    const active = activeProviderService.get();
+    let active = activeProviderService.get();
+    if (active === 'none') active = 'agy';
     if (active === 'agy') {
       const configured = Number(process.env[fastCreative ? 'AGY_CREATIVE_TIMEOUT_MS' : 'AGY_TIMEOUT_MS'] || (fastCreative ? 300000 : 600000));
       return Number.isFinite(configured) ? Math.max(60000, Math.min(900000, Math.round(configured))) : 600000;
@@ -69,7 +71,8 @@ export class UnifiedCliProvider extends BasePlanProvider {
   }
 
   providerTotalTimeoutMs(fastCreative = false): number {
-    const active = activeProviderService.get();
+    let active = activeProviderService.get();
+    if (active === 'none') active = 'agy';
     if (active === 'agy') {
       const configured = Number(process.env[fastCreative ? 'AGY_CREATIVE_TOTAL_TIMEOUT_MS' : 'AGY_TOTAL_TIMEOUT_MS'] || (fastCreative ? 600000 : 1200000));
       return Number.isFinite(configured) ? Math.max(120000, Math.min(1800000, Math.round(configured))) : 1200000;
@@ -89,7 +92,11 @@ export class UnifiedCliProvider extends BasePlanProvider {
     deadlineAt: number,
     fastCreative = false
   ): Promise<{ output: string; tokenUsage: TokenUsage; parsed: any }> {
-    const active = activeProviderService.get();
+    let active = activeProviderService.get();
+    if (active === 'none') {
+      console.warn('[UnifiedCliProvider] Active provider was "none"; defaulting to AGY for video planning.');
+      active = 'agy';
+    }
     const remainingMs = Math.max(15000, deadlineAt - Date.now());
     const effectiveTimeoutMs = Math.min(timeoutMs, remainingMs);
 
@@ -271,7 +278,7 @@ export class UnifiedCliProvider extends BasePlanProvider {
 
     if (active === 'agy') {
       const model = process.env.AGY_MODEL || 'gemini-3.8-flash-medium';
-      const printTimeoutMin = Math.max(5, Math.ceil(timeoutMs / 60000));
+      const printTimeoutMin = Math.max(2, Math.ceil(timeoutMs / 60000));
       const { stdout, stderr, code } = await this.spawnProcess(resolveCliBinary('agy'), [
         '-p', prompt,
         '--model', model,
@@ -395,7 +402,11 @@ export class UnifiedCliProvider extends BasePlanProvider {
     feedback?: string;
     previousSource?: string;
   }): Promise<{ tsxSource: string; soundEvents: Array<{ frame: number; role: string; description: string }> }> {
-    const active = activeProviderService.get();
+    let active = activeProviderService.get();
+    if (active === 'none') {
+      console.warn('[UnifiedCliProvider] Active provider was "none"; defaulting to AGY for video authoring.');
+      active = 'agy';
+    }
     const { fps, durationInFrames, outroFrames } = input;
     const outroStart = durationInFrames - outroFrames;
     const timeline = input.scenes.map((s) => ({
@@ -443,8 +454,8 @@ Return ONLY one \`\`\`tsx code fence. No explanation.`;
       ? `${brief}\n\nREVISION: Below is your current version of this film. Revise it to address this feedback, keeping everything that already works:\n${input.feedback}\n\nCURRENT VERSION:\n\`\`\`tsx\n${input.previousSource}\n\`\`\``
       : brief;
 
-    const timeoutMs = Math.max(900000, this.providerTimeoutMs(false));
-    console.log(`[${active.toUpperCase()}] Authoring full continuous video for "${input.projectTitle}" (${durationInFrames} frames)...`);
+    const timeoutMs = active === 'agy' ? 180000 : Math.min(300000, Math.max(90000, this.providerTimeoutMs(true)));
+    console.log(`[${active.toUpperCase()}] Authoring full continuous video for "${input.projectTitle}" (${durationInFrames} frames, timeout=${Math.round(timeoutMs/1000)}s)...`);
     let rawResponse = await this.runText(prompt, { timeoutMs, projectId: input.projectId });
     let parsed = await this.parseFullVideoResponse(rawResponse, durationInFrames);
 

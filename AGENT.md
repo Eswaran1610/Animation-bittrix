@@ -14,18 +14,19 @@ You must inspect the existing project before modifying it. Preserve working func
 
 # 1. NON-NEGOTIABLE OPERATING PRINCIPLES
 
-1.  Work CLI-first.
-2.  Read the existing project files, architecture, scripts, schemas and instructions before implementation.
-3.  Never assume a component, script, directory, dependency or API exists. Verify it.
-4.  Write the narration script before creating visuals.
-5.  Generate narration audio before constructing the final scene timeline.
-6.  Obtain word-level and sentence-level timestamps from actual audio.
-7.  Build scenes, captions and animation from the verified audio timeline.
-8.  Design each scene specifically for its content.
-9.  Never use repetitive scene templates as a substitute for creative direction.
-10. Never render the final video before preview validation passes.
-11. Never silently weaken a failed quality gate.
-12. Never claim a render, source verification, timing check, or QA test succeeded unless it actually happened. Never claim human approval was granted in autonomous mode.
+1.  **Read All Markdown & Skill Directives First:** Before conducting any research, fact verification, scripting, or animation planning, the AI MUST read and absorb all repository instruction files and skill guides (`AGENTS.md`, `CLAUDE.md`, `MOTION_PIPELINE.md`, and relevant `.agents/skills/*/SKILL.md` documents). Never begin research or planning blindly without these specifications loaded.
+2.  Work CLI-first.
+3.  Read the existing project files, architecture, scripts, schemas and instructions before implementation.
+4.  Never assume a component, script, directory, dependency or API exists. Verify it.
+5.  Write the narration script before creating visuals.
+6.  Generate narration audio before constructing the final scene timeline.
+7.  Obtain word-level and sentence-level timestamps from actual audio.
+8.  Build scenes, captions and animation from the verified audio timeline.
+9.  Design each scene specifically for its content.
+10. Never use repetitive scene templates as a substitute for creative direction.
+11. Never render the final video before preview validation passes.
+12. Never silently weaken a failed quality gate.
+13. Never claim a render, source verification, timing check, or QA test succeeded unless it actually happened. Never claim human approval was granted in autonomous mode.
 
 The agent must distinguish between:
 - Creative decisions.
@@ -38,18 +39,26 @@ The agent must distinguish between:
 
 # 2. PROJECT INSPECTION
 
-Before generating or modifying a video:
+Before research, generating, or modifying a video:
 
 1.  Identify the project root dynamically.
-2.  Read this AGENT.md.
-3.  Inspect package.json and available scripts.
-4.  Inspect the existing Remotion entry point and compositions.
-5.  Inspect the existing scene schema and TypeScript interfaces.
-6.  Inspect audio generation and alignment scripts.
-7.  Inspect asset fetching, caching and licensing logic.
-8.  Inspect existing animation components and transitions.
-9.  Inspect the preview player and rendering implementation.
-10. Identify reusable components and primitives before writing new ones.
+2.  Read this `AGENTS.md` (and `CLAUDE.md`).
+3.  Read and internalize relevant skill documents:
+    - `.agents/skills/content-driven-motion-director/SKILL.md` (Original visual direction & no fixed templates)
+    - `.agents/skills/deep-researcher/SKILL.md` (Multi-angle verified technical research)
+    - `.agents/skills/video-production-director/SKILL.md` (End-to-end production workflow)
+    - `.agents/skills/motion-sync/SKILL.md` (Audio-visual timing & framing)
+    - `.agents/skills/sfx-library/SKILL.md` (Audio transients & SFX sync)
+    - `.agents/skills/blender-sculpting/SKILL.md` (When 3D procedural/sculpted assets are required)
+4.  Inspect `MOTION_PIPELINE.md` and repository schema documents.
+5.  Inspect `package.json` and available scripts.
+6.  Inspect the existing Remotion entry point and compositions.
+7.  Inspect the existing scene schema and TypeScript interfaces.
+8.  Inspect audio generation and alignment scripts.
+9.  Inspect asset fetching, caching and licensing logic.
+10. Inspect existing animation components and transitions.
+11. Inspect the preview player and rendering implementation.
+12. Identify reusable components and primitives before writing new ones.
 
 Do not overwrite existing functionality without understanding its dependencies.
 
@@ -229,24 +238,17 @@ Never invent citations or URLs. Fact-checking MUST be completed in Step 2, befor
 
 ------------------------------------------------------------------------
 
-# 7. AUDIO-FIRST GENERATION
+# 7. AUDIO-FIRST GENERATION (BACKEND-MANAGED)
 
 Visual construction must not begin before narration audio exists.
 
-## Execution Order:
+## Audio Architecture (Backend Handles All Audio):
 
-1. Finalize script with `spokenText` and `displayText`.
-2. Generate voice audio per BEAT (or whole script) in one pass to maintain consistent inflection, pacing, and room tone.
-3. Trim unwanted leading and trailing silence; measure exact duration with `ffprobe` (never estimate).
-4. Inspect audio waveform and boundaries.
-5. Obtain sentence-level timestamps.
-6. Obtain word-level timestamps.
-7. If word boundary events are missing from TTS, run a local forced aligner (Whisper word timestamps, WhisperX, or MFA) and record `alignmentMethod` in the manifest.
-8. Cache audio by `hash(spokenText + voice + rate + pitch)`. Any script modification invalidates audio, alignment, cues, and timeline for that beat.
-9. Provide a fallback TTS provider if the primary provider fails.
-10. Save alignment JSON and build the canonical millisecond timeline.
-
-Never fabricate word timestamps.
+1. **Narration Scripting:** Claude writes the narration script (`spokenText` and `displayText`).
+2. **Audio Synthesis (Backend):** The backend automatically synthesizes voice audio using Edge-TTS / Kokoro in one pass to maintain consistent room tone, pacing, and inflection.
+3. **Word Alignment (Backend):** The backend runs Whisper to extract exact word-level and sentence-level millisecond timestamps into an alignment JSON file.
+4. **No Audio Generation by Claude:** Claude does NOT generate audio files, run TTS scripts, or return sound files. Claude receives the locked audio path and Whisper timestamps from the backend props.
+5. **Timeline Synchronization:** Claude reads the verified Whisper word timestamps from props to build the visual scene timeline and drive kinetic caption highlights.
 
 ------------------------------------------------------------------------
 
@@ -350,6 +352,7 @@ Prefer:
 - High-fidelity product interfaces and technical diagrams.
 - Real-world objects and architecture topologies.
 - Licensed 3D models and clean vector SVGs.
+- Custom 3D character heads, busts, anatomical blockouts, and sculpted meshes: consult `.agents/skills/blender-sculpting/SKILL.md`.
 - Tested primitives (`Tree`, `FlowGraph`, `Terminal`, `Comparison`) and custom procedural visuals.
 
 Acceptable licenses:
@@ -462,6 +465,73 @@ F. **3-Level visual hierarchy:** Maintain 1 hero object, 1–2 supporting elemen
 G. **Sound prioritization:** 1 acoustic hit per major visual cue, soft taps for kinetic text, and a ducked ambient bed. Omit SFX for minor secondary movements.
 H. **Rhythm:** Vary beat durations (e.g., 2.5s, 4.0s, 3.2s) so the cadence feels cinematic rather than robotic.
 
+## 12.6 High-Retention Motion Design (The 2-3x Rewatch Standard)
+
+Every video must deliver high viral retention—designed so the viewer instinctively rewatches it 2 to 3 times to absorb every layer. Never create boring, predictable "next scene" slideshows.
+
+Mandatory Rewatch Techniques:
+1. **The Seamless Infinity Loop:**
+   - The final narration beat and visual camera movement must seamlessly connect back into Scene 1.
+   - The final frame's camera trajectory, focal object, or lighting pulse must match the entrance velocity and position of frame 0.
+   - Narration phrasing must resolve grammatically into the opening hook sentence (e.g., ending with "And that's why..." leading right into the opening "You're building databases completely wrong...").
+2. **3-Layer Visual Depth (Information Density):**
+   - **Layer 1 (Foreground):** Dynamic kinetic typography, precise HUD annotations, and code/metric pills.
+   - **Layer 2 (Hero Focus):** The primary physical or technical mechanism (data pipelines flowing, tree balancing, circuit routing).
+   - **Layer 3 (Ambient Depth):** Atmospheric depth, volumetric grid drift, particle currents, subtle shadows, and light sweeps.
+   - A single watch is not enough to catch all details; this intentionally drives rewatches.
+3. **Satisfying Mechanical Transformations (No Slide Cuts):**
+   - Forbid slide-deck lateral cuts.
+   - Elements must fold, snap, disassemble, orbit, or morph into the next state like precision Swiss watchwork.
+   - Use physical properties: mass, friction, bounce, spring tension, and magnetic snapping.
+4. **Speed Ramping (Cadence & Micro-Hooks):**
+   - Alternate between rapid explosive visual events (bursts, snap-ins) and slow-motion floating pauses where the viewer inspects the core concept.
+   - Never maintain a monotonous flat animation speed across the video.
+
+## 12.7 Creative Motion References & Dynamic UI Systems (100+ Reference Directives)
+
+Claude must inspect and draw inspiration from these curated open-source repositories, motion libraries, and design showcases:
+
+1. **Motion Canvas (Programmatic Animation & Math Transformations):**
+   - Official Docs & Tutorials: [https://motioncanvas.io/docs/](https://motioncanvas.io/docs/)
+   - GitHub Examples & Core: [https://github.com/motion-canvas/motion-canvas](https://github.com/motion-canvas/motion-canvas)
+   - Technique: Reactive signals, vector line morphing, node graph balancing, and clean mathematical transformations.
+
+2. **Remotion Showcase & Templates:**
+   - Showcase & Gallery: [https://www.remotion.dev/showcase](https://www.remotion.dev/showcase)
+   - Remotion GitHub Templates: [https://github.com/remotion-dev/template-remotion](https://github.com/remotion-dev/template-remotion)
+   - Technique: Kinetic text masking, split-flap displays, 3D card tilts, camera perspective push-ins, glassmorphism UI HUDs, and isometric projections.
+
+3. **Emil Kowalski & Linear Animation Recipes:**
+   - Animation Craft & Spring Recipes: [https://emilkowal.ski/ui](https://emilkowal.ski/ui)
+   - Linear Design Principles: [https://linear.app/features](https://linear.app/features)
+   - Technique: Damped interactive springs (`damping: 12-16`, `stiffness: 120-180`, `mass: 0.8`), scale-down pops on press, subtle elastic overshoots, and spatial continuity.
+
+4. **Codrops & WebGL / Shader Playground:**
+   - Codrops Motion Tutorials & Demos: [https://tympanus.net/codrops/](https://tympanus.net/codrops/)
+   - Codrops GitHub Demos: [https://github.com/codrops](https://github.com/codrops)
+   - Technique: Fluid wave displacements, glowing neon traces, interactive grid distortions, bloom pass filters, and particle trails.
+
+5. **3Blue1Brown / Manim Visual Concepts:**
+   - Manim Community Examples: [https://github.com/ManimCommunity/manim](https://github.com/ManimCommunity/manim)
+   - Technique: Geometric derivations, matrix transformations, spatial linear algebra, and intuitive step-by-step mathematical visual proofs.
+
+6. **React Three Fiber & Three.js Examples:**
+   - Three.js Official Examples: [https://threejs.org/examples/](https://threejs.org/examples/)
+   - React Three Fiber Gallery: [https://docs.pmnd.rs/react-three-fiber/getting-started/examples](https://docs.pmnd.rs/react-three-fiber/getting-started/examples)
+   - Technique: 3D mesh choreography, depth-of-field rack focus, dynamic lighting, and particle swarms.
+
+7. **Lucide & SVG Icon Topologies:**
+   - Lucide Icons (Clean Vector Stroke Reference): [https://lucide.dev/icons/](https://lucide.dev/icons/)
+   - Technique: Dynamic SVG stroke-dasharray animations, clean path morphing, and minimal technical iconography.
+
+**Content-Driven UI Rule:**
+For every video topic, Claude must construct a completely novel, topic-specific UI and visual metaphor. Never repeat the same UI or layout twice:
+- *Database topics:* Visualize B-Trees, WAL logs, memory buffer pools, disk blocks, cache hits.
+- *Networking / Cloud:* Visualize packet serialization, handshake tunnels, edge mesh nodes, distributed consensus rings.
+- *Frontend / Web:* Visualize DOM tree reconciliation, layout shifts, paint flash boundaries, reactive state diffs.
+- *AI / LLM:* Visualize attention heatmaps, vector embeddings, high-dimensional projections, token streams.
+- *Hardware / Low-level:* Visualize CPU pipelines, register bitmasks, cache lines, assembly execution pointers.
+
 ------------------------------------------------------------------------
 
 # 13. LAYERED COMPOSITION
@@ -509,11 +579,28 @@ Narration voice is the hero of the mix.
 - SFX: -12 dB.
 - Ambient music bed: -22 dB (sidechain ducked by 6–10 dB during speech).
 
+## Dynamic Real-World SFX Research & Browser Fetching:
+- **FORBIDDEN:** Do NOT restrict sounds to repetitive synthetic toys (e.g. relying only on generic pops and whooshes).
+- **MANDATED:** Use the browser and web search to discover, fetch, and download real, context-specific CC0 / Public Domain sound effects matching the exact physical or digital action on screen:
+  * **Terminal / Code:** Mechanical keyboard clatter, rapid typing burst, enter-key strike.
+  * **Hardware / Camera:** DSLR shutter click, lens zoom motor, biometric scan chirp.
+  * **Cyber / Cloud:** High-tech data packet stream, firewall glitch, sub-bass riser/drop.
+  * **Commerce / Business:** Cash register drawer open, metallic coin clink, card tap chime.
+  * **Physical & Industrial:** Heavy metal vault door, hydraulic piston hiss, realistic glass shatter.
+  * **Sci-Fi / Modern Tech:** Holographic UI hum, laser beam sweep, energy shield charge.
+- Search Openverse (`https://openverse.org`), Freesound, or CC0 audio archives for authentic sound files.
+- Save fetched sounds to `remotion/public/assets/projects/${DYNAMIC_PROJECT_ID}/audio/sfx/`.
+- Trim leading silence, normalize peak to -1 dBFS, and bind strictly to the visual cue timestamp.
+
 ## SFX Acoustic Lead & Scheduling:
 - `SFX_LEAD_MS = 67` (approximately 2 frames @ 30fps).
 - SFX are generated directly from the VisualCue manifest:
   $$	ext{sfxTimeMs} = 	ext{cue.ms} - 	ext{SFX\_LEAD\_MS}$$
-- Apply audio cues using FFmpeg `adelay` in milliseconds. No separate, uncoordinated sound schedule is permitted.
+- Apply audio cues using FFmpeg `adelay` in milliseconds.
+
+## Master Audio Mixing (Backend Pipeline):
+The backend audio mixer mixes voice, SFX cues, and ambient background music into one master track using FFmpeg adelay filters and dynamic sidechain ducking.
+Claude does NOT mix audio files or execute FFmpeg audio mixing commands. Claude focuses entirely on visual storytelling, camera choreography, and writing Remotion TSX.
 
 ## Automated Audio Checks:
 The agent evaluates audio objectively using FFmpeg filters:

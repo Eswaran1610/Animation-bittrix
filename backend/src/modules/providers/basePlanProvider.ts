@@ -27,7 +27,7 @@ export const SUPPORTED_TEMPLATES = [
   'timeline', 'steps-numbered', 'map-pin', 'chart-bar', 'before-after',
   'question-hook', 'cta-outro', 'product-showcase', 'fact-card', 'icon-grid',
   'hero-center', 'frame-cutout', 'card-stack', 'big-statement', 'data-badge',
-  'code-or-ui-stage', 'flow-path',
+  'code-or-ui-stage', 'flow-path', 'custom', 'freeform', 'cinematic-motion', 'living-canvas',
 ] as const;
 export const MAX_BLUEPRINT_OBJECTS_PER_SCENE = 4;
 
@@ -856,8 +856,7 @@ export abstract class BasePlanProvider implements AIProvider {
       if (!Number.isFinite(scene.duration_sec) || scene.duration_sec < 2.5 || scene.duration_sec > 5) {
         add(`AI returned a duration outside the 2.5-5 second quality range for ${label}.`);
       }
-      if (!['hook', 'body', 'cta'].includes(scene.role)) add(`AI returned no valid hook/body/cta role for ${label}.`);
-      if (!templates.has(scene.template)) add(`AI returned no supported reusable template for ${label}.`);
+      if (!templates.has(scene.template)) scene.template = 'custom';
       if (index === 0 && scene.role !== 'hook') add('The first scene must be a hook.');
       if (index === scenes.length - 1 && scene.role !== 'cta') add('The final scene must be a CTA.');
       if (index > 0 && index < scenes.length - 1 && scene.role !== 'body') add(`Only the first and last scenes may be hook/cta roles (${label}).`);
@@ -984,8 +983,7 @@ export abstract class BasePlanProvider implements AIProvider {
       if (!Number.isFinite(scene.duration_sec) || scene.duration_sec < 2.5 || scene.duration_sec > 5) {
         throw new Error(`AI returned a duration outside the 2.5-5 second quality range for ${label}.`);
       }
-      if (!['hook', 'body', 'cta'].includes(scene.role)) throw new Error(`AI returned no valid hook/body/cta role for ${label}.`);
-      if (!templates.has(scene.template)) throw new Error(`AI returned no supported reusable template for ${label}.`);
+      if (!templates.has(scene.template)) scene.template = 'custom';
       if (index === 0 && scene.role !== 'hook') throw new Error('The first scene must be a hook.');
       if (index === parsed.scenePlan.length - 1 && scene.role !== 'cta') throw new Error('The final scene must be a CTA.');
       if (index > 0 && index < parsed.scenePlan.length - 1 && scene.role !== 'body') throw new Error(`Only the first and last scenes may be hook/cta roles (${label}).`);
@@ -1025,7 +1023,9 @@ export abstract class BasePlanProvider implements AIProvider {
     rendererContract: Record<string, unknown>,
     shouldKeepNarration: boolean,
     trendBrief?: TrendBriefResult,
-    facelessSkill?: string
+    facelessSkill?: string,
+    blenderSkill?: string,
+    contentDrivenSkill?: string
   ): string {
     const isRevision = !!req.changeRequestFeedback;
     const requestedDuration = this.requestedDurationSec(req);
@@ -1100,9 +1100,9 @@ FACELESS STORY & NARRATIVE SHORT DIRECTIVE (Governed by .agents/skills/faceless-
 
     return `PERFORMANCE & SEARCH LIMIT: You have live web search. Perform at most 2-4 focused searches to verify key facts and direct URLs. Then immediately synthesize the complete, structured JSON response according to the schema below. Do not loop searches indefinitely.
 
-REQUIRED ORDER: First read and follow the repository video-production skill, the deep-researcher skill (if research-required), and the project renderer contract below. The actual project renderer contract is authoritative where the skill lists generic defaults. Use the separate research brief below when available; otherwise conduct the required web research before planning. Verify only facts/assets that need confirmation when the brief is complete, then create the scene plan using supported project capabilities.
+REQUIRED ORDER: Before conducting any research or fact checks, you MUST read and absorb all repository Markdown files and skill directives below (AGENTS.md, CLAUDE.md, and all included .agents/skills/ documentation). The content-driven motion director, deep-researcher, and video-production skills define the mandatory architectural, factual, and visual requirements. Use the separate research brief below when available; otherwise conduct the required web research before planning. Verify only facts/assets that need confirmation when the brief is complete, then create the scene plan using supported project capabilities.
 
-${facelessSkill ? `MANDATORY FACELESS-SHORTS SKILL (.agents/skills/faceless-shorts/SKILL.md):\n${facelessSkill}\n\n` : ''}${researchSkill ? `REPOSITORY DEEP-RESEARCHER SKILL (.agents/skills/deep-researcher/SKILL.md):\n${researchSkill}\n\n` : ''}REPOSITORY VIDEO-PRODUCTION SKILL (.agents/skills/video-production-director/SKILL.md):
+${contentDrivenSkill ? `PRIMARY MOTION DIRECTIVE (.agents/skills/content-driven-motion-director/SKILL.md):\n${contentDrivenSkill}\n\n` : ''}${facelessSkill ? `MANDATORY FACELESS-SHORTS SKILL (.agents/skills/faceless-shorts/SKILL.md):\n${facelessSkill}\n\n` : ''}${blenderSkill ? `MANDATORY BLENDER-SCULPTING SKILL (.agents/skills/blender-sculpting/SKILL.md):\n${blenderSkill}\n\n` : ''}${researchSkill ? `REPOSITORY DEEP-RESEARCHER SKILL (.agents/skills/deep-researcher/SKILL.md):\n${researchSkill}\n\n` : ''}REPOSITORY VIDEO-PRODUCTION SKILL (.agents/skills/video-production-director/SKILL.md):
 ${productionSkill}
 
 ACTUAL PROJECT RENDERER CONTRACT (generated from the installed Remotion project and backend validators):
@@ -1141,14 +1141,14 @@ NON-NEGOTIABLE SKILL RULES:
 2a. For each scene, decide whether an actual image or 3D file improves understanding. When selecting one, put its exact direct file URL, source page, license, and attribution in that object\'s render_spec. asset_queries are planning notes only; the backend downloads only the exact returned URLs after Gate 1 and does not choose replacement media. If a real asset is unavailable or unsuitable, author accurate vectors/procedural geometry instead. A shared model_id must exactly match one of the IDs in the supplied capability contract.
 3. Design a unique color scheme, visual motif, and kinetic animation tailored specifically to this topic. First choose and explain a top-level styleBrief from the supported renderer vocabulary; every scene must inherit its palette, font, background, motion personality, transition set, SFX pack, and bed mood.
 3a. Return a top-level styleProfile with one selected family (cinematic-neon, editorial-paper, playful-pop, technical-terminal, or documentary-grid), a topic-specific motif, five hex colors, a motion_language, and a transition_language. Do not default every project to dark neon or the same browser treatment.
-4. Produce 7-9 scenes whose final rendered timeline after transition overlaps is ${requestedDuration ? `exactly ${requestedDuration} seconds` : '25-40 seconds'}. The first scene MUST be role "hook", template "question-hook", and its on_screen_text MUST be a real question ending in "?" or "؟". The final scene MUST be role "cta", template "cta-outro", and its on_screen_text or subtitle MUST contain an explicit viewer action such as follow, save, share, like, subscribe, learn, try, comment, visit, watch, or join. Middle scenes MUST use role "body". For each scene, specify the complete required field set below. Do not omit fields, replace them with generic filler, or rely on the renderer to invent content:
+4. Produce 7-9 scenes whose final rendered timeline after transition overlaps is ${requestedDuration ? `exactly ${requestedDuration} seconds` : '25-40 seconds'}. The first scene acts as the "hook" (an engaging question, provocative hook, or dramatic opening), middle scenes carry the "body" of the concept, and the final scene provides a strong payoff or call to action. For each scene, specify the complete required field set below:
    - scene_number (integer)
    - role (exactly one "hook" first, "body" for middle scenes, and "cta" last)
-   - template (one of hero-object, split-compare, stat-callout, list-reveal, quote-focus, timeline, steps-numbered, map-pin, chart-bar, before-after, question-hook, cta-outro, product-showcase, fact-card, icon-grid; vary templates so no template repeats 3 times in a row)
+   - template (choose any template or use 'custom' / 'living-canvas' / 'cinematic-motion'; you have full creative freedom to design the visual choreography and composition without being forced into rigid templates)
    - duration_sec (number between 2.5 and 5; include transition overlaps when calculating the total scene duration)
    - on_screen_text (bold, kinetic title strictly 3-6 words, under 40 characters; scene 1 must end with ?)
    - subtitle (punchy 1-sentence concept explanation)
-   - key_takeaways (array of 2 to 4 short bullet points explaining the mechanism, max 6 words each; for split-compare or before-after, provide exactly 2 takeaways or 2 concept_nodes representing the two sides; for list-reveal, steps-numbered, timeline, or icon-grid, provide at least 3 items)
+   - key_takeaways (array of key takeaways if relevant, or [] empty array when the visual mechanism explains itself directly without needing bullet points)
    - concept_nodes (array of objects with "label" and "sub" representing real content-specific steps or entities; use [] when not useful; for split-compare provide exactly 2 nodes for the two compared items)
    - metric_data (object with "label", "value" number 0-100, and "unit" only when the content supports a meaningful metric; otherwise null)
    - image_search_query (specific search phrase for an open educational diagram or illustration, or null when a procedural visual is more accurate)
@@ -1330,7 +1330,22 @@ Before responding, validate the first and final scene against these rules. Do no
       }
     }
 
-    const prompt = this.buildProductionPrompt(req, productionSkill, researchSkill, rendererContract, shouldKeepNarration, trendBrief, facelessSkill);
+    let blenderSkill = '';
+    const is3dBlenderReq = req.selectedTheme === '3d-isometric' || this.requiresProduct3D(req) || /\b(blender|3d|sculpt|character|bust|mesh|render|model|head|creature|anatomy)\b/i.test(contentStr);
+    if (is3dBlenderReq) {
+      try {
+        blenderSkill = await readFile(path.join(projectPaths.root, '.agents/skills/blender-sculpting/SKILL.md'), 'utf8');
+      } catch (err: any) {
+        console.warn(`[${this.name}] Note: blender-sculpting skill could not be read: ${err?.message}`);
+      }
+    }
+
+    let contentDrivenSkill = '';
+    try {
+      contentDrivenSkill = await readFile(path.join(projectPaths.root, '.agents/skills/content-driven-motion-director/SKILL.md'), 'utf8');
+    } catch { /* optional */ }
+
+    const prompt = this.buildProductionPrompt(req, productionSkill, researchSkill, rendererContract, shouldKeepNarration, trendBrief, facelessSkill, blenderSkill, contentDrivenSkill);
 
     try {
       const contentStr = req.topicOrContent || (req as any).topic || 'Untitled Topic';
